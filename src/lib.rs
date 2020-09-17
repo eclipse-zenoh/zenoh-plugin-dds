@@ -22,6 +22,7 @@ use zenoh::net::queryable::STORAGE;
 use zenoh::net::utils::resource_name;
 use zenoh::net::*;
 use zenoh_router::runtime::Runtime;
+use dds::Participant;
 
 #[no_mangle]
 pub fn get_expected_args<'a, 'b>() -> Vec<Arg<'a, 'b>> {
@@ -60,6 +61,8 @@ async fn run(runtime: Runtime, args: &'static ArgMatches<'_>) {
 
     debug!("Declaring Queryable on {}", selector);
     let mut queryable = session.declare_queryable(&selector, STORAGE).await.unwrap();
+
+    let participant = Participant::new(0);
 
     loop {
         select!(
