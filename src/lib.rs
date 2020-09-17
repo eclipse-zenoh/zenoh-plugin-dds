@@ -14,15 +14,12 @@
 #![recursion_limit = "256"]
 
 use clap::{Arg, ArgMatches};
+use dds::Participant;
 use futures::prelude::*;
 use futures::select;
 use log::{debug, info};
-use std::collections::HashMap;
-use zenoh::net::queryable::STORAGE;
-use zenoh::net::utils::resource_name;
 use zenoh::net::*;
 use zenoh_router::runtime::Runtime;
-use dds::Participant;
 
 #[no_mangle]
 pub fn get_expected_args<'a, 'b>() -> Vec<Arg<'a, 'b>> {
@@ -37,12 +34,24 @@ pub fn start(runtime: Runtime, args: &'static ArgMatches<'_>) {
     async_std::task::spawn(run(runtime, args));
 }
 
+async fn check_dds_cdr() -> Option<Vec<u8>> {
+    // TODO(esteve): implement peeking into DDS topics
+    // e.g.
+    // - dds_take
+    // - check if there is data
+    // - return it as a byte vector
+    let dds_take_has_data = false;
+    if dds_take_has_data {
+        Some(vec![])
+    } else {
+        None
+    }
+}
+
 async fn run(runtime: Runtime, args: &'static ArgMatches<'_>) {
     env_logger::init();
 
     let session = Session::init(runtime).await;
-
-    let mut stored: HashMap<String, (RBuf, Option<DataInfo>)> = HashMap::new();
 
     let sub_info = SubInfo {
         reliability: Reliability::Reliable,
@@ -59,8 +68,16 @@ async fn run(runtime: Runtime, args: &'static ArgMatches<'_>) {
         .await
         .unwrap();
 
-    debug!("Declaring Queryable on {}", selector);
-    let mut queryable = session.declare_queryable(&selector, STORAGE).await.unwrap();
+    let resource_path = "/resource/name";
+
+    print!("Declaring Resource {}", resource_path);
+    let rid = session
+        .declare_resource(&resource_path.into())
+        .await
+        .unwrap();
+
+    println!("Declaring Publisher on {}", rid);
+    let publisher = session.declare_publisher(&rid.into()).await.unwrap();
 
     let participant = Participant::new(0);
 
@@ -69,22 +86,17 @@ async fn run(runtime: Runtime, args: &'static ArgMatches<'_>) {
             sample = sub.stream().next().fuse() => {
                 let sample = sample.unwrap();
                 info!("Received data ('{}': '{}')", sample.res_name, sample.payload);
-                stored.insert(sample.res_name.into(), (sample.payload, sample.data_info));
+                // TODO(esteve): Republish to Cyclone DDS
             },
 
-            query = queryable.stream().next().fuse() => {
-                let query = query.unwrap();
-                info!("Handling query '{}{}'", query.res_name, query.predicate);
-                for (rname, (data, data_info)) in stored.iter() {
-                    if resource_name::intersect(&query.res_name, rname) {
-                        query.reply(Sample{
-                            res_name: rname.clone(),
-                            payload: data.clone(),
-                            data_info: data_info.clone(),
-                        }).await;
+            future = check_dds_cdr().fuse() => {
+                match future {
+                    Some(data) => {
+                        session.write(&rid.into(), data.into()).await.unwrap();
                     }
+                    None => println!("No data received"),
                 }
-            }
+            },
         );
     }
 }
