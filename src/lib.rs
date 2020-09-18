@@ -23,6 +23,7 @@ use zenoh_router::runtime::Runtime;
 
 #[no_mangle]
 pub fn get_expected_args<'a, 'b>() -> Vec<Arg<'a, 'b>> {
+    // We will get a custom prefix for where to store our resources as an argument
     vec![
         Arg::from_usage("--storage-selector 'The selection of resources to be stored'")
             .default_value("/cdds/**"),
@@ -68,6 +69,7 @@ async fn run(runtime: Runtime, args: &'static ArgMatches<'_>) {
         .await
         .unwrap();
 
+    // Resource paths are made from /PARTITION_NAME/TOPIC
     let resource_path = "/resource/name";
 
     print!("Declaring Resource {}", resource_path);
