@@ -25,15 +25,20 @@ env:
 jobs:
   build:
 
-    name: Build on ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macOS-latest, windows-latest]
+    runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v2
+    - name: Install APT pre-requisites
+      run: sudo apt-get update && sudo apt-get -y install curl gnupg2 lsb-release
+
+    - name: Add ROS 2 repository key
+      run: curl -s https://raw.githubusercontent.com/ros/rosdistro/master/ros.asc | sudo apt-key add -
+
+    - name: Add ROS 2 repository
+      run: sudo sh -c 'echo "deb [arch=$(dpkg --print-architecture)] http://packages.ros.org/ros2/ubuntu $(lsb_release -cs) main" > /etc/apt/sources.list.d/ros2-latest.list'
+
+    - name: Update ROS 2 APT sources
+      run: sudo apt-get update && sudo apt-get -y install ros-eloquent-cyclonedds
 
     - name: Install latest nightly
       uses: actions-rs/toolchain@v1
@@ -42,8 +47,8 @@ jobs:
           override: true
           components: rustfmt, clippy
 
-    # `cargo check` command here will use installed `nightly`
-    # as it is set as an "override" for current directory
+    - uses: actions/checkout@v2
+
     - name: Run cargo check
       uses: actions-rs/cargo@v1
       with:
