@@ -21,6 +21,8 @@ use log::{debug, info};
 use zenoh::net::*;
 use zenoh_router::runtime::Runtime;
 
+mod discoverer;
+
 #[no_mangle]
 pub fn get_expected_args<'a, 'b>() -> Vec<Arg<'a, 'b>> {
     // We will get a custom prefix for where to store our resources as an argument
