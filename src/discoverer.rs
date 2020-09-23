@@ -13,7 +13,7 @@
 //
 use std::mem::MaybeUninit;
 // use std::{thread, time};
-use libddsc_sys::*;
+use cdds_util::*;
 use std::ffi::CStr;
 use std::sync::mpsc::{channel, Receiver, Sender};
 
