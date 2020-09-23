@@ -30,7 +30,7 @@ libc = "0.2.67"
 log = "0.4"
 zenoh = "0.5.0-beta.1"
 zenoh-router = "0.5.0-beta.1"
-cdds-util = { git = "https://github.com/atolab/cdds-util-rs.git", rev = "3716ac95e4259211d33369373a09de7b9a19f79c" }
+cdds-util = { git = "https://github.com/atolab/cdds-util-rs.git", rev = "6712115b01fd4faa001423a4e3924e6a0e8436f0" }
 
 [dependencies.async-std]
 version = "~1.6.0"
