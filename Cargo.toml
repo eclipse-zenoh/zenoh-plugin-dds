@@ -12,26 +12,41 @@
 #   ADLINK zenoh team, <zenoh@adlink-labs.tech>
 #
 [package]
-name = "zplugin-cdds"
-version = "0.5.0"
-authors = ["Esteve Fernandez <esteve.fernandez@gmail.com>"]
+name = "zplugin-dds"
+version = "0.5.0-beta.2"
+authors = [
+    "kydos <angelo@icorsaro.net>",
+    "Esteve Fernandez <esteve.fernandez@gmail.com>"]
 edition = "2018"
+repository = "https://github.com/eclipse-zenoh/zenoh-plugin-dds"
+homepage = "http://zenoh.io"
+license = " EPL-2.0 OR Apache-2.0"
+categories = ["network-programming"]
+description = "Zenoh plugin for ROS2 and DDS in general"
 
 [lib]
-name = "zplugin_cdds"
-crate-type = ["cdylib"]
+name = "zplugin_dds"
+# crate-type = ["cdylib"]
 
 
 [dependencies]
-zenoh = { version = "0.5.0-beta.1" }
-zenoh-router = { version = "0.5.0-beta.1" }
-futures = "0.3.5"
-clap = "2"
+zenoh =  { git = "https://github.com/eclipse-zenoh/zenoh", branch = "rust-master" }
+zenoh-router = { git = "https://github.com/eclipse-zenoh/zenoh", branch = "rust-master" }
+cyclors = { version = "0.1.0" }
 log = "0.4"
-env_logger = "0.7.1"
-ddsc = "0.1"
+async-trait = "0.1.38"
+futures = "0.3.5"
+
 
 [dependencies.async-std]
-version = "~1.6.0"
-features = ["unstable"]
+version = "=1.6.4"
+features = ["unstable", "attributes"]
 
+[dev-dependencies]
+clap = "2.33"
+env_logger = "0.7.1"
+
+
+[[example]]
+name = "dzd"
+path = "examples/dzd.rs"
