@@ -14,7 +14,7 @@
 #![recursion_limit = "256"]
 
 use clap::{Arg, ArgMatches};
-use dds::Participant;
+use cdds_util::*;
 use futures::prelude::*;
 use futures::select;
 use log::{debug, info};
@@ -82,8 +82,6 @@ async fn run(runtime: Runtime, args: &'static ArgMatches<'_>) {
 
     println!("Declaring Publisher on {}", rid);
     let publisher = session.declare_publisher(&rid.into()).await.unwrap();
-
-    let participant = Participant::new(0);
 
     loop {
         select!(
