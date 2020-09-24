@@ -44,7 +44,7 @@ pub enum MatchedEntity {
     },
 }
 
-fn print_qos_partitions(qos: *const dds_qos_t) {
+pub fn print_qos_partitions(qos: *const dds_qos_t) {
     let mut n: u32 = 0;
     let mut ps: *mut *mut ::std::os::raw::c_char = std::ptr::null_mut();
     unsafe {
@@ -226,6 +226,7 @@ unsafe extern "C" fn data_forwarder_listener(dr: dds_entity_t, arg: *mut std::os
     debug!("data_forwarder_listener: triggered\n");
     let pa = arg as *mut (ResKey, Arc<Session>);
     let mut zp: *mut  cdds_ddsi_payload = std::ptr::null_mut();
+    #[allow(clippy::uninit_assumed_init)]
     let mut si: [dds_sample_info_t; 1] = { MaybeUninit::uninit().assume_init() };
     let rc = cdds_take_blob(dr, &mut zp, si.as_mut_ptr());
     if rc > 0 {
