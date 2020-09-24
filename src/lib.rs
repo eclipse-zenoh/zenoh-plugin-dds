@@ -68,6 +68,10 @@ unsafe extern "C" fn on_data(dr: dds_entity_t, arg: *mut std::os::raw::c_void) {
         if si[i as usize].valid_data {
             let sample = samples[i as usize] as *mut dds_builtintopic_endpoint_t;
             debug!("Discovery data from Participant with IH = {:?}", (*sample).participant_instance_handle);
+            debug!("Discovery data with key = {:?}", (*sample).key);
+            let keyless = 
+                if (*sample).key.v[15] == 3 || (*sample).key.v[15] == 4 { true }
+                else { false };
             let topic_name = CStr::from_ptr((*sample).topic_name).to_str().unwrap();
             if topic_name.contains("DCPS") || (*sample).participant_instance_handle == dpih {
                 debug!("Ignoring discovery from local participant: {}", topic_name);
@@ -94,7 +98,7 @@ unsafe extern "C" fn on_data(dr: dds_entity_t, arg: *mut std::os::raw::c_void) {
                                 .send(MatchedEntity::DiscoveredPublication {
                                     topic_name: String::from(topic_name),
                                     type_name: String::from(type_name),
-                                    keyless: true,
+                                    keyless,
                                     partition: Some(String::from(p)),
                                     qos: QosHolder(qos)
                                 })
@@ -104,7 +108,7 @@ unsafe extern "C" fn on_data(dr: dds_entity_t, arg: *mut std::os::raw::c_void) {
                                 .send(MatchedEntity::DiscoveredSubscription {
                                     topic_name: String::from(topic_name),
                                     type_name: String::from(type_name),
-                                    keyless: true,
+                                    keyless,
                                     partition: Some(String::from(p)),
                                     qos: QosHolder(qos)
                                 })
@@ -134,7 +138,7 @@ unsafe extern "C" fn on_data(dr: dds_entity_t, arg: *mut std::os::raw::c_void) {
                         .send(MatchedEntity::DiscoveredPublication {
                             topic_name: String::from(topic_name),
                             type_name: String::from(type_name),
-                            keyless: true,
+                            keyless,
                             partition: None,
                             qos: QosHolder(qos)
                         })
@@ -144,7 +148,7 @@ unsafe extern "C" fn on_data(dr: dds_entity_t, arg: *mut std::os::raw::c_void) {
                         .send(MatchedEntity::DiscoveredSubscription {
                             topic_name: String::from(topic_name),
                             type_name: String::from(type_name),
-                            keyless: true,
+                            keyless,
                             partition: None,
                             qos: QosHolder(qos)
                         })
@@ -210,7 +214,6 @@ unsafe extern "C" fn data_forwarder_listener(dr: dds_entity_t, arg: *mut std::os
     let rc = cdds_take_blob(dr, &mut zp, si.as_mut_ptr());
     if rc > 0 {
         debug!("data_forwarder_listener: forwarding data on zenoh\n");
-        debug!("\tPublication Handle: {:?}\n", si[0].publication_handle);
         let xs = std::slice::from_raw_parts((*zp).payload, (*zp).size as usize);
         let bs = Vec::from(xs);
         let rbuf = RBuf::from(bs);

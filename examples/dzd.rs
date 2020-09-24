@@ -3,15 +3,12 @@
 use zplugin_dds::*;
 use clap::{App, Arg};
 use futures::prelude::*;
-use futures::select;
-use zenoh::net::queryable::EVAL;
 use zenoh::net::*;
 use cyclors::*;
 use std::collections::HashMap;
-use log::{debug, info};
+use log::{debug};
 use std::sync::Arc;
 use async_std::task;
-use async_std::sync::Mutex;
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::ffi::CString;
 
@@ -56,7 +53,7 @@ async fn main() {
     env_logger::init();
     let mut rid_map = HashMap::<String, ResourceId>::new();
     let mut rd_map = HashMap::<String, dds_entity_t>::new();
-    let mut wr_map = HashMap::<String, dds_entity_t>::new();
+    let mut _wr_map = HashMap::<String, dds_entity_t>::new();
     let (config, scope) = parse_args();
     let dp = unsafe {
         dds_create_participant(DDS_DOMAIN_DEFAULT, std::ptr::null(), std::ptr::null())
@@ -81,9 +78,8 @@ async fn main() {
                         let _ = z.declare_publisher(&rid).await;
                         rid_map.insert(key.clone(), nrid);
                         debug!("Creating Forwarding Reader for: {}", key);
-                        let dr: dds_entity_t = unsafe {
-                            create_forwarding_dds_reader(dp, topic_name, type_name, keyless, qos, rid, z.clone())
-                        };
+                        let dr: dds_entity_t =
+                            create_forwarding_dds_reader(dp, topic_name, type_name, keyless, qos, rid, z.clone());
                         rd_map.insert(key, dr);
                     },
                     _ => {
