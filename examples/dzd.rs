@@ -26,7 +26,7 @@ fn parse_args() -> (Config, String) {
         .arg(
             Arg::from_usage("-m, --mode=[MODE]  'The zenoh session mode.")
                 .possible_values(&["peer", "client"])
-                .default_value("peer"),
+                .default_value("client"),
         )
         .get_matches();
 

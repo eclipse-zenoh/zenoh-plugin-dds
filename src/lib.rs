@@ -44,6 +44,24 @@ pub enum MatchedEntity {
     },
 }
 
+fn print_qos_partitions(qos: *const dds_qos_t) {
+    let mut n: u32 = 0;
+    let mut ps: *mut *mut ::std::os::raw::c_char = std::ptr::null_mut();
+    unsafe {
+        let _ = dds_qget_partition(
+            qos,
+            &mut n as *mut u32,
+            &mut ps as *mut *mut *mut ::std::os::raw::c_char
+        );
+        if n > 0 {
+            for k in 0..n {
+                let p = CStr::from_ptr(*(ps.offset(k as isize))).to_str().unwrap();
+                debug!("Partition[{}]: {:?}", k, p);
+            }
+        }
+    }
+}
+
 unsafe extern "C" fn on_data(dr: dds_entity_t, arg: *mut std::os::raw::c_void) {
     let btx = Box::from_raw(arg as *mut (bool, Sender<MatchedEntity>));
     let dp = dds_get_participant(dr);
@@ -68,13 +86,12 @@ unsafe extern "C" fn on_data(dr: dds_entity_t, arg: *mut std::os::raw::c_void) {
         if si[i as usize].valid_data {
             let sample = samples[i as usize] as *mut dds_builtintopic_endpoint_t;
             debug!("Discovery data from Participant with IH = {:?}", (*sample).participant_instance_handle);
-            debug!("Discovery data with key = {:?}", (*sample).key);
-            let keyless = 
-                if (*sample).key.v[15] == 3 || (*sample).key.v[15] == 4 { true }
-                else { false };
+            let keyless = (*sample).key.v[15] == 3 || (*sample).key.v[15] == 4;
+            debug!("Discovered endpoint is keyless: {}", keyless);
             let topic_name = CStr::from_ptr((*sample).topic_name).to_str().unwrap();
             if topic_name.contains("DCPS") || (*sample).participant_instance_handle == dpih {
                 debug!("Ignoring discovery from local participant: {}", topic_name);
+                // print_qos_partitions((*sample).qos);
                 continue
             }
             let type_name = CStr::from_ptr((*sample).type_name).to_str().unwrap();
@@ -83,7 +100,6 @@ unsafe extern "C" fn on_data(dr: dds_entity_t, arg: *mut std::os::raw::c_void) {
             let qos = dds_create_qos();
             dds_copy_qos(qos, (*sample).qos);
             dds_qset_ignorelocal(qos, dds_ignorelocal_kind_DDS_IGNORELOCAL_PARTICIPANT);
-
             let _ = dds_qget_partition(
                 (*sample).qos,
                 &mut n as *mut u32,
