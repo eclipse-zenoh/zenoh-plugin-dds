@@ -68,7 +68,6 @@ async fn main() {
         match me  {
             MatchedEntity::DiscoveredPublication {topic_name, type_name, keyless, partition, qos} => {
                 debug!("DiscoveredPublication({}, {}, {:?}", topic_name, type_name, partition);
-                //  keyless: bool, qos: dds_qos_t, z_key: ResKey, z: Arc<Session>) -> dds_entity_t {
                 let key = match partition {
                     Some(p) => format!("{}/{}/{}", scope, p, topic_name),
                     None => format!("{}/{}", scope, topic_name)

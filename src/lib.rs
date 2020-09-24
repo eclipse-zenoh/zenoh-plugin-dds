@@ -78,6 +78,7 @@ unsafe extern "C" fn on_data(dr: dds_entity_t, arg: *mut std::os::raw::c_void) {
             let mut ps: *mut *mut ::std::os::raw::c_char = std::ptr::null_mut();
             let qos = dds_create_qos();
             dds_copy_qos(qos, (*sample).qos);
+            dds_qset_ignorelocal(qos, dds_ignorelocal_kind_DDS_IGNORELOCAL_PARTICIPANT);
 
             let _ = dds_qget_partition(
                 (*sample).qos,
@@ -209,6 +210,7 @@ unsafe extern "C" fn data_forwarder_listener(dr: dds_entity_t, arg: *mut std::os
     let rc = cdds_take_blob(dr, &mut zp, si.as_mut_ptr());
     if rc > 0 {
         debug!("data_forwarder_listener: forwarding data on zenoh\n");
+        debug!("\tPublication Handle: {:?}\n", si[0].publication_handle);
         let xs = std::slice::from_raw_parts((*zp).payload, (*zp).size as usize);
         let bs = Vec::from(xs);
         let rbuf = RBuf::from(bs);
@@ -230,7 +232,7 @@ pub fn create_forwarding_dds_reader(dp: dds_entity_t,topic_name: String, type_na
 }
 
 pub fn create_forwarding_dds_writer(dp: dds_entity_t,topic_name: String, type_name: String, keyless: bool, qos: QosHolder) -> dds_entity_t {
-    let cton = CString::new(topic_name).unwrap().into_raw();
+    let cton = CString::new(topic_name.clone()).unwrap().into_raw();
     let ctyn = CString::new(type_name).unwrap().into_raw();
 
     unsafe {
