@@ -23,6 +23,11 @@ fn parse_args() -> (Config, String) {
         .arg(Arg::from_usage(
             "-s, --scope=[String]...   'A string used as prefix to scope DDS traffic.'",
         ))
+        .arg(
+            Arg::from_usage("-m, --mode=[MODE]  'The zenoh session mode.")
+                .possible_values(&["peer", "client"])
+                .default_value("peer"),
+        )
         .get_matches();
 
     let scope: String = args.value_of("scope")
@@ -35,12 +40,16 @@ fn parse_args() -> (Config, String) {
             args.values_of("peer")
                 .map(|p| p.collect())
                 .or_else(|| Some(vec![]))
-                .unwrap()
-        )
+                .unwrap())
         .add_listeners(
             args.values_of("listener")
                 .map(|p| p.collect())
                 .or_else(|| Some(vec![]))
+                .unwrap())
+        .mode(
+            args.value_of("mode")
+                .map(|m| Config::parse_mode(m))
+                .unwrap()
                 .unwrap())
         .local_routing(false);
 

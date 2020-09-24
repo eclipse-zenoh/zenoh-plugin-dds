@@ -214,8 +214,10 @@ unsafe extern "C" fn data_forwarder_listener(dr: dds_entity_t, arg: *mut std::os
     let rc = cdds_take_blob(dr, &mut zp, si.as_mut_ptr());
     if rc > 0 {
         debug!("data_forwarder_listener: forwarding data on zenoh\n");
-        let xs = std::slice::from_raw_parts((*zp).payload, (*zp).size as usize);
-        let bs = Vec::from(xs);
+        let bs = Vec::from_raw_parts(
+            (*zp).payload, 
+            (*zp).size as usize,
+            (*zp).size as usize);
         let rbuf = RBuf::from(bs);
         let _ = task::block_on(async { (*pa).1.write(&(*pa).0, rbuf).await });
     }
