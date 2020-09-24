@@ -1,13 +1,13 @@
 // Initial commit
-use std::mem::MaybeUninit;
+use async_std::task;
 use cdds_util::*;
+use log::debug;
 use std::ffi::{CStr, CString};
+use std::mem::MaybeUninit;
+use std::os::raw;
 use std::sync::mpsc::Sender;
 use std::sync::Arc;
-use std::os::raw;
-use zenoh::net::{ResKey, Session, RBuf};
-use log::{debug};
-use async_std::task;
+use zenoh::net::{RBuf, ResKey, Session};
 
 const MAX_SAMPLES: usize = 32;
 
@@ -23,7 +23,7 @@ pub enum MatchedEntity {
         type_name: String,
         keyless: bool,
         partition: Option<String>,
-        qos: QosHolder
+        qos: QosHolder,
     },
     UndiscoveredPublication {
         topic_name: String,
@@ -35,7 +35,7 @@ pub enum MatchedEntity {
         type_name: String,
         keyless: bool,
         partition: Option<String>,
-        qos: QosHolder
+        qos: QosHolder,
     },
     UndiscoveredSubscription {
         topic_name: String,
@@ -51,7 +51,7 @@ pub fn print_qos_partitions(qos: *const dds_qos_t) {
         let _ = dds_qget_partition(
             qos,
             &mut n as *mut u32,
-            &mut ps as *mut *mut *mut ::std::os::raw::c_char
+            &mut ps as *mut *mut *mut ::std::os::raw::c_char,
         );
         if n > 0 {
             for k in 0..n {
@@ -85,14 +85,17 @@ unsafe extern "C" fn on_data(dr: dds_entity_t, arg: *mut std::os::raw::c_void) {
     for i in 0..n {
         if si[i as usize].valid_data {
             let sample = samples[i as usize] as *mut dds_builtintopic_endpoint_t;
-            debug!("Discovery data from Participant with IH = {:?}", (*sample).participant_instance_handle);
+            debug!(
+                "Discovery data from Participant with IH = {:?}",
+                (*sample).participant_instance_handle
+            );
             let keyless = (*sample).key.v[15] == 3 || (*sample).key.v[15] == 4;
             debug!("Discovered endpoint is keyless: {}", keyless);
             let topic_name = CStr::from_ptr((*sample).topic_name).to_str().unwrap();
             if topic_name.contains("DCPS") || (*sample).participant_instance_handle == dpih {
                 debug!("Ignoring discovery from local participant: {}", topic_name);
                 // print_qos_partitions((*sample).qos);
-                continue
+                continue;
             }
             let type_name = CStr::from_ptr((*sample).type_name).to_str().unwrap();
             let mut n = 0u32;
@@ -100,7 +103,7 @@ unsafe extern "C" fn on_data(dr: dds_entity_t, arg: *mut std::os::raw::c_void) {
             let qos = dds_create_qos();
             dds_copy_qos(qos, (*sample).qos);
             dds_qset_ignorelocal(qos, dds_ignorelocal_kind_DDS_IGNORELOCAL_PARTICIPANT);
-            dds_qset_history (qos, dds_history_kind_DDS_HISTORY_KEEP_ALL, 0);
+            dds_qset_history(qos, dds_history_kind_DDS_HISTORY_KEEP_ALL, 0);
             let _ = dds_qget_partition(
                 (*sample).qos,
                 &mut n as *mut u32,
@@ -117,7 +120,7 @@ unsafe extern "C" fn on_data(dr: dds_entity_t, arg: *mut std::os::raw::c_void) {
                                     type_name: String::from(type_name),
                                     keyless,
                                     partition: Some(String::from(p)),
-                                    qos: QosHolder(qos)
+                                    qos: QosHolder(qos),
                                 })
                                 .unwrap();
                         } else {
@@ -127,7 +130,7 @@ unsafe extern "C" fn on_data(dr: dds_entity_t, arg: *mut std::os::raw::c_void) {
                                     type_name: String::from(type_name),
                                     keyless,
                                     partition: Some(String::from(p)),
-                                    qos: QosHolder(qos)
+                                    qos: QosHolder(qos),
                                 })
                                 .unwrap();
                         }
@@ -157,7 +160,7 @@ unsafe extern "C" fn on_data(dr: dds_entity_t, arg: *mut std::os::raw::c_void) {
                             type_name: String::from(type_name),
                             keyless,
                             partition: None,
-                            qos: QosHolder(qos)
+                            qos: QosHolder(qos),
                         })
                         .unwrap();
                 } else {
@@ -167,7 +170,7 @@ unsafe extern "C" fn on_data(dr: dds_entity_t, arg: *mut std::os::raw::c_void) {
                             type_name: String::from(type_name),
                             keyless,
                             partition: None,
-                            qos: QosHolder(qos)
+                            qos: QosHolder(qos),
                         })
                         .unwrap();
                 }
@@ -219,28 +222,31 @@ pub fn run_discovery(dp: dds_entity_t, tx: Sender<MatchedEntity>) {
             std::ptr::null(),
             sub_listener,
         );
-
     }
 }
 
 unsafe extern "C" fn data_forwarder_listener(dr: dds_entity_t, arg: *mut std::os::raw::c_void) {
     let pa = arg as *mut (ResKey, Arc<Session>);
-    let mut zp: *mut  cdds_ddsi_payload = std::ptr::null_mut();
+    let mut zp: *mut cdds_ddsi_payload = std::ptr::null_mut();
     #[allow(clippy::uninit_assumed_init)]
     let mut si: [dds_sample_info_t; 1] = { MaybeUninit::uninit().assume_init() };
     while cdds_take_blob(dr, &mut zp, si.as_mut_ptr()) > 0 {
-        let bs = Vec::from_raw_parts(
-            (*zp).payload,
-            (*zp).size as usize,
-            (*zp).size as usize);
+        let bs = Vec::from_raw_parts((*zp).payload, (*zp).size as usize, (*zp).size as usize);
         let rbuf = RBuf::from(bs);
         let _ = task::block_on(async { (*pa).1.write(&(*pa).0, rbuf).await });
         (*zp).payload = std::ptr::null_mut();
         cdds_serdata_unref(zp as *mut ddsi_serdata);
     }
-
 }
-pub fn create_forwarding_dds_reader(dp: dds_entity_t,topic_name: String, type_name: String, keyless: bool, qos: QosHolder, z_key: ResKey, z: Arc<Session>) -> dds_entity_t {
+pub fn create_forwarding_dds_reader(
+    dp: dds_entity_t,
+    topic_name: String,
+    type_name: String,
+    keyless: bool,
+    qos: QosHolder,
+    z_key: ResKey,
+    z: Arc<Session>,
+) -> dds_entity_t {
     let cton = CString::new(topic_name).unwrap().into_raw();
     let ctyn = CString::new(type_name).unwrap().into_raw();
 
@@ -253,7 +259,13 @@ pub fn create_forwarding_dds_reader(dp: dds_entity_t,topic_name: String, type_na
     }
 }
 
-pub fn create_forwarding_dds_writer(dp: dds_entity_t,topic_name: String, type_name: String, keyless: bool, qos: QosHolder) -> dds_entity_t {
+pub fn create_forwarding_dds_writer(
+    dp: dds_entity_t,
+    topic_name: String,
+    type_name: String,
+    keyless: bool,
+    qos: QosHolder,
+) -> dds_entity_t {
     let cton = CString::new(topic_name.clone()).unwrap().into_raw();
     let ctyn = CString::new(type_name).unwrap().into_raw();
 
@@ -262,4 +274,3 @@ pub fn create_forwarding_dds_writer(dp: dds_entity_t,topic_name: String, type_na
         dds_create_writer(dp, t, qos.0, std::ptr::null_mut())
     }
 }
-
