@@ -263,7 +263,3 @@ pub fn create_forwarding_dds_writer(dp: dds_entity_t,topic_name: String, type_na
     }
 }
 
-
-// pub fn make_payload(st: *const std::ffi::c_void, kind: ddsi_serdata_kind, buf: *const u8, len: usize) -> *const std::ffi::c_void {
-//     unsafe { cdds_ddsi_payload_create(st as *mut ddsi_sertopic, ddsi_serdata_kind_SDK_DATA, buf as *mut u8, len as u64) as *const std::ffi::c_void }
-// }

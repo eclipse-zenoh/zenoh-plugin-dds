@@ -23,11 +23,11 @@ fn parse_args() -> (Config, String) {
         .arg(Arg::from_usage(
             "-s, --scope=[String]...   'A string used as prefix to scope DDS traffic.'",
         ))
-        .arg(
-            Arg::from_usage("-m, --mode=[MODE]  'The zenoh session mode.")
-                .possible_values(&["peer", "client"])
-                .default_value("client"),
-        )
+        // .arg(
+        //     Arg::from_usage("-m, --mode=[MODE]  'The zenoh session mode.")
+        //         .possible_values(&["peer", "client"])
+        //         .default_value("client"),
+        // )
         .get_matches();
 
     let scope: String = args.value_of("scope")
@@ -46,12 +46,13 @@ fn parse_args() -> (Config, String) {
                 .map(|p| p.collect())
                 .or_else(|| Some(vec![]))
                 .unwrap())
-        .mode(
-            args.value_of("mode")
-                .map(|m| Config::parse_mode(m))
-                .unwrap()
-                .unwrap())
-        .local_routing(false);
+        // .mode(
+        //     args.value_of("mode")
+        //         .map(|m| Config::parse_mode(m))
+        //         .unwrap()
+        //         .unwrap())
+        .local_routing(false)
+        .mode(whatami::CLIENT);
 
     (config, scope)
 }
@@ -62,7 +63,7 @@ async fn main() {
     env_logger::init();
     let mut rid_map = HashMap::<String, ResourceId>::new();
     let mut rd_map = HashMap::<String, dds_entity_t>::new();
-    let mut _wr_map = HashMap::<String, dds_entity_t>::new();
+    let mut wr_map = HashMap::<String, dds_entity_t>::new();
     let (config, scope) = parse_args();
     let dp = unsafe {
         dds_create_participant(DDS_DOMAIN_DEFAULT, std::ptr::null(), std::ptr::null())
@@ -102,7 +103,7 @@ async fn main() {
             },
             MatchedEntity::DiscoveredSubscription {topic_name, type_name, keyless, partition, qos} => {
                 debug!("DiscoveredSubscription({}, {}, {:?}", topic_name, type_name, partition);
-                let key = match partition {
+                let key = match &partition {
                     Some(p) => format!("{}/{}/{}", scope, p, topic_name),
                     None => format!("{}/{}", scope, topic_name)
                 };
@@ -114,33 +115,46 @@ async fn main() {
                         z.declare_resource(&rkey).await.unwrap()
                     }
                 };
-                rid_map.insert(key.clone(), nrid);
-                let rkey = ResKey::RId(nrid);
-                let sub_info = SubInfo {
-                    reliability: Reliability::Reliable,
-                    mode: SubMode::Push,
-                    period: None,
-                };
-                let  rsel = rkey.into();
-                let zc = z.clone();
-                task::spawn(async move {
-                    let wr = create_forwarding_dds_writer(dp, topic_name.clone(), type_name.clone(), keyless, qos);
-                    let mut sub = zc.declare_subscriber(&rsel, &sub_info).await.unwrap();
-                    let stream = sub.stream();
-                    while let Some(d) = stream.next().await {
-                        debug!("Received data on zenoh subscriber for resource {}", d.res_name);
-                        unsafe {
-                            let bs = d.payload.to_vec();
-                            let (ptr, len, _) = bs.into_raw_parts();
-                            let cton = CString::new(topic_name.clone()).unwrap().into_raw();
-                            let ctyn = CString::new(type_name.clone()).unwrap().into_raw();
-                            let st = cdds_create_blob_sertopic(dp, cton, ctyn, keyless);
-                            let fwdp = cdds_ddsi_payload_create(st, ddsi_serdata_kind_SDK_DATA, ptr, len as u64);
-                            dds_writecdr(wr, fwdp as *mut ddsi_serdata);
-                        };
 
+                if let Some(wr) = match wr_map.get(&key) {
+                    Some(_) => {
+                        debug!("The Subscription({}, {}, {:?} is aready handled, ignoring", topic_name, type_name, partition);
+                        None
+                    },
+                    None => {
+                        let wr = create_forwarding_dds_writer(dp, topic_name.clone(), type_name.clone(), keyless, qos);
+                        wr_map.insert(key.clone(), wr);
+                        Some(wr)
                     }
-                });
+                } {
+                    rid_map.insert(key.clone(), nrid);
+                    let rkey = ResKey::RId(nrid);
+                    let sub_info = SubInfo {
+                        reliability: Reliability::Reliable,
+                        mode: SubMode::Push,
+                        period: None,
+                    };
+                    let  rsel = rkey.into();
+                    let zc = z.clone();
+                    task::spawn(async move {
+                        let mut sub = zc.declare_subscriber(&rsel, &sub_info).await.unwrap();
+                        let stream = sub.stream();
+                        while let Some(d) = stream.next().await {
+                            debug!("Received data on zenoh subscriber for resource {}", d.res_name);
+                            unsafe {
+                                let bs = d.payload.to_vec();
+                                let (ptr, len, capacity) = bs.into_raw_parts();
+                                let cton = CString::new(topic_name.clone()).unwrap().into_raw();
+                                let ctyn = CString::new(type_name.clone()).unwrap().into_raw();
+                                let st = cdds_create_blob_sertopic(dp, cton as *mut std::os::raw::c_char, ctyn as *mut std::os::raw::c_char, keyless);
+                                let fwdp = cdds_ddsi_payload_create(st, ddsi_serdata_kind_SDK_DATA, ptr, len as u64);
+                                dds_writecdr(wr, fwdp as *mut ddsi_serdata);
+                                drop(Vec::from_raw_parts(ptr, len, capacity));
+                            };
+                        }
+                    });
+                }
+
             },
             MatchedEntity::UndiscoveredSubscription {topic_name, type_name, partition} => {
                 debug!("UndiscoveredSubscription({}, {}, {:?}", topic_name, type_name, partition);
