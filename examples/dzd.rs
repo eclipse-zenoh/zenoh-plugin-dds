@@ -2,13 +2,13 @@
 
 use zplugin_dds::*;
 use clap::{App, Arg};
-// use futures::prelude::*;
+use futures::prelude::*;
 use zenoh::net::*;
 use cyclors::*;
 use std::collections::HashMap;
 use log::{debug};
 use std::sync::Arc;
-// use async_std::task;
+use async_std::task;
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::ffi::CString;
 
@@ -137,36 +137,37 @@ async fn main() {
                     };
                     let  rsel = rkey.into();
 
-                    let sub = z.declare_callback_subscriber(&rsel, &sub_info,  move |d| {
-                        debug!("Received data on zenoh subscriber for resource {}", d.res_name);
-                        let bs = d.payload.to_vec();
-                        let (ptr, len, _capacity) = bs.into_raw_parts();
-                        unsafe {
-                            let cton = CString::new(topic_name.clone()).unwrap().into_raw();
-                            let ctyn = CString::new(type_name.clone()).unwrap().into_raw();
-                            let st = cdds_create_blob_sertopic(dp, cton as *mut std::os::raw::c_char, ctyn as *mut std::os::raw::c_char, keyless);
-                            let fwdp = cdds_ddsi_payload_create(st, ddsi_serdata_kind_SDK_DATA, ptr, len as u64);
-                            dds_writecdr(wr, fwdp as *mut ddsi_serdata);
-                        }
-                    }).await.unwrap();
-                    zsub_map.insert(key.clone(), sub);
-                    // task::spawn(async move {
-                    //     let mut sub = zc.declare_subscriber(&rsel, &sub_info).await.unwrap();
-                    //     let stream = sub.stream();
-                    //     while let Some(d) = stream.next().await {
-                    //         debug!("Received data on zenoh subscriber for resource {}", d.res_name);
-                    //         unsafe {
-                    //             let bs = d.payload.to_vec();
-                    //             let (ptr, len, capacity) = bs.into_raw_parts();
-                    //             let cton = CString::new(topic_name.clone()).unwrap().into_raw();
-                    //             let ctyn = CString::new(type_name.clone()).unwrap().into_raw();
-                    //             let st = cdds_create_blob_sertopic(dp, cton as *mut std::os::raw::c_char, ctyn as *mut std::os::raw::c_char, keyless);
-                    //             let fwdp = cdds_ddsi_payload_create(st, ddsi_serdata_kind_SDK_DATA, ptr, len as u64);
-                    //             dds_writecdr(wr, fwdp as *mut ddsi_serdata);
-                    //             drop(Vec::from_raw_parts(ptr, len, capacity));
-                    //         };
+                    // let sub = z.declare_callback_subscriber(&rsel, &sub_info,  move |d| {
+                    //     debug!("Received data on zenoh subscriber for resource {}", d.res_name);
+                    //     let bs = d.payload.to_vec();
+                    //     let (ptr, len, _capacity) = bs.into_raw_parts();
+                    //     unsafe {
+                    //         let cton = CString::new(topic_name.clone()).unwrap().into_raw();
+                    //         let ctyn = CString::new(type_name.clone()).unwrap().into_raw();
+                    //         let st = cdds_create_blob_sertopic(dp, cton as *mut std::os::raw::c_char, ctyn as *mut std::os::raw::c_char, keyless);
+                    //         let fwdp = cdds_ddsi_payload_create(st, ddsi_serdata_kind_SDK_DATA, ptr, len as u64);
+                    //         dds_writecdr(wr, fwdp as *mut ddsi_serdata);
                     //     }
-                    // });
+                    // }).await.unwrap();
+                    // zsub_map.insert(key.clone(), sub);
+                    let zn = z.clone();
+                    task::spawn(async move {
+                        let mut sub = zn.declare_subscriber(&rsel, &sub_info).await.unwrap();
+                        let stream = sub.stream();
+                        while let Some(d) = stream.next().await {
+                            debug!("Received data on zenoh subscriber for resource {}", d.res_name);
+                            unsafe {
+                                let bs = d.payload.to_vec();
+                                let (ptr, len, capacity) = bs.into_raw_parts();
+                                let cton = CString::new(topic_name.clone()).unwrap().into_raw();
+                                let ctyn = CString::new(type_name.clone()).unwrap().into_raw();
+                                let st = cdds_create_blob_sertopic(dp, cton as *mut std::os::raw::c_char, ctyn as *mut std::os::raw::c_char, keyless);
+                                let fwdp = cdds_ddsi_payload_create(st, ddsi_serdata_kind_SDK_DATA, ptr, len as u64);
+                                dds_writecdr(wr, fwdp as *mut ddsi_serdata);
+                                drop(Vec::from_raw_parts(ptr, len, capacity));
+                            };
+                        }
+                    });
                 }
 
             },
