@@ -13,8 +13,8 @@ const MAX_SAMPLES: usize = 32;
 
 #[derive(Debug)]
 pub struct QosHolder(*mut dds_qos_t);
-unsafe impl Send for QosHolder {}
-unsafe impl Sync for QosHolder {}
+// unsafe impl Send for QosHolder {}
+// unsafe impl Sync for QosHolder {}
 
 #[derive(Debug)]
 pub enum MatchedEntity {
