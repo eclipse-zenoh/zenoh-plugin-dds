@@ -71,7 +71,7 @@ async fn main() {
     let mut rid_map = HashMap::<String, ResourceId>::new();
     let mut rd_map = HashMap::<String, dds_entity_t>::new();
     let mut wr_map = HashMap::<String, dds_entity_t>::new();
-    let mut zsub_map = HashMap::<String, CallbackSubscriber>::new();
+    let _zsub_map = HashMap::<String, CallbackSubscriber>::new();
     while let Ok(me) = rx.recv() {
         match me  {
             MatchedEntity::DiscoveredPublication {topic_name, type_name, keyless, partition, qos} => {
