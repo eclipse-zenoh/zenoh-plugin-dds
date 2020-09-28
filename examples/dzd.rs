@@ -23,11 +23,11 @@ fn parse_args() -> (Config, String) {
         .arg(Arg::from_usage(
             "-s, --scope=[String]...   'A string used as prefix to scope DDS traffic.'",
         ))
-        // .arg(
-        //     Arg::from_usage("-m, --mode=[MODE]  'The zenoh session mode.")
-        //         .possible_values(&["peer", "client"])
-        //         .default_value("client"),
-        // )
+        .arg(
+            Arg::from_usage("-m, --mode=[MODE]  'The zenoh session mode.")
+                .possible_values(&["peer", "client"])
+                .default_value("client"),
+        )
         .get_matches();
 
     let scope: String = args.value_of("scope")
@@ -35,7 +35,7 @@ fn parse_args() -> (Config, String) {
         .or_else(|| Some(String::from("")))
         .unwrap();
 
-    let config = Config::default()
+    let config = Config::client()
         .add_peers(
             args.values_of("peer")
                 .map(|p| p.collect())
@@ -46,11 +46,11 @@ fn parse_args() -> (Config, String) {
                 .map(|p| p.collect())
                 .or_else(|| Some(vec![]))
                 .unwrap())
-        // .mode(
-        //     args.value_of("mode")
-        //         .map(|m| Config::parse_mode(m))
-        //         .unwrap()
-        //         .unwrap())
+        .mode(
+            args.value_of("mode")
+                .map(|m| Config::parse_mode(m))
+                .unwrap()
+                .unwrap())
         .local_routing(false)
         .mode(whatami::CLIENT);
 
@@ -108,18 +108,10 @@ async fn main() {
                     Some(p) => format!("{}/{}/{}", scope, p, topic_name),
                     None => format!("{}/{}", scope, topic_name)
                 };
-                debug!("Creating Subscriber for {}", key);
-                let nrid = match rid_map.get(&key) {
-                    Some(nrid) => *nrid,
-                    None => {
-                        let rkey = ResKey::RName(key.clone());
-                        z.declare_resource(&rkey).await.unwrap()
-                    }
-                };
 
                 if let Some(wr) = match wr_map.get(&key) {
                     Some(_) => {
-                        debug!("The Subscription({}, {}, {:?} is aready handled, ignoring", topic_name, type_name, partition);
+                        debug!("The Subscription({}, {}, {:?} is aready handled, IGNORING", topic_name, type_name, partition);
                         None
                     },
                     None => {
@@ -128,6 +120,14 @@ async fn main() {
                         Some(wr)
                     }
                 } {
+                    debug!("The Subscription({}, {}, {:?} is new setting up zenoh and DDS endpoings", topic_name, type_name, partition);
+                    let nrid = match rid_map.get(&key) {
+                        Some(nrid) => *nrid,
+                        None => {
+                            let rkey = ResKey::RName(key.clone());
+                            z.declare_resource(&rkey).await.unwrap()
+                        }
+                    };
                     rid_map.insert(key.clone(), nrid);
                     let rkey = ResKey::RId(nrid);
                     let sub_info = SubInfo {
@@ -137,27 +137,18 @@ async fn main() {
                     };
                     let  rsel = rkey.into();
 
-                    // let sub = z.declare_callback_subscriber(&rsel, &sub_info,  move |d| {
-                    //     debug!("Received data on zenoh subscriber for resource {}", d.res_name);
-                    //     let bs = d.payload.to_vec();
-                    //     let (ptr, len, _capacity) = bs.into_raw_parts();
-                    //     unsafe {
-                    //         let cton = CString::new(topic_name.clone()).unwrap().into_raw();
-                    //         let ctyn = CString::new(type_name.clone()).unwrap().into_raw();
-                    //         let st = cdds_create_blob_sertopic(dp, cton as *mut std::os::raw::c_char, ctyn as *mut std::os::raw::c_char, keyless);
-                    //         let fwdp = cdds_ddsi_payload_create(st, ddsi_serdata_kind_SDK_DATA, ptr, len as u64);
-                    //         dds_writecdr(wr, fwdp as *mut ddsi_serdata);
-                    //     }
-                    // }).await.unwrap();
-                    // zsub_map.insert(key.clone(), sub);
                     let zn = z.clone();
                     task::spawn(async move {
                         let mut sub = zn.declare_subscriber(&rsel, &sub_info).await.unwrap();
                         let stream = sub.stream();
                         while let Some(d) = stream.next().await {
-                            debug!("Received data on zenoh subscriber for resource {}", d.res_name);
                             unsafe {
                                 let bs = d.payload.to_vec();
+                                // As per the Vec documentation (see https://doc.rust-lang.org/std/vec/struct.Vec.html#method.into_raw_parts)
+                                // the only way to correctly releasing it is to create a vec using from_raw_parts
+                                // and then have its destructor do the cleanup.
+                                // Thus, while tempting to just pass the raw pointer to cyclone and then free it from C,
+                                // that is not necessarily safe or guaranteed to be leak free.
                                 let (ptr, len, capacity) = bs.into_raw_parts();
                                 let cton = CString::new(topic_name.clone()).unwrap().into_raw();
                                 let ctyn = CString::new(type_name.clone()).unwrap().into_raw();
