@@ -150,12 +150,13 @@ async fn main() {
                                 // Thus, while tempting to just pass the raw pointer to cyclone and then free it from C,
                                 // that is not necessarily safe or guaranteed to be leak free.
                                 let (ptr, len, capacity) = bs.into_raw_parts();
-                                let cton = CString::new(topic_name.clone()).unwrap().into_raw();
-                                let ctyn = CString::new(type_name.clone()).unwrap().into_raw();
+                                let cton = CString::new(topic_name.clone()).unwrap().as_ptr();
+                                let ctyn = CString::new(type_name.clone()).unwrap().as_ptr();
                                 let st = cdds_create_blob_sertopic(dp, cton as *mut std::os::raw::c_char, ctyn as *mut std::os::raw::c_char, keyless);
                                 let fwdp = cdds_ddsi_payload_create(st, ddsi_serdata_kind_SDK_DATA, ptr, len as u64);
                                 dds_writecdr(wr, fwdp as *mut ddsi_serdata);
                                 drop(Vec::from_raw_parts(ptr, len, capacity));
+                                cdds_sertopic_unref(st);
                             };
                         }
                     });
