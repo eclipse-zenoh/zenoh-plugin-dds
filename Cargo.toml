@@ -32,7 +32,7 @@ name = "zplugin_dds"
 [dependencies]
 zenoh =  { git = "https://github.com/eclipse-zenoh/zenoh", branch = "rust-master" }
 zenoh-router = { git = "https://github.com/eclipse-zenoh/zenoh", branch = "rust-master" }
-cyclors = { git = "https://github.com/kydos/cyclors" }
+cdds-util = { git = "https://github.com/atolab/cdds-util-rs.git", rev = "c146ace50da378b9a541b2ac05d1512070463dac" }
 log = "0.4"
 async-trait = "0.1.38"
 futures = "0.3.5"
