@@ -100,6 +100,7 @@ unsafe extern "C" fn on_data(dr: dds_entity_t, arg: *mut std::os::raw::c_void) {
             let qos = dds_create_qos();
             dds_copy_qos(qos, (*sample).qos);
             dds_qset_ignorelocal(qos, dds_ignorelocal_kind_DDS_IGNORELOCAL_PARTICIPANT);
+            dds_qset_history (qos, dds_history_kind_DDS_HISTORY_KEEP_ALL, 0);
             let _ = dds_qget_partition(
                 (*sample).qos,
                 &mut n as *mut u32,
