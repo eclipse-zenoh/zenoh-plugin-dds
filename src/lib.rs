@@ -230,7 +230,7 @@ unsafe extern "C" fn data_forwarder_listener(dr: dds_entity_t, arg: *mut std::os
     let mut si: [dds_sample_info_t; 1] = { MaybeUninit::uninit().assume_init() };
     while cdds_take_blob(dr, &mut zp, si.as_mut_ptr()) > 0 {
         let bs = Vec::from_raw_parts(
-            (*zp).payload, 
+            (*zp).payload,
             (*zp).size as usize,
             (*zp).size as usize);
         let rbuf = RBuf::from(bs);

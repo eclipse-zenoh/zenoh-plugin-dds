@@ -142,6 +142,9 @@ async fn main() {
                         let mut sub = zn.declare_subscriber(&rsel, &sub_info).await.unwrap();
                         let stream = sub.stream();
                         while let Some(d) = stream.next().await {
+                            let ton = topic_name.clone();
+                            let tyn = type_name.clone();
+                            task::spawn_blocking(move || {
                             unsafe {
                                 let bs = d.payload.to_vec();
                                 // As per the Vec documentation (see https://doc.rust-lang.org/std/vec/struct.Vec.html#method.into_raw_parts)
@@ -150,14 +153,15 @@ async fn main() {
                                 // Thus, while tempting to just pass the raw pointer to cyclone and then free it from C,
                                 // that is not necessarily safe or guaranteed to be leak free.
                                 let (ptr, len, capacity) = bs.into_raw_parts();
-                                let cton = CString::new(topic_name.clone()).unwrap().as_ptr();
-                                let ctyn = CString::new(type_name.clone()).unwrap().as_ptr();
+                                let cton = CString::new(ton).unwrap().as_ptr();
+                                let ctyn = CString::new(tyn).unwrap().as_ptr();
                                 let st = cdds_create_blob_sertopic(dp, cton as *mut std::os::raw::c_char, ctyn as *mut std::os::raw::c_char, keyless);
                                 let fwdp = cdds_ddsi_payload_create(st, ddsi_serdata_kind_SDK_DATA, ptr, len as u64);
                                 dds_writecdr(wr, fwdp as *mut ddsi_serdata);
                                 drop(Vec::from_raw_parts(ptr, len, capacity));
                                 cdds_sertopic_unref(st);
                             };
+                        }).await;
                         }
                     });
                 }
