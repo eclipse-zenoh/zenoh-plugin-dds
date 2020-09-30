@@ -37,16 +37,14 @@ log = "0.4"
 async-trait = "0.1.38"
 futures = "0.3.5"
 libc = "*"
+clap = "2.33"
+env_logger = "0.7.1"
 
 [dependencies.async-std]
 version = "=1.6.4"
 features = ["unstable", "attributes"]
 
-[dev-dependencies]
-clap = "2.33"
-env_logger = "0.7.1"
 
-
-[[example]]
+[[bin]]
 name = "dzd"
-path = "examples/dzd.rs"
+path = "src/bin/dzd.rs"

@@ -44,6 +44,7 @@ pub enum MatchedEntity {
     },
 }
 
+#[allow(clippy::not_unsafe_ptr_arg_deref)]
 pub fn print_qos_partitions(qos: *const dds_qos_t) {
     let mut n: u32 = 0;
     let mut ps: *mut *mut ::std::os::raw::c_char = std::ptr::null_mut();
