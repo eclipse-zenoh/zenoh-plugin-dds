@@ -192,34 +192,34 @@ async fn main() {
                         while let Some(d) = stream.next().await {
                             let ton = topic_name.clone();
                             let tyn = type_name.clone();
-                                unsafe {
-                                    let bs = d.payload.to_vec();
-                                    // As per the Vec documentation (see https://doc.rust-lang.org/std/vec/struct.Vec.html#method.into_raw_parts)
-                                    // the only way to correctly releasing it is to create a vec using from_raw_parts
-                                    // and then have its destructor do the cleanup.
-                                    // Thus, while tempting to just pass the raw pointer to cyclone and then free it from C,
-                                    // that is not necessarily safe or guaranteed to be leak free.
-                                    let (ptr, len, capacity) = bs.into_raw_parts();
-                                    let cton = CString::new(ton).unwrap().into_raw();
-                                    let ctyn = CString::new(tyn).unwrap().into_raw();
-                                    let st = cdds_create_blob_sertopic(
-                                        dp,
-                                        cton as *mut std::os::raw::c_char,
-                                        ctyn as *mut std::os::raw::c_char,
-                                        keyless,
-                                    );
-                                    drop(CString::from_raw(cton));
-                                    drop(CString::from_raw(ctyn));
-                                    let fwdp = cdds_ddsi_payload_create(
-                                        st,
-                                        ddsi_serdata_kind_SDK_DATA,
-                                        ptr,
-                                        len as u64,
-                                    );
-                                    dds_writecdr(wr, fwdp as *mut ddsi_serdata);
-                                    drop(Vec::from_raw_parts(ptr, len, capacity));
-                                    cdds_sertopic_unref(st);
-                                };
+                            unsafe {
+                                let bs = d.payload.to_vec();
+                                // As per the Vec documentation (see https://doc.rust-lang.org/std/vec/struct.Vec.html#method.into_raw_parts)
+                                // the only way to correctly releasing it is to create a vec using from_raw_parts
+                                // and then have its destructor do the cleanup.
+                                // Thus, while tempting to just pass the raw pointer to cyclone and then free it from C,
+                                // that is not necessarily safe or guaranteed to be leak free.
+                                let (ptr, len, capacity) = bs.into_raw_parts();
+                                let cton = CString::new(ton).unwrap().into_raw();
+                                let ctyn = CString::new(tyn).unwrap().into_raw();
+                                let st = cdds_create_blob_sertopic(
+                                    dp,
+                                    cton as *mut std::os::raw::c_char,
+                                    ctyn as *mut std::os::raw::c_char,
+                                    keyless,
+                                );
+                                drop(CString::from_raw(cton));
+                                drop(CString::from_raw(ctyn));
+                                let fwdp = cdds_ddsi_payload_create(
+                                    st,
+                                    ddsi_serdata_kind_SDK_DATA,
+                                    ptr,
+                                    len as u64,
+                                );
+                                dds_writecdr(wr, fwdp as *mut ddsi_serdata);
+                                drop(Vec::from_raw_parts(ptr, len, capacity));
+                                cdds_sertopic_unref(st);
+                            };
                         }
                     });
                 }
