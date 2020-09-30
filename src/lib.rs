@@ -254,7 +254,7 @@ pub fn create_forwarding_dds_reader(dp: dds_entity_t,topic_name: String, type_na
 }
 
 pub fn create_forwarding_dds_writer(dp: dds_entity_t,topic_name: String, type_name: String, keyless: bool, qos: QosHolder) -> dds_entity_t {
-    let cton = CString::new(topic_name.clone()).unwrap().into_raw();
+    let cton = CString::new(topic_name).unwrap().into_raw();
     let ctyn = CString::new(type_name).unwrap().into_raw();
 
     unsafe {
