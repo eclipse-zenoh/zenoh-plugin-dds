@@ -39,7 +39,7 @@ In order to get running with the DDS plugin for zenoh you need first to install 
 
 - [CMake](https://cmake.org/download/)
 - Your favourite C/C++ Compiler
-- [Rust](curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh)
+- [Rust](https://www.rust-lang.org/tools/install)
 
 Once these dependencies are in place, simply do:
 
@@ -47,5 +47,33 @@ Once these dependencies are in place, simply do:
 $ git clone https://github.com/eclipse-zenoh/zenoh-plugin-dds.git
 $ cd zenoh-plugin-dds
 $ . ./configure.sh
-$ cargo build --all-targets
+$ cargo build --release --all-targets
 ```
+
+Assuming you want to try this with ROS2, then install it by following the instructions available [here](https://index.ros.org/doc/ros2/Installation/Foxy/).
+Once you've installed ROS2, you easily let ROS applications communicate acros the internet. Notice that in order
+to really make this work you need to have ROS applications run on different networks. There are different ways of achieving this,
+you can use containers, VMs, or hosts on different networks.
+
+In any case assuming you have two networks, let's say N1 and N2, you will need to run one instance of **dzd** per network.
+The **dzd** daemon will operate like a transparent router discovering DDS traffic and forwarding it on zenoh w/o you having to
+configure anything.
+
+You are also welcome to use the freely available zenoh internet infrastructure to route across the internet, in this case
+just start one instance of **dzd** per network by running the following command:
+
+```
+$ cargo run -- --scope /demo/dds -e tcp/172.105.86.91:7447
+```
+
+The on one of the networks, say N1, start a ROS2 listener by using the following command:
+```
+$ ros2 run demo_nodes_py listener
+```
+
+While on N2 starts a ROS2 talker by using the following command:
+```
+$ ros2 run demo_nodes_cpp talker
+```
+
+
