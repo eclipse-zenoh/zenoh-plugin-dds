@@ -76,4 +76,6 @@ While on N2 starts a ROS2 talker by using the following command:
 $ ros2 run demo_nodes_cpp talker
 ```
 
+You will see a stream of ROS2 *Hello World* messages streamed across the internet!
 
+Good Hacking!
