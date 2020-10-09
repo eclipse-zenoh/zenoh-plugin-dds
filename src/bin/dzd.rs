@@ -1,7 +1,7 @@
 #![feature(vec_into_raw_parts)]
 
 use async_std::task;
-use clap::{App, Arg};
+use clap::{App, Arg, Values};
 use cyclors::*;
 use futures::prelude::*;
 use log::debug;
@@ -9,10 +9,12 @@ use std::collections::HashMap;
 use std::ffi::CString;
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::Arc;
-use zenoh::net::*;
 use zplugin_dds::*;
+use zenoh::net::*;
+use zenoh::net::{config, Properties};
 
-fn parse_args() -> (Config, String) {
+
+fn parse_args() -> (Properties, String) {
     let args = App::new("dzd zenoh router for DDS")
         .arg(Arg::from_usage(
             "-e, --peer=[LOCATOR]...  'Peer locators used to initiate the zenoh session.'",
@@ -36,27 +38,19 @@ fn parse_args() -> (Config, String) {
         .or_else(|| Some(String::from("")))
         .unwrap();
 
-    let config = Config::client()
-        .add_peers(
-            args.values_of("peer")
-                .map(|p| p.collect())
-                .or_else(|| Some(vec![]))
-                .unwrap(),
-        )
-        .add_listeners(
-            args.values_of("listener")
-                .map(|p| p.collect())
-                .or_else(|| Some(vec![]))
-                .unwrap(),
-        )
-        .mode(
-            args.value_of("mode")
-                .map(|m| Config::parse_mode(m))
-                .unwrap()
-                .unwrap(),
-        )
-        .local_routing(false)
-        .mode(whatami::CLIENT);
+    let mut config: Properties = config::empty();
+    config.push((config::ZN_LOCAL_ROUTING_KEY, b"false".to_vec()));
+    config.push((
+        config::ZN_MODE_KEY,
+        args.value_of("mode").unwrap().as_bytes().to_vec(),
+    ));
+    for peer in args
+        .values_of("peer")
+        .or_else(|| Some(Values::default()))
+        .unwrap()
+    {
+        config.push((config::ZN_PEER_KEY, peer.as_bytes().to_vec()));
+    }
 
     (config, scope)
 }
@@ -67,7 +61,7 @@ async fn main() {
     let (config, scope) = parse_args();
     let dp =
         unsafe { dds_create_participant(DDS_DOMAIN_DEFAULT, std::ptr::null(), std::ptr::null()) };
-    let z = Arc::new(open(config, None).await.unwrap());
+    let z = Arc::new(open(config).await.unwrap());
     let (tx, rx): (Sender<MatchedEntity>, Receiver<MatchedEntity>) = channel();
     run_discovery(dp, tx);
     let mut rid_map = HashMap::<String, ResourceId>::new();

@@ -30,8 +30,8 @@ name = "zplugin_dds"
 
 
 [dependencies]
-zenoh =  { git = "https://github.com/eclipse-zenoh/zenoh", branch = "rust-master" }
-zenoh-router = { git = "https://github.com/eclipse-zenoh/zenoh", branch = "rust-master" }
+zenoh =  { git = "https://github.com/eclipse-zenoh/zenoh"}
+zenoh-router = { git = "https://github.com/eclipse-zenoh/zenoh"}
 cyclors = { git = "https://github.com/kydos/cyclors" }
 log = "0.4"
 async-trait = "0.1.38"
@@ -48,3 +48,11 @@ features = ["unstable", "attributes"]
 [[bin]]
 name = "dzd"
 path = "src/bin/dzd.rs"
+
+
+[profile.release]
+debug=false
+lto="fat"
+codegen-units=1
+opt-level=3
+panic="abort"
