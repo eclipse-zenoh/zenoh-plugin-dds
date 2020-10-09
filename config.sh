@@ -17,7 +17,7 @@ then
     mkdir cyclonedds/build
     cd cyclonedds/build
     cmake ..
-    if [ -eq $target "Linux"];
+    if [ -eq $target "Linux" ];
     then
         sudo make install
     else
@@ -37,7 +37,7 @@ then
     mkdir cyclocut/build
     cd cyclocut/build
     cmake ..
-    if [ -eq $target "Linux"];
+    if [ -eq $target "Linux" ];
     then
         sudo make install
     else
