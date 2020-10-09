@@ -17,7 +17,7 @@ then
     mkdir cyclonedds/build
     cd cyclonedds/build
     cmake ..
-    if [ -eq $target "Linux"];
+    if [ -eq $target "Linux" ];
     then
         sudo make install
     else
