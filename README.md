@@ -46,7 +46,7 @@ Once these dependencies are in place, simply do:
 ```
 $ git clone https://github.com/eclipse-zenoh/zenoh-plugin-dds.git
 $ cd zenoh-plugin-dds
-$ . ./configure.sh
+$ ./config.sh
 $ cargo build --release --all-targets
 ```
 
