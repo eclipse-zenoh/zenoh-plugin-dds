@@ -48,5 +48,12 @@ else
     echo "Cyclocut is already installed, skipping installation."
 fi
 popd &>/dev/null
+hash cargo 2>/dev/null
+if [[ ( "$?" != 0 ) && $target == "Linux" ]];
+then
+    curl https://sh.rustup.rs -sSf | sh
+else
+    echo "Cargo is already installed, skipping installation."
+fi
 echo "Cleaning up."
 rm -Rf deps
