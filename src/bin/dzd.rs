@@ -9,10 +9,9 @@ use std::collections::HashMap;
 use std::ffi::CString;
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::Arc;
-use zplugin_dds::*;
 use zenoh::net::*;
 use zenoh::net::{config, Properties};
-
+use zplugin_dds::*;
 
 fn parse_args() -> (Properties, String) {
     let args = App::new("dzd zenoh router for DDS")
