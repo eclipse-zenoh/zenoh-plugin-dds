@@ -9,8 +9,8 @@ use std::collections::HashMap;
 use std::ffi::CString;
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::Arc;
+use zenoh::net::config;
 use zenoh::net::*;
-use zenoh::net::{config};
 use zplugin_dds::*;
 
 fn parse_args() -> (config::ConfigProperties, String) {
@@ -37,10 +37,12 @@ fn parse_args() -> (config::ConfigProperties, String) {
         .or_else(|| Some(String::from("")))
         .unwrap();
 
-
     let mut config = config::empty();
     config.insert(config::ZN_LOCAL_ROUTING_KEY, String::from("false"));
-    config.insert(config::ZN_MODE_KEY,String::from(args.value_of("mode").unwrap()));
+    config.insert(
+        config::ZN_MODE_KEY,
+        String::from(args.value_of("mode").unwrap()),
+    );
     for peer in args
         .values_of("peer")
         .or_else(|| Some(Values::default()))
