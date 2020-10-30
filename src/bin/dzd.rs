@@ -13,7 +13,7 @@ use zenoh::net::*;
 use zenoh::Properties;
 use zplugin_dds::*;
 
-fn parse_args() -> (Properties, String) {
+fn parse_args() -> (config::ConfigProperties, String) {
     let args = App::new("dzd zenoh router for DDS")
         .arg(Arg::from_usage(
             "-e, --peer=[LOCATOR]...  'Peer locator used to initiate the zenoh session.'",
