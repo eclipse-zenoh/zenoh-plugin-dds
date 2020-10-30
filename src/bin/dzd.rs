@@ -10,10 +10,10 @@ use std::ffi::CString;
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::Arc;
 use zenoh::net::*;
-use zenoh::net::{config, Properties};
+use zenoh::net::{config};
 use zplugin_dds::*;
 
-fn parse_args() -> (Properties, String) {
+fn parse_args() -> (config::ConfigProperties, String) {
     let args = App::new("dzd zenoh router for DDS")
         .arg(Arg::from_usage(
             "-e, --peer=[LOCATOR]...  'Peer locators used to initiate the zenoh session.'",
@@ -37,18 +37,16 @@ fn parse_args() -> (Properties, String) {
         .or_else(|| Some(String::from("")))
         .unwrap();
 
-    let mut config: Properties = config::empty();
-    config.push((config::ZN_LOCAL_ROUTING_KEY, b"false".to_vec()));
-    config.push((
-        config::ZN_MODE_KEY,
-        args.value_of("mode").unwrap().as_bytes().to_vec(),
-    ));
+
+    let mut config = config::empty();
+    config.insert(config::ZN_LOCAL_ROUTING_KEY, String::from("false"));
+    config.insert(config::ZN_MODE_KEY,String::from(args.value_of("mode").unwrap()));
     for peer in args
         .values_of("peer")
         .or_else(|| Some(Values::default()))
         .unwrap()
     {
-        config.push((config::ZN_PEER_KEY, peer.as_bytes().to_vec()));
+        config.insert(config::ZN_PEER_KEY, String::from(peer));
     }
 
     (config, scope)
