@@ -1,7 +1,7 @@
 #![feature(vec_into_raw_parts)]
 
 use async_std::task;
-use clap::{App, Arg, Values};
+use clap::{App, Arg};
 use cyclors::*;
 use futures::prelude::*;
 use log::debug;
@@ -10,13 +10,13 @@ use std::ffi::CString;
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::Arc;
 use zenoh::net::*;
-use zenoh::net::{config, Properties};
+use zenoh::Properties;
 use zplugin_dds::*;
 
 fn parse_args() -> (Properties, String) {
     let args = App::new("dzd zenoh router for DDS")
         .arg(Arg::from_usage(
-            "-e, --peer=[LOCATOR]...  'Peer locators used to initiate the zenoh session.'",
+            "-e, --peer=[LOCATOR]...  'Peer locator used to initiate the zenoh session.'",
         ))
         .arg(Arg::from_usage(
             "-l, --listener=[LOCATOR]...   'Locators to listen on.'",
@@ -37,19 +37,10 @@ fn parse_args() -> (Properties, String) {
         .or_else(|| Some(String::from("")))
         .unwrap();
 
-    let mut config: Properties = config::empty();
-    config.push((config::ZN_LOCAL_ROUTING_KEY, b"false".to_vec()));
-    config.push((
-        config::ZN_MODE_KEY,
-        args.value_of("mode").unwrap().as_bytes().to_vec(),
-    ));
-    for peer in args
-        .values_of("peer")
-        .or_else(|| Some(Values::default()))
-        .unwrap()
-    {
-        config.push((config::ZN_PEER_KEY, peer.as_bytes().to_vec()));
-    }
+    let mut config: Properties = Properties::default();
+    config.insert("ZN_LOCAL_ROUTING_KEY".into(), "false".into());
+    config.insert("ZN_MODE_KEY".into(), args.value_of("mode").unwrap().into());
+    config.insert("ZN_PEER_KEY".into(), args.value_of("peer").unwrap().into());
 
     (config, scope)
 }
@@ -60,7 +51,7 @@ async fn main() {
     let (config, scope) = parse_args();
     let dp =
         unsafe { dds_create_participant(DDS_DOMAIN_DEFAULT, std::ptr::null(), std::ptr::null()) };
-    let z = Arc::new(open(config).await.unwrap());
+    let z = Arc::new(open(config.into()).await.unwrap());
     let (tx, rx): (Sender<MatchedEntity>, Receiver<MatchedEntity>) = channel();
     run_discovery(dp, tx);
     let mut rid_map = HashMap::<String, ResourceId>::new();
