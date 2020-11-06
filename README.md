@@ -1,4 +1,4 @@
-![zenoh banner](./zenoh-dragon.png)
+![zenoh banner](http://zenoh.io/img/zenoh-dragon-small.png)
 
 ![Rust](https://github.com/eclipse-zenoh/zenoh-plugin-dds/workflows/Rust/badge.svg)
 [![License](https://img.shields.io/badge/License-EPL%202.0-blue)](https://choosealicense.com/licenses/epl-2.0/)
@@ -27,7 +27,7 @@ This plugin, will essentially:
 
 - Spoof DDS discovery data and transparently expose DDS writers/readers as zenoh publisher/subscribers
 - Route the data produced by discovered DDS writers to data to matching entities.
- 
+
 Beside the zenoh router plugin we also support a stand-alone bridge called **dzd** that can be used to transparently bridge DDS data on zenoh and viceversa.
 
 ### Mapping DDS to zenoh
