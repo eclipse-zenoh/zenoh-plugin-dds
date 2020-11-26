@@ -41,8 +41,8 @@ fn parse_args() -> (Properties, String) {
     config.insert("ZN_LOCAL_ROUTING_KEY".into(), "false".into());
     config.insert("ZN_MODE_KEY".into(), args.value_of("mode").unwrap().into());
 
-    match args.value_of("mode").unwrap() {
-        "peer" => {
+    match args.value_of("mode") {
+        Some("peer") => {
             config.insert("ZN_PEER_KEY".into(), args.value_of("peer").unwrap().into());
         }
         _ => {}
