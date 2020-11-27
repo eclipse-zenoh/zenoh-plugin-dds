@@ -40,7 +40,9 @@ fn parse_args() -> (Properties, String) {
     let mut config: Properties = Properties::default();
     config.insert("ZN_LOCAL_ROUTING_KEY".into(), "false".into());
     config.insert("ZN_MODE_KEY".into(), args.value_of("mode").unwrap().into());
-    config.insert("ZN_PEER_KEY".into(), args.value_of("peer").unwrap().into());
+    if let Some(locator) = args.value_of("peer") {
+        config.insert("ZN_PEER_KEY".into(), locator.into());
+    };
 
     (config, scope)
 }
