@@ -25,7 +25,10 @@ fn parse_args() -> (Properties, String) {
             "-s, --scope=[String]...   'A string used as prefix to scope DDS traffic.'",
         ))
         .arg(Arg::from_usage(
-            "-g, --generalise=[String]...   'A comma separated list of key expression.'",
+            "-w, --generalise-pub=[String]...   'A comma separated list of key expression to use for generalising pubblications.'",
+        ))
+        .arg(Arg::from_usage(
+            "-r, --generalise-sub=[String]...   'A comma separated list of key expression to use for generalising subscriptions.'",
         ))
         .arg(
             Arg::from_usage("-m, --mode=[MODE]  'The zenoh session mode.")
@@ -44,7 +47,7 @@ fn parse_args() -> (Properties, String) {
     config.insert("ZN_LOCAL_ROUTING_KEY".into(), "false".into());
     config.insert("ZN_MODE_KEY".into(), args.value_of("mode").unwrap().into());
 
-    for key in ["peer", "generalisation"].iter() {
+    for key in ["peer", "generalise-pub", "generalise-sub"].iter() {
         if let Some(value) = args.values_of(key) {
             config.insert(key.to_string(), value.collect::<Vec<&str>>().join(","));
         }
@@ -161,25 +164,27 @@ async fn main() {
                         "The Subscription({}, {}, {:?} is new setting up zenoh and DDS endpoings",
                         topic_name, type_name, partition
                     );
-                    let nrid = match rid_map.get(&key) {
-                        Some(nrid) => *nrid,
-                        None => {
-                            let rkey = ResKey::RName(key.clone());
-                            z.declare_resource(&rkey).await.unwrap()
-                        }
-                    };
-                    rid_map.insert(key.clone(), nrid);
-                    let rkey = ResKey::RId(nrid);
+                    // let nrid = match rid_map.get(&key) {
+                    //     Some(nrid) => *nrid,
+                    //     None => {
+                    //         let rkey = ResKey::RName(key.clone());
+                    //         z.declare_resource(&rkey).await.unwrap()
+                    //     }
+                    // };
+                    // rid_map.insert(key.clone(), nrid);
+                    // let rkey = ResKey::RId(nrid);
+                    // let rsel = rkey.into();
                     let sub_info = SubInfo {
                         reliability: Reliability::Reliable,
                         mode: SubMode::Push,
                         period: None,
                     };
-                    let rsel = rkey.into();
+
 
                     let zn = z.clone();
                     task::spawn(async move {
-                        let mut sub = zn.declare_subscriber(&rsel, &sub_info).await.unwrap();
+                        let rkey = ResKey::RName(key);
+                        let mut sub = zn.declare_subscriber(&rkey, &sub_info).await.unwrap();
                         let stream = sub.stream();
                         while let Some(d) = stream.next().await {
                             let ton = topic_name.clone();
