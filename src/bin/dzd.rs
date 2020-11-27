@@ -180,7 +180,6 @@ async fn main() {
                         period: None,
                     };
 
-
                     let zn = z.clone();
                     task::spawn(async move {
                         let rkey = ResKey::RName(key);
