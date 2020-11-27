@@ -24,6 +24,9 @@ fn parse_args() -> (Properties, String) {
         .arg(Arg::from_usage(
             "-s, --scope=[String]...   'A string used as prefix to scope DDS traffic.'",
         ))
+        .arg(Arg::from_usage(
+            "-g, --generalise=[String]...   'A comma separated list of key expression.'",
+        ))
         .arg(
             Arg::from_usage("-m, --mode=[MODE]  'The zenoh session mode.")
                 .possible_values(&["peer", "client"])
@@ -33,16 +36,19 @@ fn parse_args() -> (Properties, String) {
 
     let scope: String = args
         .value_of("scope")
-        .map(|s| String::from(s))
+        .map(String::from)
         .or_else(|| Some(String::from("")))
         .unwrap();
 
     let mut config: Properties = Properties::default();
     config.insert("ZN_LOCAL_ROUTING_KEY".into(), "false".into());
     config.insert("ZN_MODE_KEY".into(), args.value_of("mode").unwrap().into());
-    if let Some(locator) = args.value_of("peer") {
-        config.insert("ZN_PEER_KEY".into(), locator.into());
-    };
+
+    for key in ["peer", "generalisation"].iter() {
+        if let Some(value) = args.values_of(key) {
+            config.insert(key.to_string(), value.collect::<Vec<&str>>().join(","));
+        }
+    }
 
     (config, scope)
 }
