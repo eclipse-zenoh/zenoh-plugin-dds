@@ -232,10 +232,12 @@ unsafe extern "C" fn data_forwarder_listener(dr: dds_entity_t, arg: *mut std::os
     #[allow(clippy::uninit_assumed_init)]
     let mut si: [dds_sample_info_t; 1] = { MaybeUninit::uninit().assume_init() };
     while cdds_take_blob(dr, &mut zp, si.as_mut_ptr()) > 0 {
-        let bs = Vec::from_raw_parts((*zp).payload, (*zp).size as usize, (*zp).size as usize);
-        let rbuf = RBuf::from(bs);
-        let _ = task::block_on(async { (*pa).1.write(&(*pa).0, rbuf).await });
-        (*zp).payload = std::ptr::null_mut();
+        if si[0].valid_data {
+            let bs = Vec::from_raw_parts((*zp).payload, (*zp).size as usize, (*zp).size as usize);
+            let rbuf = RBuf::from(bs);
+            let _ = task::block_on(async { (*pa).1.write(&(*pa).0, rbuf).await });
+            (*zp).payload = std::ptr::null_mut();
+        }
         cdds_serdata_unref(zp as *mut ddsi_serdata);
     }
 }
