@@ -44,8 +44,8 @@ fn parse_args() -> (Properties, String) {
         .unwrap();
 
     let mut config: Properties = Properties::default();
-    config.insert("ZN_LOCAL_ROUTING_KEY".into(), "false".into());
-    config.insert("ZN_MODE_KEY".into(), args.value_of("mode").unwrap().into());
+    config.insert("local_routing".into(), "false".into());
+    config.insert("mode".into(), args.value_of("mode").unwrap().into());
 
     for key in ["peer", "generalise-pub", "generalise-sub"].iter() {
         if let Some(value) = args.values_of(key) {
