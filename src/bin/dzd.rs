@@ -9,12 +9,11 @@ use std::collections::HashMap;
 use std::ffi::CString;
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::Arc;
-use zenoh::net::config;
 use zenoh::net::*;
 use zenoh::Properties;
 use zplugin_dds::*;
 
-fn parse_args() -> (config::ConfigProperties, String) {
+fn parse_args() -> (Properties, String) {
     let args = App::new("dzd zenoh router for DDS")
         .arg(Arg::from_usage(
             "-e, --peer=[LOCATOR]...  'Peer locator used to initiate the zenoh session.'",

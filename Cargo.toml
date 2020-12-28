@@ -30,8 +30,8 @@ name = "zplugin_dds"
 
 
 [dependencies]
-zenoh =  { git = "https://github.com/eclipse-zenoh/zenoh"}
-zenoh-router = { git = "https://github.com/eclipse-zenoh/zenoh"}
+zenoh =  { git = "https://github.com/eclipse-zenoh/zenoh", branch = "master"}
+zenoh-router = { git = "https://github.com/eclipse-zenoh/zenoh", branch = "master"}
 cyclors = { git = "https://github.com/kydos/cyclors" }
 log = "0.4"
 async-trait = "0.1.38"
@@ -39,10 +39,7 @@ futures = "0.3.5"
 libc = "*"
 clap = "2.33"
 env_logger = "0.8.1"
-
-[dependencies.async-std]
-version = "=1.6.5"
-features = ["unstable", "attributes"]
+async-std = {version = "=1.8.0", features=["unstable"]}
 
 
 [[bin]]
