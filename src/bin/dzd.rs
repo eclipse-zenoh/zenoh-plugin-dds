@@ -11,10 +11,7 @@ use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::Arc;
 use zenoh::net::config;
 use zenoh::net::*;
-<<<<<<< HEAD
 use zenoh::Properties;
-=======
->>>>>>> formatting
 use zplugin_dds::*;
 
 fn parse_args() -> (config::ConfigProperties, String) {

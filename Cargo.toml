@@ -41,11 +41,7 @@ clap = "2.33"
 env_logger = "0.8.1"
 
 [dependencies.async-std]
-<<<<<<< HEAD
 version = "=1.6.5"
-=======
-version = "~1.6.5"
->>>>>>> updated to latest zenoh
 features = ["unstable", "attributes"]
 
 
