@@ -1,6 +1,6 @@
 ![zenoh banner](http://zenoh.io/img/zenoh-dragon-small.png)
 
-![Rust](https://github.com/eclipse-zenoh/zenoh-plugin-dds/workflows/Rust/badge.svg)
+[![CI](https://github.com/eclipse-zenoh/zenoh-plugin-dds/workflows/Rust/badge.svg)](https://github.com/eclipse-zenoh/zenoh-plugin-dds/actions?query=workflow%3ARust)
 [![License](https://img.shields.io/badge/License-EPL%202.0-blue)](https://choosealicense.com/licenses/epl-2.0/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
