@@ -13,7 +13,7 @@ then
     mkdir deps &>/dev/null
     cd deps
 
-    git clone https://github.com/eclipse-cyclonedds/cyclonedds.git
+     git clone --depth 1 -b 0.7.0 https://github.com/eclipse-cyclonedds/cyclonedds.git
     mkdir cyclonedds/build
     cd cyclonedds/build
     cmake ..
