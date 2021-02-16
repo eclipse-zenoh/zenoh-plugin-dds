@@ -47,10 +47,14 @@ fn parse_args() -> (Properties, String) {
     config.insert("local_routing".into(), "false".into());
     config.insert("mode".into(), args.value_of("mode").unwrap().into());
 
-    for key in ["peer", "generalise-pub", "generalise-sub"].iter() {
-        if let Some(value) = args.values_of(key) {
-            config.insert(key.to_string(), value.collect::<Vec<&str>>().join(","));
-        }
+    if let Some(value) = args.values_of("generalise-sub") {
+        config.insert("join_subscriptions".into(),  value.collect::<Vec<&str>>().join(","));
+    }
+    if let Some(value) = args.values_of("generalise-pub") {
+        config.insert("join_publications".into(),  value.collect::<Vec<&str>>().join(","));
+    }
+    if let Some(value) = args.values_of("peer") {
+        config.insert("peer".into(),  value.collect::<Vec<&str>>().join(","));
     }
 
     (config, scope)
