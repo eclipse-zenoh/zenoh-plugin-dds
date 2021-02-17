@@ -2,6 +2,13 @@
 
 pushd $PWD &>/dev/null
 
+if [ $target == "Linux" -a `id -u` != 0 ];
+then
+    sudo rm -Rf deps &> /dev/null
+else
+    rm -Rf deps &> /dev/null
+fi
+
 unameOut="$(uname -s)"
 case "${unameOut}" in
     Linux*)     target=Linux;;
@@ -32,7 +39,7 @@ else
 	mkdir cyclonedds/build
 	cd cyclonedds/build
 	cmake ..
-	if [ $target == "Linux" ];
+	if [ $target == "Linux" -a `id -u` != 0 ];	
 	then
             sudo make install
 	else
@@ -65,7 +72,7 @@ then
     mkdir cyclocut/build
     cd cyclocut/build
     cmake -DCYCLONE_INCLUDE=$CYCLONE_INCLUDE -DCYCLONE_LIB=$CYCLONE_LIB ..
-    if [ $target == "Linux" ];
+    if [ $target == "Linux" -a `id -u` != 0 ];
     then
         sudo make install
     else
@@ -87,7 +94,14 @@ else
     rustup default nightly
 fi
 echo "Cleaning up."
-rm -Rf deps
+
+if [ $target == "Linux" -a `id -u` != 0 ];
+then
+    sudo rm -Rf deps
+else
+    rm -Rf deps
+fi
+
 echo "Done [^_^]"
 echo ""
 echo 'Next run: "cargo build --release"'

@@ -22,6 +22,9 @@ fn parse_args() -> (Properties, String) {
             "-l, --listener=[LOCATOR]...   'Locators to listen on.'",
         ))
         .arg(Arg::from_usage(
+            "-c, --config=[FILE]      'A configuration file.'",
+        ))
+        .arg(Arg::from_usage(
             "-s, --scope=[String]...   'A string used as prefix to scope DDS traffic.'",
         ))
         .arg(Arg::from_usage(
@@ -43,14 +46,28 @@ fn parse_args() -> (Properties, String) {
         .or_else(|| Some(String::from("")))
         .unwrap();
 
-    let mut config: Properties = Properties::default();
+    let mut config: Properties = if let Some(conf_file) = args.value_of("config") {
+        Properties::from(std::fs::read_to_string(conf_file).unwrap())
+    } else {
+        Properties::default()
+    };
     config.insert("local_routing".into(), "false".into());
     config.insert("mode".into(), args.value_of("mode").unwrap().into());
 
-    for key in ["peer", "generalise-pub", "generalise-sub"].iter() {
-        if let Some(value) = args.values_of(key) {
-            config.insert(key.to_string(), value.collect::<Vec<&str>>().join(","));
-        }
+    if let Some(value) = args.values_of("generalise-sub") {
+        config.insert(
+            "join_subscriptions".into(),
+            value.collect::<Vec<&str>>().join(","),
+        );
+    }
+    if let Some(value) = args.values_of("generalise-pub") {
+        config.insert(
+            "join_publications".into(),
+            value.collect::<Vec<&str>>().join(","),
+        );
+    }
+    if let Some(value) = args.values_of("peer") {
+        config.insert("peer".into(), value.collect::<Vec<&str>>().join(","));
     }
 
     (config, scope)
