@@ -9,7 +9,7 @@ else
     rm -Rf deps &> /dev/null
 fi
 
-unameOut="$(uname -s)"
+Unameout="$(uname -s)"
 case "${unameOut}" in
     Linux*)     target=Linux;;
     *)          target=Other
@@ -104,6 +104,11 @@ fi
 
 echo "Done [^_^]"
 echo ""
-echo 'Next run: "cargo build --release"'
+echo "Please set the following environment variables"
+echo "   export CYCLONE_INCLUDE=$CYCLONE_INCLUDE"
+echo "   export CYCLONE_LIB=$CYCLONE_LIB"
+echo ""
+echo "Then run:"
+echo '    "cargo build --release"'
 echo ""
 echo "If you have any questions reach us out on https://gitter.im/atolab/zenoh"
