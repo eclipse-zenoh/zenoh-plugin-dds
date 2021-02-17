@@ -1,8 +1,11 @@
 #!/bin/bash
 
+LIGHTBLUE='\033[1;34m'
+RED='\033[0;31m'
+NOCOLOR='\033[0m'
 pushd $PWD &>/dev/null
 
-if [ $target == "Linux" -a `id -u` != 0 ];
+if [[ $target == "Linux" ]] && [[ `id -u` != 0 ]];
 then
     sudo rm -Rf deps &> /dev/null
 else
@@ -17,10 +20,10 @@ esac
 
 if [[ -v CYCLONE_INCLUDE ]] && [[ -v CYCLONE_LIB ]]; then
     echo "Looking for Cyclone installation at: $CYCLONE_ROOT"
-    if [ ! -e $CYCLONE_INCLUDE/include/dds/ddsc/dds_public_impl.h  ]; then
+    if [ ! -e $CYCLONE_INCLUDE/dds/ddsc/dds_public_impl.h  ]; then
 	echo "Could not find cyclone installation at $CYCLONE_ROOT"
 	echo "please verify your cyclone installation."
-	echo "\t[Hint: does the file $CYCLONE_ROOT/include/dds/ddsc/dds_public_impl.h exist?"
+	echo "[Hint: does the file $CYCLONE_ROOT/include/dds/ddsc/dds_public_impl.h exist?"
 	echo "[-.-]"
 	exit
     fi
@@ -105,10 +108,10 @@ fi
 echo "Done [^_^]"
 echo ""
 echo "Please set the following environment variables"
-echo "   export CYCLONE_INCLUDE=$CYCLONE_INCLUDE"
-echo "   export CYCLONE_LIB=$CYCLONE_LIB"
-echo ""
+echo -e "  ${RED}  export CYCLONE_INCLUDE=$CYCLONE_INCLUDE"
+echo -e "  ${RED}  export CYCLONE_LIB=$CYCLONE_LIB"
+echo -e "${NOCOLOR}"
 echo "Then run:"
-echo '    "cargo build --release"'
-echo ""
+echo -e " ${LIGHTBLUE}   \"cargo +nightly build --release --all-targets\" "
+echo -e "${NOCOLOR}"
 echo "If you have any questions reach us out on https://gitter.im/atolab/zenoh"
