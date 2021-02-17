@@ -48,13 +48,19 @@ fn parse_args() -> (Properties, String) {
     config.insert("mode".into(), args.value_of("mode").unwrap().into());
 
     if let Some(value) = args.values_of("generalise-sub") {
-        config.insert("join_subscriptions".into(),  value.collect::<Vec<&str>>().join(","));
+        config.insert(
+            "join_subscriptions".into(),
+            value.collect::<Vec<&str>>().join(","),
+        );
     }
     if let Some(value) = args.values_of("generalise-pub") {
-        config.insert("join_publications".into(),  value.collect::<Vec<&str>>().join(","));
+        config.insert(
+            "join_publications".into(),
+            value.collect::<Vec<&str>>().join(","),
+        );
     }
     if let Some(value) = args.values_of("peer") {
-        config.insert("peer".into(),  value.collect::<Vec<&str>>().join(","));
+        config.insert("peer".into(), value.collect::<Vec<&str>>().join(","));
     }
 
     (config, scope)
