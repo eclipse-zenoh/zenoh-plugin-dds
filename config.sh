@@ -91,6 +91,7 @@ hash cargo 2>/dev/null
 if [[ "$?" != 0 ]] && [[ $target == "Linux" ]];
 then
     curl https://sh.rustup.rs -sSf | sh
+    source $HOME/.cargo/env
     rustup default nightly
 else
     echo "Cargo is already installed, setting up nightly."
