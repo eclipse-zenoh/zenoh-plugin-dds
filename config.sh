@@ -88,7 +88,7 @@ else
 fi
 popd &>/dev/null
 hash cargo 2>/dev/null
-if [[ "$?" != 0 ]] && [[$target == "Linux" ]];
+if [[ "$?" != 0 ]] && [[ $target == "Linux" ]];
 then
     curl https://sh.rustup.rs -sSf | sh
     rustup default nightly
