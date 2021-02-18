@@ -12,7 +12,7 @@ else
     rm -Rf deps &> /dev/null
 fi
 
-Unameout="$(uname -s)"
+unameOut="$(uname -s)"
 case "${unameOut}" in
     Linux*)     target=Linux;;
     *)          target=Other
@@ -32,40 +32,40 @@ else
     echo "checking for existing installations..."
     echo "[-.-]"
 
-    if [ ! -e /usr/local/include/dds/ddsc/dds_public_impl.h  ] && [ ! -e /opt/ros/$ROS_DISTRO/include/dds/ddsc/dds_public_impl.h ];
+    if [[ ! -e /usr/local/include/dds/ddsc/dds_public_impl.h  ]] && [[ ! -e /opt/ros/$ROS_DISTRO/include/dds/ddsc/dds_public_impl.h ]];
     then
-	echo "Cound not find any installation, buiding from sources..."
-	mkdir deps &>/dev/null
-	cd deps
+        echo "Cound not find any installation, buiding from sources..."
+        mkdir deps &>/dev/null
+        cd deps
 
-	git clone --depth 1 -b 0.7.0 https://github.com/eclipse-cyclonedds/cyclonedds.git
-	mkdir cyclonedds/build
-	cd cyclonedds/build
-	cmake ..
-	if [ $target == "Linux" -a `id -u` != 0 ];	
-	then
-            sudo make install
-	else
-            make install
-	fi
-    else
-	if [ -e /usr/local/include/dds/ddsc/dds_public_impl.h  ];
-	then
-	    CYCLONE_INCLUDE=/usr/local/include
-	    CYCLONE_LIB=/usr/local/lib
-	elif [ -e /opt/ros/$ROS_DISTRO/include/dds/ddsc/dds_public_impl.h ];
-	then
-	    CYCLONE_INCLUDE=/opt/ros/$ROS_DISTRO/include
-	    CYCLONE_LIB=/opt/ros/$ROS_DISTRO/lib/`arch`-$OSTYPE
-	fi
-	echo "Found Cyclone installed at $CYCLONE_INCLUDE and $CYCLONE_LIB, skipping installation..."
+        git clone --depth 1 -b 0.7.0 https://github.com/eclipse-cyclonedds/cyclonedds.git
+        mkdir cyclonedds/build
+        cd cyclonedds/build
+        cmake ..
+        if [[ $target == "Linux" ]] && [[ `id -u` != 0 ]]; 
+        then
+                sudo make install
+        else
+                make install
+        fi
+    else 
+        if [[ -e /usr/local/include/dds/ddsc/dds_public_impl.h  ]];
+	    then
+	        CYCLONE_INCLUDE=/usr/local/include
+	        CYCLONE_LIB=/usr/local/lib
+	    elif [[ -e /opt/ros/$ROS_DISTRO/include/dds/ddsc/dds_public_impl.h ]];
+	    then
+	        CYCLONE_INCLUDE=/opt/ros/$ROS_DISTRO/include
+	        CYCLONE_LIB=/opt/ros/$ROS_DISTRO/lib/`arch`-$OSTYPE
+	    fi
+	    echo "Found Cyclone installed at $CYCLONE_INCLUDE and $CYCLONE_LIB, skipping installation..."
     fi
 fi
 
 popd &>/dev/null
 pushd $PWD &>/dev/null
 echo "[-.-]"
-if [ !  -e /usr/local/include/cdds/cdds_util.h  ];
+if [[ !  -e /usr/local/include/cdds/cdds_util.h  ]];
 then
     echo "Installing Cyclocut utilities libraries..."
     mkdir deps &>/dev/null
@@ -75,20 +75,20 @@ then
     mkdir cyclocut/build
     cd cyclocut/build
     cmake -DCYCLONE_INCLUDE=$CYCLONE_INCLUDE -DCYCLONE_LIB=$CYCLONE_LIB ..
-    if [ $target == "Linux" -a `id -u` != 0 ];
+    make
+    if [[ $target == "Linux" ]]  && [[ `id -u` != 0 ]];
     then
         sudo make install
     else
         make install
     fi
-    cd ../../..
 else
     echo "Cyclocut is already installed, skipping installation."
     echo "[-.-]"
 fi
 popd &>/dev/null
 hash cargo 2>/dev/null
-if [[ ( "$?" != 0 ) && $target == "Linux" ]];
+if [[ "$?" != 0 ]] && [[$target == "Linux" ]];
 then
     curl https://sh.rustup.rs -sSf | sh
     rustup default nightly
@@ -98,7 +98,7 @@ else
 fi
 echo "Cleaning up."
 
-if [ $target == "Linux" -a `id -u` != 0 ];
+if [[ $target == "Linux" ]] && [[ `id -u` != 0 ]];
 then
     sudo rm -Rf deps
 else
