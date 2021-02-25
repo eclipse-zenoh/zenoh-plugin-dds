@@ -233,6 +233,7 @@ unsafe extern "C" fn data_forwarder_listener(dr: dds_entity_t, arg: *mut std::os
     let mut si: [dds_sample_info_t; 1] = { MaybeUninit::uninit().assume_init() };
     while cdds_take_blob(dr, &mut zp, si.as_mut_ptr()) > 0 {
         if si[0].valid_data {
+            log::trace!("Route data to zenoh resource with rid={}", &(*pa).0);
             let bs = Vec::from_raw_parts((*zp).payload, (*zp).size as usize, (*zp).size as usize);
             let rbuf = RBuf::from(bs);
             let _ = task::block_on(async { (*pa).1.write(&(*pa).0, rbuf).await });

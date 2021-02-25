@@ -4,7 +4,7 @@ use async_std::task;
 use clap::{App, Arg};
 use cyclors::*;
 use futures::prelude::*;
-use log::debug;
+use log::{debug, info};
 use std::collections::HashMap;
 use std::ffi::CString;
 use std::sync::mpsc::{channel, Receiver, Sender};
@@ -111,7 +111,10 @@ async fn main() {
                         let rid = ResKey::RId(nrid);
                         let _ = z.declare_publisher(&rid).await;
                         rid_map.insert(key.clone(), nrid);
-                        debug!("Creating Forwarding Reader for: {}", key);
+                        info!(
+                            "New route: DDS '{}' => zenoh '{}' (rid={}) with type '{}'",
+                            topic_name, key, rid, type_name
+                        );
                         let dr: dds_entity_t = create_forwarding_dds_reader(
                             dp,
                             topic_name,
@@ -166,6 +169,10 @@ async fn main() {
                         None
                     }
                     None => {
+                        info!(
+                            "New route: zenoh '{}' => DDS '{}' with type '{}'",
+                            key, topic_name, type_name
+                        );
                         let wr = create_forwarding_dds_writer(
                             dp,
                             topic_name.clone(),
@@ -203,6 +210,7 @@ async fn main() {
                         let mut sub = zn.declare_subscriber(&rkey, &sub_info).await.unwrap();
                         let stream = sub.stream();
                         while let Some(d) = stream.next().await {
+                            log::trace!("Route data to DDS '{}'", topic_name);
                             let ton = topic_name.clone();
                             let tyn = type_name.clone();
                             unsafe {
