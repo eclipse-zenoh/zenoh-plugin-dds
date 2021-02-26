@@ -12,7 +12,7 @@ use zenoh::net::{RBuf, ResKey, Session};
 const MAX_SAMPLES: usize = 32;
 
 #[derive(Debug)]
-pub struct QosHolder(*mut dds_qos_t);
+pub struct QosHolder(pub *mut dds_qos_t);
 // unsafe impl Send for QosHolder {}
 // unsafe impl Sync for QosHolder {}
 

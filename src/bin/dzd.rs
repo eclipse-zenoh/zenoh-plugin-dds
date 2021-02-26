@@ -173,6 +173,20 @@ async fn main() {
                             "New route: zenoh '{}' => DDS '{}' with type '{}'",
                             key, topic_name, type_name
                         );
+                        // Workaround for the Publisher to correctly match with a FastRTPS Subscriber declaring a Reliability max_blocking_time < infinite
+                        let mut kind: dds_reliability_kind_t =
+                            dds_reliability_kind_DDS_RELIABILITY_RELIABLE;
+                        let mut max_blocking_time: dds_duration_t = 0;
+                        unsafe {
+                            if dds_qget_reliability(qos.0, &mut kind, &mut max_blocking_time) {
+                                if max_blocking_time < 0x7FFFFFFFFFFFFFFF {
+                                    // Add 1 nanosecond to max_blocking_time for the Publisher
+                                    max_blocking_time += 1;
+                                    dds_qset_reliability(qos.0, kind, max_blocking_time);
+                                }
+                            }
+                        }
+
                         let wr = create_forwarding_dds_writer(
                             dp,
                             topic_name.clone(),
