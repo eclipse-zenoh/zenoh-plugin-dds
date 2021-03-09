@@ -31,7 +31,6 @@ name = "zplugin_dds"
 
 [dependencies]
 zenoh =  { git = "https://github.com/eclipse-zenoh/zenoh"}
-zenoh-router = { git = "https://github.com/eclipse-zenoh/zenoh"}
 cyclors = { git = "https://github.com/kydos/cyclors" }
 log = "0.4.14"
 async-trait = "0.1.42"
