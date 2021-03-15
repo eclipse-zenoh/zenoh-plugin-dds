@@ -40,10 +40,6 @@ In order to get running with the DDS plugin for zenoh you need first to install 
 - [CMake](https://cmake.org/download/)
 - Your favourite C/C++ Compiler
 - [Rust](https://www.rust-lang.org/tools/install)
-  - Rust nightly is currently required. Once initial Rust setup is finished via rustup, install nightly:
-  - ```
-    rustup install nightly
-    ```
 
 Once these dependencies are in place, simply do:
 
@@ -51,7 +47,7 @@ Once these dependencies are in place, simply do:
 $ git clone https://github.com/eclipse-zenoh/zenoh-plugin-dds.git
 $ cd zenoh-plugin-dds
 $ ./config.sh
-$ cargo +nightly build --release --all-targets
+$ cargo build --release --all-targets
 ```
 
 Assuming you want to try this with ROS2, then install it by following the instructions available [here](https://index.ros.org/doc/ros2/Installation/Foxy/).
