@@ -18,7 +18,7 @@ case "${unameOut}" in
     *)          target=Other
 esac
 
-if [ -v CYCLONE_INCLUDE ] && [ -v CYCLONE_LIB ]; then
+if [[ "$CYCLONE_INCLUDE" ]] && [[ "$CYCLONE_LIB" ]]; then
     echo "Looking for Cyclone installation at: $CYCLONE_ROOT"
     if [ ! -e $CYCLONE_INCLUDE/dds/ddsc/dds_public_impl.h  ]; then
 	echo "Could not find cyclone installation at $CYCLONE_ROOT"

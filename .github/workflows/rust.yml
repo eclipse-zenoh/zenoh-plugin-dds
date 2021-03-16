@@ -53,14 +53,13 @@ jobs:
         cmake ..
         sudo cmake --build . --target install
 
-    - name: Install latest nightly
+    - uses: actions/checkout@v2
+
+    - name: Install Rust
       uses: actions-rs/toolchain@v1
       with:
-          toolchain: nightly
-          override: true
           components: rustfmt, clippy
 
-    - uses: actions/checkout@v2
 
     - name: Run cargo check
       uses: actions-rs/cargo@v1
