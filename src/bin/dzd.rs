@@ -80,6 +80,10 @@ fn parse_args() -> (Properties, String, u32, Option<Regex>) {
         config.insert("peer".into(), value.collect::<Vec<&str>>().join(","));
     }
 
+    if let Some(value) = args.values_of("listener") {
+        config.insert("listener".into(), value.collect::<Vec<&str>>().join(","));
+    }
+
     let allow = if let Some(res) = args.value_of("allow") {
         match Regex::new(res) {
             Ok(re) => Some(re),
