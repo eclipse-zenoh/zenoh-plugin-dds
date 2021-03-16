@@ -18,7 +18,7 @@ case "${unameOut}" in
     *)          target=Other
 esac
 
-if [[ -v CYCLONE_INCLUDE ]] && [[ -v CYCLONE_LIB ]]; then
+if [ -v CYCLONE_INCLUDE ] && [ -v CYCLONE_LIB ]; then
     echo "Looking for Cyclone installation at: $CYCLONE_ROOT"
     if [ ! -e $CYCLONE_INCLUDE/dds/ddsc/dds_public_impl.h  ]; then
 	echo "Could not find cyclone installation at $CYCLONE_ROOT"
@@ -42,7 +42,7 @@ else
         mkdir cyclonedds/build
         cd cyclonedds/build
         cmake ..
-        if [[ $target == "Linux" ]] && [[ `id -u` != 0 ]]; 
+        if [[ $target == "Linux" ]] && [[ `id -u` != 0 ]];
         then
                 sudo make install
         else

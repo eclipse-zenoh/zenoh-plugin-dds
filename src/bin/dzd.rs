@@ -5,6 +5,7 @@ use clap::{App, Arg};
 use cyclors::*;
 use futures::prelude::*;
 use log::{debug, info};
+use regex::Regex;
 use std::collections::HashMap;
 use std::ffi::CString;
 use std::sync::mpsc::{channel, Receiver, Sender};
@@ -13,30 +14,39 @@ use zenoh::net::*;
 use zenoh::Properties;
 use zplugin_dds::*;
 
-fn parse_args() -> (Properties, String) {
+fn parse_args() -> (Properties, String, u32, Option<Regex>) {
     let args = App::new("dzd zenoh router for DDS")
         .arg(Arg::from_usage(
-            "-e, --peer=[LOCATOR]...  'Peer locator used to initiate the zenoh session.'",
+            "-e, --peer=[LOCATOR]...  'Peer locator used to initiate the zenoh session.'\n",
         ))
         .arg(Arg::from_usage(
-            "-l, --listener=[LOCATOR]...   'Locators to listen on.'",
+            "-l, --listener=[LOCATOR]...   'Locators to listen on.'\n",
         ))
         .arg(Arg::from_usage(
-            "-c, --config=[FILE]      'A configuration file.'",
+            "-c, --config=[FILE]      'A configuration file.'\n",
         ))
         .arg(Arg::from_usage(
-            "-s, --scope=[String]...   'A string used as prefix to scope DDS traffic.'",
+            "-s, --scope=[String]...   'A string used as prefix to scope DDS traffic.'\n",
         ))
         .arg(Arg::from_usage(
-            "-w, --generalise-pub=[String]...   'A comma separated list of key expression to use for generalising pubblications.'",
+            "-w, --generalise-pub=[String]...   'A comma separated list of key expression to use for generalising pubblications.'\n",
         ))
         .arg(Arg::from_usage(
-            "-r, --generalise-sub=[String]...   'A comma separated list of key expression to use for generalising subscriptions.'",
+            "-r, --generalise-sub=[String]...   'A comma separated list of key expression to use for generalising subscriptions.'\n",
         ))
         .arg(
-            Arg::from_usage("-m, --mode=[MODE]  'The zenoh session mode.")
+            Arg::from_usage("-m, --mode=[MODE]  'The zenoh session mode.'\n")
                 .possible_values(&["peer", "client"])
                 .default_value("client"),
+        )
+        .arg(
+            Arg::from_usage(
+                "-d, --domain=[ID] 'The DDS Domain ID (if using with ROS this should be the same as ROS_DOMAIN_ID).'\n")
+        )
+        .arg(
+            Arg::from_usage(
+                "-a, --allow=[String] 'The regular expression describing set of /partition/topic-name that should be bridged, everything is forwarded by default.'\n"
+            )
         )
         .get_matches();
 
@@ -70,15 +80,42 @@ fn parse_args() -> (Properties, String) {
         config.insert("peer".into(), value.collect::<Vec<&str>>().join(","));
     }
 
-    (config, scope)
+    let allow = if let Some(res) = args.value_of("allow") {
+        match Regex::new(res) {
+            Ok(re) => Some(re),
+            Err(e) => {
+                panic!("Unable to compile allow regular expression, please see error details below:\n {:?}\n", e)
+            }
+        }
+    } else {
+        None
+    };
+
+    let did = if let Some(sdid) = args.value_of("domain") {
+        match sdid.parse::<u32>() {
+            Ok(adid) => adid,
+            Err(_) => panic!("ERROR: {} is not a valid domain ID ", sdid),
+        }
+    } else {
+        DDS_DOMAIN_DEFAULT
+    };
+
+    (config, scope, did, allow)
+}
+
+fn is_allowed(sre: &Option<Regex>, path: &str) -> bool {
+    match sre {
+        Some(re) => re.is_match(path),
+        _ => true,
+    }
 }
 
 #[async_std::main]
 async fn main() {
+    const DDS_INFINITE_TIME: i64 = 0x7FFFFFFFFFFFFFFF;
     env_logger::init();
-    let (config, scope) = parse_args();
-    let dp =
-        unsafe { dds_create_participant(DDS_DOMAIN_DEFAULT, std::ptr::null(), std::ptr::null()) };
+    let (config, scope, did, allow_re) = parse_args();
+    let dp = unsafe { dds_create_participant(did, std::ptr::null(), std::ptr::null()) };
     let z = Arc::new(open(config.into()).await.unwrap());
     let (tx, rx): (Sender<MatchedEntity>, Receiver<MatchedEntity>) = channel();
     run_discovery(dp, tx);
@@ -103,6 +140,13 @@ async fn main() {
                     Some(p) => format!("{}/{}/{}", scope, p, topic_name),
                     None => format!("{}/{}", scope, topic_name),
                 };
+                if !is_allowed(&allow_re, &key) {
+                    info!(
+                        "Ignoring Publication for key {} as it is not allowed (see --allow option)",
+                        &key
+                    );
+                    break;
+                }
                 debug!("Declaring resource {}", key);
                 match rd_map.get(&key) {
                     None => {
@@ -160,6 +204,10 @@ async fn main() {
                     None => format!("{}/{}", scope, topic_name),
                 };
 
+                if !is_allowed(&allow_re, &key) {
+                    info!("Ignoring subscription for key {} as it is not allowed (see --allow option)", &key);
+                    break;
+                }
                 if let Some(wr) = match wr_map.get(&key) {
                     Some(_) => {
                         debug!(
@@ -178,12 +226,12 @@ async fn main() {
                             dds_reliability_kind_DDS_RELIABILITY_RELIABLE;
                         let mut max_blocking_time: dds_duration_t = 0;
                         unsafe {
-                            if dds_qget_reliability(qos.0, &mut kind, &mut max_blocking_time) {
-                                if max_blocking_time < 0x7FFFFFFFFFFFFFFF {
-                                    // Add 1 nanosecond to max_blocking_time for the Publisher
-                                    max_blocking_time += 1;
-                                    dds_qset_reliability(qos.0, kind, max_blocking_time);
-                                }
+                            if dds_qget_reliability(qos.0, &mut kind, &mut max_blocking_time)
+                                && max_blocking_time < DDS_INFINITE_TIME
+                            {
+                                // Add 1 nanosecond to max_blocking_time for the Publisher
+                                max_blocking_time += 1;
+                                dds_qset_reliability(qos.0, kind, max_blocking_time);
                             }
                         }
 
@@ -202,16 +250,6 @@ async fn main() {
                         "The Subscription({}, {}, {:?} is new setting up zenoh and DDS endpoings",
                         topic_name, type_name, partition
                     );
-                    // let nrid = match rid_map.get(&key) {
-                    //     Some(nrid) => *nrid,
-                    //     None => {
-                    //         let rkey = ResKey::RName(key.clone());
-                    //         z.declare_resource(&rkey).await.unwrap()
-                    //     }
-                    // };
-                    // rid_map.insert(key.clone(), nrid);
-                    // let rkey = ResKey::RId(nrid);
-                    // let rsel = rkey.into();
                     let sub_info = SubInfo {
                         reliability: Reliability::Reliable,
                         mode: SubMode::Push,

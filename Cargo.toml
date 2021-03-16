@@ -38,6 +38,7 @@ futures = "0.3.12"
 libc = "0.2.85"
 clap = "2.33"
 env_logger = "0.8.2"
+regex = "1.4.3"
 
 [dependencies.async-std]
 version = "1.9.0"
