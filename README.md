@@ -84,7 +84,7 @@ In case you do not see any data flowing around when running  on different comput
 On one of the two computers which we'll call computer-a run:
 
 ```
-$ ROS_DOMAINID=21 ros2 run demo_nodes_py listener
+$ ROS_DOMAIN_ID=21 ros2 run demo_nodes_py listener
 
 $ cargo run -- --scope /demo/dds -m peer -d 21 -l tcp/<computer-a-ip-address>:7447
 ```
