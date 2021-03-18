@@ -31,7 +31,7 @@ This plugin, will essentially:
 Beside the zenoh router plugin we also support a stand-alone bridge called **dzd** that can be used to transparently bridge DDS data on zenoh and viceversa.
 
 ### Mapping DDS to zenoh
-The mapping between DDS and zenoh is rather straightforward. Given a DDS Reader/Writer for topic ```A``` in a given partition ```P``` with a set of QoS ```Q```, then the equivalent zenoh resource will be named as ```P/A/*```. On the other hand actual writes will be on the resource ```P/A/sample-key-hash``` as this allows for zenoh subscriber to easily subscribe to just a specific Topic instance, a set of them or of all of them.
+The mapping between DDS and zenoh is rather straightforward. Given a DDS Reader/Writer for topic ```A``` in a given partition ```P``` with a set of QoS ```Q```, then the equivalent zenoh resource will be named as ```P/A/*```. On the other hand actual writes will be on the resource ```/P/A/sample-key-hash``` as this allows for zenoh subscriber to easily subscribe to just a specific Topic instance, a set of them or of all of them.
 
 
 ## Trying it Out
@@ -51,31 +51,54 @@ $ cargo build --release --all-targets
 ```
 
 Assuming you want to try this with ROS2, then install it by following the instructions available [here](https://index.ros.org/doc/ros2/Installation/Foxy/).
-Once you've installed ROS2, you easily let ROS applications communicate acros the internet. Notice that in order
-to really make this work you need to have ROS applications run on different networks. There are different ways of achieving this,
-you can use containers, VMs, or hosts on different networks.
+Once you've installed ROS2, you easily let ROS applications communicate across the internet.
+That said the simplest way to quicky try out the zenoh bridge for DDS is to use it to bridge ROS2/DDS communnication across different ROS2/DDS domains.
+This can be quickly tested on a single machine or on two (or more) machines connected to the same network. More complicated deployments with
+multiple networks and zenoh routers across the Internet are just extensions of this basic scenario.
 
-In any case assuming you have two networks, let's say N1 and N2, you will need to run one instance of **dzd** per network.
-The **dzd** daemon will operate like a transparent router discovering DDS traffic and forwarding it on zenoh w/o you having to
-configure anything.
+Let's assume that we have one ROS2 application running on domain **21** and another running on domain **42**. This alone will ensure
+that the two applications won't be able to discover or echange data. As a test you can try to run them as shown below without
+starting **dzd**  -- you remark  that nothing flows between the two. If you have two machines connected to the same network then run
+these commands on one of them:
 
-You are also welcome to use the freely available zenoh internet infrastructure to route across the internet, in this case
-just start one instance of **dzd** per network by running the following command:
 
 ```
-$ cargo run -- --scope /demo/dds -e tcp/172.105.86.91:7447
+$ ROS_DOMAINID=21 ros2 run demo_nodes_py listener
+
+$ cargo run -- --scope /demo/dds -m peer -d 21
 ```
 
-The on one of the networks, say N1, start a ROS2 listener by using the following command:
+and these commands on the other:
+
 ```
-$ ros2 run demo_nodes_py listener
+$ ROS_DOMAIN_ID=42 ros2 run demo_nodes_cpp talker
+
+$ cargo run -- --scope /demo/dds -m peer -d 21
 ```
 
-While on N2 starts a ROS2 talker by using the following command:
+Otherwise, just run them on the same machine, you will see a stream of ROS2 *Hello World* messages coming across. Once again, as the ROS2 applications are using different domains, they are unable to discover and communicate, thus the data you see is flowing over zenoh.
+
+### Troubleshooting
+In case you do not see any data flowing around when running  on different computers across a network, it may be due to your network does not allowing for multicast - this latter is used for scouting in zenoh. The simplest way to fix this issue is to explicitely pass locators as described next.
+
+On one of the two computers which we'll call computer-a run:
+
 ```
-$ ros2 run demo_nodes_cpp talker
+$ ROS_DOMAINID=21 ros2 run demo_nodes_py listener
+
+$ cargo run -- --scope /demo/dds -m peer -d 21 -l tcp/<computer-a-ip-address>:7447
 ```
 
-You will see a stream of ROS2 *Hello World* messages streamed across the internet!
+and these commands on the other:
+
+```
+$ ROS_DOMAIN_ID=42 ros2 run demo_nodes_cpp talker
+
+$ cargo run -- --scope /demo/dds -m peer -d 21 -e tcp/<computer-a-ip-address>:7447
+```
+
+Where the <computer-a-ip-address> should be replaced by the IP address used to communicate on the
+network to which both computers are connected. If you enconter any issues do not hesitate
+to reach us out on [gitter](http://gitter.im/atolab/zenoh)
 
 Good Hacking!
