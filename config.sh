@@ -48,15 +48,15 @@ else
         else
                 make install
         fi
-    else 
+    else
         if [[ -e /usr/local/include/dds/ddsc/dds_public_impl.h  ]];
 	    then
-	        CYCLONE_INCLUDE=/usr/local/include
-	        CYCLONE_LIB=/usr/local/lib
+	        export CYCLONE_INCLUDE=/usr/local/include
+	        export CYCLONE_LIB=/usr/local/lib
 	    elif [[ -e /opt/ros/$ROS_DISTRO/include/dds/ddsc/dds_public_impl.h ]];
 	    then
-	        CYCLONE_INCLUDE=/opt/ros/$ROS_DISTRO/include
-	        CYCLONE_LIB=/opt/ros/$ROS_DISTRO/lib/`arch`-$OSTYPE
+	        export CYCLONE_INCLUDE=/opt/ros/$ROS_DISTRO/include
+	        export CYCLONE_LIB=/opt/ros/$ROS_DISTRO/lib/`arch`-$OSTYPE
 	    fi
 	    echo "Found Cyclone installed at $CYCLONE_INCLUDE and $CYCLONE_LIB, skipping installation..."
     fi
