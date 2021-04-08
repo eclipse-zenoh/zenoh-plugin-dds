@@ -74,7 +74,7 @@ and these commands on the other:
 ```
 $ ROS_DOMAIN_ID=42 ros2 run demo_nodes_cpp talker
 
-$ cargo run -- --scope /demo/dds -m peer -d 21
+$ cargo run -- --scope /demo/dds -m peer -d 42
 ```
 
 Otherwise, just run them on the same machine, you will see a stream of ROS2 *Hello World* messages coming across. Once again, as the ROS2 applications are using different domains, they are unable to discover and communicate, thus the data you see is flowing over zenoh.
@@ -95,7 +95,7 @@ and these commands on the other:
 ```
 $ ROS_DOMAIN_ID=42 ros2 run demo_nodes_cpp talker
 
-$ cargo run -- --scope /demo/dds -m peer -d 21 -e tcp/<computer-a-ip-address>:7447
+$ cargo run -- --scope /demo/dds -m peer -d 42 -e tcp/<computer-a-ip-address>:7447
 ```
 
 Where the <computer-a-ip-address> should be replaced by the IP address used to communicate on the
