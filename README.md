@@ -44,10 +44,14 @@ In order to get running with the DDS plugin for zenoh you need first to install 
 
 Once these dependencies are in place, simply do:
 
-```
+```bash
 $ git clone https://github.com/eclipse-zenoh/zenoh-plugin-dds.git
 $ cd zenoh-plugin-dds
 $ ./config.sh
+```
+If the output of `config.sh` specifies to set some environment variables, do it!
+Then build:
+```bash
 $ cargo build --release --all-targets
 ```
 
