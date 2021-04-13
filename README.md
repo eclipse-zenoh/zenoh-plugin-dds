@@ -40,7 +40,10 @@ In order to get running with the DDS plugin for zenoh you need first to install 
 - [CMake](https://cmake.org/download/)
 - Your favourite C/C++ Compiler
 - [Rust](https://www.rust-lang.org/tools/install)
-- On Linux, make sure the `llvm-dev` and `clang-dev` packages are installed
+- On Linux, make sure the `llvm` and `clang` development packages are installed:
+   - on Debians do: `sudo apt install llvm-dev libclang-dev`
+   - on CentOS or RHEL do: `sudo yum install llvm-devel clang-devel`
+   - on Alpine do: `apk install llvm11-dev clang-dev`
 
 Once these dependencies are in place, simply do:
 
