@@ -32,7 +32,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macOS-latest, windows-latest]
+        os: [ubuntu-latest, macOS-latest]   # Note: windows not supported because of cyclocut not ported
 
     steps:
     - uses: actions/checkout@v2
