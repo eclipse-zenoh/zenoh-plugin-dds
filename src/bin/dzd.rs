@@ -41,6 +41,12 @@ fn parse_args() -> (Properties, String, u32, Option<Regex>) {
         )
         .arg(
             Arg::from_usage(
+                "--no-multicast-scouting \
+                'By default dzd listen and replies to UDP multicast scouting messages for being discovered by peers and routers. \
+                This option disables this feature.'")
+        )
+        .arg(
+            Arg::from_usage(
                 "-d, --domain=[ID] 'The DDS Domain ID (if using with ROS this should be the same as ROS_DOMAIN_ID).'\n")
         )
         .arg(
@@ -82,6 +88,10 @@ fn parse_args() -> (Properties, String, u32, Option<Regex>) {
 
     if let Some(value) = args.values_of("listener") {
         config.insert("listener".into(), value.collect::<Vec<&str>>().join(","));
+    }
+
+    if args.is_present("no-multicast-scouting") {
+        config.insert("multicast_scouting".into(), "false".into());
     }
 
     let allow = if let Some(res) = args.value_of("allow") {
