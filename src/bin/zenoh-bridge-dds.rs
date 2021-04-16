@@ -50,7 +50,7 @@ fn parse_args() -> (Properties, String, u32, Option<Regex>) {
         .arg(
             Arg::from_usage("-m, --mode=[MODE]  'The zenoh session mode.'\n")
                 .possible_values(&["peer", "client"])
-                .default_value("client"),
+                .default_value("peer"),
         )
         .arg(
             Arg::from_usage(
