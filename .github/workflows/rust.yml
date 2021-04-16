@@ -15,9 +15,9 @@ name: Rust
 
 on:
   push:
-    branches: [ master ]
+    branches: [ '**' ]
   pull_request:
-    branches: [ master ]
+    branches: [ '**' ]
   schedule:
     - cron: '0 6 * * 1-5'
 
@@ -30,30 +30,6 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Install APT pre-requisites
-      run: sudo apt-get update && sudo apt-get -y install curl gnupg2 lsb-release
-    
-    - name: Install Cyclone DDS
-      run: |
-        mkdir -p ${{runner.workspace}}/work
-        cd ${{runner.workspace}}/work
-        git clone --depth 1 -b 0.7.0 https://github.com/eclipse-cyclonedds/cyclonedds.git
-        cd cyclonedds
-        mkdir -p build
-        cd build
-        cmake ..
-        sudo cmake --build . --target install
-
-    - name: Install CycloCut
-      run: |
-        mkdir -p ${{runner.workspace}}/work
-        cd ${{runner.workspace}}/work
-        git clone https://github.com/kydos/cyclocut.git
-        cd cyclocut
-        mkdir -p build
-        cd build
-        cmake ..
-        sudo cmake --build . --target install
 
     - uses: actions/checkout@v2
 

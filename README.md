@@ -37,25 +37,19 @@ The mapping between DDS and zenoh is rather straightforward. Given a DDS Reader/
 ## Trying it Out
 In order to get running with the DDS plugin for zenoh you need first to install the following dependencies:
 
-- [CMake](https://cmake.org/download/)
-- Your favourite C/C++ Compiler
 - [Rust](https://www.rust-lang.org/tools/install)
 - On Linux, make sure the `llvm` and `clang` development packages are installed:
    - on Debians do: `sudo apt install llvm-dev libclang-dev`
    - on CentOS or RHEL do: `sudo yum install llvm-devel clang-devel`
    - on Alpine do: `apk install llvm11-dev clang-dev`
+- [CMake](https://cmake.org/download/) (to build CycloneDDS which is a native dependency)
 
 Once these dependencies are in place, simply do:
 
 ```bash
 $ git clone https://github.com/eclipse-zenoh/zenoh-plugin-dds.git
 $ cd zenoh-plugin-dds
-$ ./config.sh
-```
-If the output of `config.sh` specifies to set some environment variables, do it!
-Then build:
-```bash
-$ cargo build --release --all-targets
+$ cargo build --release
 ```
 
 Assuming you want to try this with ROS2, then install it by following the instructions available [here](https://index.ros.org/doc/ros2/Installation/Foxy/).
@@ -73,7 +67,7 @@ these commands on one of them:
 ```
 $ ROS_DOMAINID=21 ros2 run demo_nodes_py listener
 
-$ cargo run -- --scope /demo/dds -m peer -d 21
+$ ./target/release/dzd --scope /demo/dds -m peer -d 21
 ```
 
 and these commands on the other:
@@ -81,7 +75,7 @@ and these commands on the other:
 ```
 $ ROS_DOMAIN_ID=42 ros2 run demo_nodes_cpp talker
 
-$ cargo run -- --scope /demo/dds -m peer -d 42
+$ ./target/release/dzd --scope /demo/dds -m peer -d 42
 ```
 
 Otherwise, just run them on the same machine, you will see a stream of ROS2 *Hello World* messages coming across. Once again, as the ROS2 applications are using different domains, they are unable to discover and communicate, thus the data you see is flowing over zenoh.
@@ -94,7 +88,7 @@ On one of the two computers which we'll call computer-a run:
 ```
 $ ROS_DOMAIN_ID=21 ros2 run demo_nodes_py listener
 
-$ cargo run -- --scope /demo/dds -m peer -d 21 -l tcp/<computer-a-ip-address>:7447
+$ ./target/release/dzd --scope /demo/dds -m peer -d 21 -l tcp/<computer-a-ip-address>:7447
 ```
 
 and these commands on the other:
@@ -102,7 +96,7 @@ and these commands on the other:
 ```
 $ ROS_DOMAIN_ID=42 ros2 run demo_nodes_cpp talker
 
-$ cargo run -- --scope /demo/dds -m peer -d 42 -e tcp/<computer-a-ip-address>:7447
+$ ./target/release/dzd --scope /demo/dds -m peer -d 42 -e tcp/<computer-a-ip-address>:7447
 ```
 
 Where the <computer-a-ip-address> should be replaced by the IP address used to communicate on the

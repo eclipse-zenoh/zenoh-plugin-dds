@@ -289,16 +289,15 @@ dependencies = [
 
 [[package]]
 name = "bindgen"
-version = "0.55.1"
+version = "0.58.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "75b13ce559e6433d360c26305643803cb52cfbabbc2b9c47ce04a58493dfb443"
+checksum = "0f8523b410d7187a43085e7e064416ea32ded16bd0a4e6fc025e21616d01258f"
 dependencies = [
  "bitflags 1.2.1",
  "cexpr",
- "cfg-if 0.1.10",
  "clang-sys",
  "clap",
- "env_logger 0.7.1",
+ "env_logger",
  "lazy_static",
  "lazycell",
  "log 0.4.14",
@@ -409,9 +408,9 @@ dependencies = [
 
 [[package]]
 name = "clang-sys"
-version = "1.1.1"
+version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f54d78e30b388d4815220c8dd03fea5656b6c6d32adb59e89061552a102f8da1"
+checksum = "853eda514c284c2287f4bf20ae614f8781f40a81d32ecda6e91449304dfe077c"
 dependencies = [
  "glob 0.3.0",
  "libc",
@@ -431,6 +430,15 @@ dependencies = [
  "textwrap",
  "unicode-width",
  "vec_map",
+]
+
+[[package]]
+name = "cmake"
+version = "0.1.45"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "eb6210b637171dfba4cda12e579ac6dc73f5165ad56133e5d72ef3131f320855"
+dependencies = [
+ "cc",
 ]
 
 [[package]]
@@ -520,9 +528,10 @@ dependencies = [
 [[package]]
 name = "cyclors"
 version = "0.1.0"
-source = "git+https://github.com/kydos/cyclors#89f57025183b7d0f84543c79902fe16b47b4e674"
+source = "git+https://github.com/kydos/cyclors#c30429a9e2867ffcde2baee08720771a92ee81bc"
 dependencies = [
  "bindgen",
+ "cmake",
  "libc",
 ]
 
@@ -570,25 +579,12 @@ checksum = "212d0f5754cb6769937f4501cc0e67f4f4483c8d2c3e1e922ee9edbe4ab4c7c0"
 
 [[package]]
 name = "env_logger"
-version = "0.7.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "44533bbbb3bb3c1fa17d9f2e4e38bbbaf8396ba82193c4cb1b6445d711445d36"
-dependencies = [
- "atty",
- "humantime 1.3.0",
- "log 0.4.14",
- "regex",
- "termcolor",
-]
-
-[[package]]
-name = "env_logger"
 version = "0.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "17392a012ea30ef05a610aa97dfb49496e71c9f676b27879922ea5bdf60d9d3f"
 dependencies = [
  "atty",
- "humantime 2.1.0",
+ "humantime",
  "log 0.4.14",
  "regex",
  "termcolor",
@@ -895,15 +891,6 @@ dependencies = [
 
 [[package]]
 name = "humantime"
-version = "1.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "df004cfca50ef23c36850aaaa59ad52cc70d0e90243c3c7737a4dd32dc7a3c4f"
-dependencies = [
- "quick-error 1.2.3",
-]
-
-[[package]]
-name = "humantime"
 version = "2.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9a3a5bfb195931eeb336b2a7b4d761daec841b97f947d34394601737a7bba5e4"
@@ -1007,9 +994,9 @@ checksum = "830d08ce1d1d941e6b30645f1a0eb5643013d835ce3779a5fc208261dbe10f55"
 
 [[package]]
 name = "libc"
-version = "0.2.90"
+version = "0.2.91"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ba4aede83fc3617411dc6993bc8c70919750c1c257c6ca6a502aed6e0e2394ae"
+checksum = "8916b1f6ca17130ec6568feccee27c156ad12037880833a3b842a823236502e7"
 
 [[package]]
 name = "libloading"
@@ -1293,12 +1280,6 @@ checksum = "1e0704ee1a7e00d7bb417d0770ea303c1bccbabf0ef1667dae92b5967f5f8a71"
 dependencies = [
  "unicode-xid 0.2.1",
 ]
-
-[[package]]
-name = "quick-error"
-version = "1.2.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a1d01941d82fa2ab50be1e79e6714289dd7cde78eba4c074bc5a4374f650dfe0"
 
 [[package]]
 name = "quick-error"
@@ -1634,7 +1615,7 @@ dependencies = [
  "cfg-if 0.1.10",
  "libc",
  "nix",
- "quick-error 2.0.0",
+ "quick-error",
  "rand 0.8.3",
  "winapi 0.3.9",
 ]
@@ -1650,9 +1631,9 @@ dependencies = [
 
 [[package]]
 name = "shlex"
-version = "0.1.1"
+version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7fdf1b9db47230893d76faad238fd6097fd6d6a9245cd7a4d90dbd639536bbd2"
+checksum = "42a568c8f2cd051a4d283bd6eb0343ac214c1b0f1ac19f93e1175b2dee38c73d"
 
 [[package]]
 name = "signal-hook"
@@ -1946,7 +1927,7 @@ checksum = "7a7495874704e1b71c20f01a8859f398adcec5e041c434a7f0e887720d1fe332"
 dependencies = [
  "async-std",
  "hex",
- "humantime 2.1.0",
+ "humantime",
  "log 0.4.14",
  "uuid",
 ]
@@ -2219,8 +2200,8 @@ checksum = "712e227841d057c1ee1cd2fb22fa7e5a5461ae8e48fa2ca79ec42cfc1931183f"
 
 [[package]]
 name = "zenoh"
-version = "0.5.0-beta.8"
-source = "git+https://github.com/eclipse-zenoh/zenoh#9d32433fdcdc2e25b9e719d163950d41ab89c53c"
+version = "0.5.0-dev"
+source = "git+https://github.com/eclipse-zenoh/zenoh#174b5e6a1114ceea7bbaa719446a7682cb5eecb3"
 dependencies = [
  "async-rustls",
  "async-std",
@@ -2228,7 +2209,7 @@ dependencies = [
  "base64",
  "bincode",
  "clap",
- "env_logger 0.8.3",
+ "env_logger",
  "futures",
  "git-version",
  "hex",
@@ -2254,8 +2235,8 @@ dependencies = [
 
 [[package]]
 name = "zenoh-util"
-version = "0.5.0-beta.8"
-source = "git+https://github.com/eclipse-zenoh/zenoh#9d32433fdcdc2e25b9e719d163950d41ab89c53c"
+version = "0.5.0-dev"
+source = "git+https://github.com/eclipse-zenoh/zenoh#174b5e6a1114ceea7bbaa719446a7682cb5eecb3"
 dependencies = [
  "aes-soft",
  "async-std",
@@ -2266,7 +2247,7 @@ dependencies = [
  "hex",
  "hmac",
  "home",
- "humantime 2.1.0",
+ "humantime",
  "lazy_static",
  "libc",
  "libloading",
@@ -2287,7 +2268,7 @@ dependencies = [
  "async-trait",
  "clap",
  "cyclors",
- "env_logger 0.8.3",
+ "env_logger",
  "futures",
  "libc",
  "log 0.4.14",
