@@ -139,7 +139,6 @@ fn is_allowed(sre: &Option<Regex>, path: &str) -> bool {
 
 #[async_std::main]
 async fn main() {
-
     // Temporary check, while "dzd" is in deprecation phase
     if let Ok(path) = std::env::current_exe() {
         if let Some(exe) = path.file_name() {
