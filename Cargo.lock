@@ -528,7 +528,7 @@ dependencies = [
 [[package]]
 name = "cyclors"
 version = "0.1.0"
-source = "git+https://github.com/kydos/cyclors#c30429a9e2867ffcde2baee08720771a92ee81bc"
+source = "git+https://github.com/kydos/cyclors#35eb8f2e362613717c685cd947bf791c62687857"
 dependencies = [
  "bindgen",
  "cmake",
