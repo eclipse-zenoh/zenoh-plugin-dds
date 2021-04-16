@@ -1,3 +1,16 @@
+//
+// Copyright (c) 2017, 2020 ADLINK Technology Inc.
+//
+// This program and the accompanying materials are made available under the
+// terms of the Eclipse Public License 2.0 which is available at
+// http://www.eclipse.org/legal/epl-2.0, or the Apache License, Version 2.0
+// which is available at https://www.apache.org/licenses/LICENSE-2.0.
+//
+// SPDX-License-Identifier: EPL-2.0 OR Apache-2.0
+//
+// Contributors:
+//   ADLINK zenoh team, <zenoh@adlink-labs.tech>
+//
 #![feature(vec_into_raw_parts)]
 
 use async_std::task;
@@ -15,7 +28,7 @@ use zenoh::Properties;
 use zplugin_dds::*;
 
 fn parse_args() -> (Properties, String, u32, Option<Regex>) {
-    let args = App::new("dzd zenoh router for DDS")
+    let args = App::new("zenoh bridge for DDS")
         .arg(Arg::from_usage(
             "-e, --peer=[LOCATOR]...  'Peer locator used to initiate the zenoh session.'\n",
         ))
@@ -42,7 +55,7 @@ fn parse_args() -> (Properties, String, u32, Option<Regex>) {
         .arg(
             Arg::from_usage(
                 "--no-multicast-scouting \
-                'By default dzd listen and replies to UDP multicast scouting messages for being discovered by peers and routers. \
+                'By default the zenoh bridge listens and replies to UDP multicast scouting messages for being discovered by peers and routers. \
                 This option disables this feature.'")
         )
         .arg(
@@ -126,6 +139,20 @@ fn is_allowed(sre: &Option<Regex>, path: &str) -> bool {
 
 #[async_std::main]
 async fn main() {
+
+    // Temporary check, while "dzd" is in deprecation phase
+    if let Ok(path) = std::env::current_exe() {
+        if let Some(exe) = path.file_name() {
+            if exe.to_string_lossy().starts_with("dzd") {
+                println!("****");
+                println!("**** WARNING: dzd has a new name: zenoh-bridge-dds");
+                println!("****          Please use this new binary as 'dzd' is deprecated.");
+                println!("****");
+                println!();
+            }
+        }
+    }
+
     const DDS_INFINITE_TIME: i64 = 0x7FFFFFFFFFFFFFFF;
     env_logger::init();
     let (config, scope, did, allow_re) = parse_args();

@@ -46,8 +46,13 @@ features = ["unstable", "attributes"]
 
 
 [[bin]]
+name = "zenoh-bridge-dds"
+path = "src/bin/zenoh-bridge-dds.rs"
+
+# dzd: old name, deprecated. Keep it for a transition period
+[[bin]]
 name = "dzd"
-path = "src/bin/dzd.rs"
+path = "src/bin/zenoh-bridge-dds.rs"
 
 
 [profile.release]
