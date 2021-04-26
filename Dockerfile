@@ -34,7 +34,6 @@ RUN mkdir /usr/share/man/man1/
 RUN apt-get update && apt-get -y install g++ cmake libssl-dev openjdk-11-jdk-headless maven git clang
 
 COPY . .
-RUN ./config.sh
 RUN cargo install --path .
 
 
@@ -44,13 +43,12 @@ RUN cargo install --path .
 FROM debian:buster-slim
 
 RUN apt-get update && apt-get install -y libssl1.1 && rm -rf /var/lib/apt/lists/*
-COPY --from=builder /usr/local/lib/libdds* /usr/local/lib/libcdds-util.so /usr/local/lib/
-COPY --from=builder /usr/local/cargo/bin/dzd /usr/local/bin/dzd
+COPY --from=builder /usr/local/cargo/bin/zenoh-bridge-dds /usr/local/bin/zenoh-bridge-dds
 RUN ldconfig -v
 
 RUN echo '#!/bin/bash' > /entrypoint.sh
-RUN echo 'echo " * Starting: dzd $*"' >> /entrypoint.sh
-RUN echo 'exec dzd $*' >> /entrypoint.sh
+RUN echo 'echo " * Starting: zenoh-bridge-dds $*"' >> /entrypoint.sh
+RUN echo 'exec zenoh-bridge-dds $*' >> /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
 EXPOSE 7447/udp
