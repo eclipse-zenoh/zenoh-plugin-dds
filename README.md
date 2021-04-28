@@ -28,7 +28,7 @@ This plugin, will essentially:
 - Spoof DDS discovery data and transparently expose DDS writers/readers as zenoh publisher/subscribers
 - Route the data produced by discovered DDS writers to data to matching entities.
 
-Beside the zenoh router plugin we also support a stand-alone bridge called **dzd** that can be used to transparently bridge DDS data on zenoh and viceversa.
+Beside the zenoh router plugin we also support a stand-alone bridge called **zenoh-bridge-dds** that can be used to transparently bridge DDS data on zenoh and viceversa.
 
 ### Mapping DDS to zenoh
 The mapping between DDS and zenoh is rather straightforward. Given a DDS Reader/Writer for topic ```A``` in a given partition ```P``` with a set of QoS ```Q```, then the equivalent zenoh resource will be named as ```P/A/*```. On the other hand actual writes will be on the resource ```/P/A/sample-key-hash``` as this allows for zenoh subscriber to easily subscribe to just a specific Topic instance, a set of them or of all of them.
@@ -51,6 +51,7 @@ $ git clone https://github.com/eclipse-zenoh/zenoh-plugin-dds.git
 $ cd zenoh-plugin-dds
 $ cargo build --release
 ```
+The **zenoh-bridge-dds** binary will be generated in the `target/release` sub-directory.
 
 Assuming you want to try this with ROS2, then install it by following the instructions available [here](https://index.ros.org/doc/ros2/Installation/Foxy/).
 Once you've installed ROS2, you easily let ROS applications communicate across the internet.
@@ -60,14 +61,14 @@ multiple networks and zenoh routers across the Internet are just extensions of t
 
 Let's assume that we have one ROS2 application running on domain **21** and another running on domain **42**. This alone will ensure
 that the two applications won't be able to discover or echange data. As a test you can try to run them as shown below without
-starting **dzd**  -- you remark  that nothing flows between the two. If you have two machines connected to the same network then run
+starting **zenoh-bridge-dds**  -- you remark  that nothing flows between the two. If you have two machines connected to the same network then run
 these commands on one of them:
 
 
 ```
 $ ROS_DOMAINID=21 ros2 run demo_nodes_py listener
 
-$ ./target/release/dzd --scope /demo/dds -m peer -d 21
+$ ./target/release/zenoh-bridge-dds --scope /demo/dds -m peer -d 21
 ```
 
 and these commands on the other:
@@ -75,7 +76,7 @@ and these commands on the other:
 ```
 $ ROS_DOMAIN_ID=42 ros2 run demo_nodes_cpp talker
 
-$ ./target/release/dzd --scope /demo/dds -m peer -d 42
+$ ./target/release/zenoh-bridge-dds --scope /demo/dds -m peer -d 42
 ```
 
 Otherwise, just run them on the same machine, you will see a stream of ROS2 *Hello World* messages coming across. Once again, as the ROS2 applications are using different domains, they are unable to discover and communicate, thus the data you see is flowing over zenoh.
@@ -88,7 +89,7 @@ On one of the two computers which we'll call computer-a run:
 ```
 $ ROS_DOMAIN_ID=21 ros2 run demo_nodes_py listener
 
-$ ./target/release/dzd --scope /demo/dds -m peer -d 21 -l tcp/<computer-a-ip-address>:7447
+$ ./target/release/zenoh-bridge-dds --scope /demo/dds -m peer -d 21 -l tcp/<computer-a-ip-address>:7447
 ```
 
 and these commands on the other:
@@ -96,7 +97,7 @@ and these commands on the other:
 ```
 $ ROS_DOMAIN_ID=42 ros2 run demo_nodes_cpp talker
 
-$ ./target/release/dzd --scope /demo/dds -m peer -d 42 -e tcp/<computer-a-ip-address>:7447
+$ ./target/release/zenoh-bridge-dds --scope /demo/dds -m peer -d 42 -e tcp/<computer-a-ip-address>:7447
 ```
 
 Where the <computer-a-ip-address> should be replaced by the IP address used to communicate on the
