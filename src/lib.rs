@@ -11,282 +11,311 @@
 // Contributors:
 //   ADLINK zenoh team, <zenoh@adlink-labs.tech>
 //
+#![feature(vec_into_raw_parts)]
+
+use async_std::channel::{unbounded, Receiver, Sender};
 use async_std::task;
+use clap::{Arg, ArgMatches};
 use cyclors::*;
-use log::debug;
-use std::ffi::{CStr, CString};
-use std::mem::MaybeUninit;
-use std::os::raw;
-use std::sync::mpsc::Sender;
+use futures::prelude::*;
+use futures::select;
+use log::{debug, info};
+use regex::Regex;
+use std::collections::HashMap;
+use std::ffi::CString;
 use std::sync::Arc;
-use zenoh::net::{RBuf, ResKey, Session};
+use zenoh::net::runtime::Runtime;
+use zenoh::net::*;
 
-const MAX_SAMPLES: usize = 32;
+mod dds_mgt;
+pub use dds_mgt::*;
 
-#[derive(Debug)]
-pub struct QosHolder(pub *mut dds_qos_t);
-// unsafe impl Send for QosHolder {}
-// unsafe impl Sync for QosHolder {}
-
-#[derive(Debug)]
-pub enum MatchedEntity {
-    DiscoveredPublication {
-        topic_name: String,
-        type_name: String,
-        keyless: bool,
-        partition: Option<String>,
-        qos: QosHolder,
-    },
-    UndiscoveredPublication {
-        topic_name: String,
-        type_name: String,
-        partition: Option<String>,
-    },
-    DiscoveredSubscription {
-        topic_name: String,
-        type_name: String,
-        keyless: bool,
-        partition: Option<String>,
-        qos: QosHolder,
-    },
-    UndiscoveredSubscription {
-        topic_name: String,
-        type_name: String,
-        partition: Option<String>,
-    },
+#[no_mangle]
+pub fn get_expected_args<'a, 'b>() -> Vec<Arg<'a, 'b>> {
+    get_expected_args2()
 }
 
-#[allow(clippy::not_unsafe_ptr_arg_deref)]
-pub fn print_qos_partitions(qos: *const dds_qos_t) {
-    let mut n: u32 = 0;
-    let mut ps: *mut *mut ::std::os::raw::c_char = std::ptr::null_mut();
-    unsafe {
-        let _ = dds_qget_partition(
-            qos,
-            &mut n as *mut u32,
-            &mut ps as *mut *mut *mut ::std::os::raw::c_char,
-        );
-        if n > 0 {
-            for k in 0..n {
-                let p = CStr::from_ptr(*(ps.offset(k as isize))).to_str().unwrap();
-                debug!("Partition[{}]: {:?}", k, p);
-            }
-        }
+// NOTE: temporary hack for static link of DDS plugin in zenoh-bridge-dds, thus it can call this function
+// instead of relying on #[no_mangle] functions that will conflicts with those defined in REST plugin.
+// TODO: remove once eclipse-zenoh/zenoh#89 is implemented
+pub fn get_expected_args2<'a, 'b>() -> Vec<Arg<'a, 'b>> {
+    vec![
+        Arg::from_usage(
+            "--dds-scope=[String]...   'A string used as prefix to scope DDS traffic.'\n"
+        ),
+        Arg::from_usage(
+            "--dds-generalise-pub=[String]...   'A comma separated list of key expression to use for generalising pubblications.'\n"
+        ),
+        Arg::from_usage(
+            "--dds-generalise-sub=[String]...   'A comma separated list of key expression to use for generalising subscriptions.'\n"
+        ),
+        Arg::from_usage(
+            "--dds-domain=[ID] 'The DDS Domain ID (if using with ROS this should be the same as ROS_DOMAIN_ID).'\n"
+        ),
+        Arg::from_usage(
+            "--dds-allow=[String] 'The regular expression describing set of /partition/topic-name that should be bridged, everything is forwarded by default.'\n"
+        )
+    ]
+}
+
+#[no_mangle]
+pub fn start(runtime: Runtime, args: &'static ArgMatches<'_>) {
+    async_std::task::spawn(run(runtime, args.clone()));
+}
+
+fn is_allowed(sre: &Option<Regex>, path: &str) -> bool {
+    match sre {
+        Some(re) => re.is_match(path),
+        _ => true,
     }
 }
 
-unsafe extern "C" fn on_data(dr: dds_entity_t, arg: *mut std::os::raw::c_void) {
-    let btx = Box::from_raw(arg as *mut (bool, Sender<MatchedEntity>));
-    let dp = dds_get_participant(dr);
-    let mut dpih: dds_instance_handle_t = 0;
-    let _ = dds_get_instance_handle(dp, &mut dpih);
-    debug!("Local Domain Participant IH = {:?}", dpih);
+pub async fn run(runtime: Runtime, args: ArgMatches<'_>) {
+    const DDS_INFINITE_TIME: i64 = 0x7FFFFFFFFFFFFFFF;
 
-    #[allow(clippy::uninit_assumed_init)]
-    let mut si: [dds_sample_info_t; MAX_SAMPLES] = { MaybeUninit::uninit().assume_init() };
-    let mut samples: [*mut ::std::os::raw::c_void; MAX_SAMPLES] =
-        [std::ptr::null_mut(); MAX_SAMPLES as usize];
-    samples[0] = std::ptr::null_mut();
+    // Try to initiate login.
+    // Required in case of dynamic lib, otherwise no logs.
+    // But cannot be done twice in case of static link.
+    let _ = env_logger::try_init();
 
-    let n = dds_take(
-        dr,
-        samples.as_mut_ptr() as *mut *mut raw::c_void,
-        si.as_mut_ptr() as *mut dds_sample_info_t,
-        MAX_SAMPLES as u64,
-        MAX_SAMPLES as u32,
-    );
-    for i in 0..n {
-        if si[i as usize].valid_data {
-            let sample = samples[i as usize] as *mut dds_builtintopic_endpoint_t;
-            debug!(
-                "Discovery data from Participant with IH = {:?}",
-                (*sample).participant_instance_handle
-            );
-            let keyless = (*sample).key.v[15] == 3 || (*sample).key.v[15] == 4;
-            debug!("Discovered endpoint is keyless: {}", keyless);
-            let topic_name = CStr::from_ptr((*sample).topic_name).to_str().unwrap();
-            if topic_name.contains("DCPS") || (*sample).participant_instance_handle == dpih {
-                debug!("Ignoring discovery from local participant: {}", topic_name);
-                // print_qos_partitions((*sample).qos);
-                continue;
+    let scope: String = args
+        .value_of("dds-scope")
+        .map(String::from)
+        .or_else(|| Some(String::from("")))
+        .unwrap();
+
+    let did = if let Some(sdid) = args.value_of("dds-domain") {
+        match sdid.parse::<u32>() {
+            Ok(adid) => adid,
+            Err(_) => panic!("ERROR: {} is not a valid domain ID ", sdid),
+        }
+    } else {
+        DDS_DOMAIN_DEFAULT
+    };
+
+    let allow_re = if let Some(res) = args.value_of("dds-allow") {
+        match Regex::new(res) {
+            Ok(re) => Some(re),
+            Err(e) => {
+                panic!("Unable to compile allow regular expression, please see error details below:\n {:?}\n", e)
             }
-            let type_name = CStr::from_ptr((*sample).type_name).to_str().unwrap();
-            let mut n = 0u32;
-            let mut ps: *mut *mut ::std::os::raw::c_char = std::ptr::null_mut();
-            let qos = dds_create_qos();
-            dds_copy_qos(qos, (*sample).qos);
-            dds_qset_ignorelocal(qos, dds_ignorelocal_kind_DDS_IGNORELOCAL_PARTICIPANT);
-            dds_qset_history(qos, dds_history_kind_DDS_HISTORY_KEEP_ALL, 0);
-            let _ = dds_qget_partition(
-                (*sample).qos,
-                &mut n as *mut u32,
-                &mut ps as *mut *mut *mut ::std::os::raw::c_char,
-            );
-            if n > 0 {
-                for k in 0..n {
-                    let p = CStr::from_ptr(*(ps.offset(k as isize))).to_str().unwrap();
-                    if si[i as usize].instance_state == dds_instance_state_DDS_IST_ALIVE {
-                        if btx.0 {
-                            (btx.1)
-                                .send(MatchedEntity::DiscoveredPublication {
-                                    topic_name: String::from(topic_name),
-                                    type_name: String::from(type_name),
-                                    keyless,
-                                    partition: Some(String::from(p)),
-                                    qos: QosHolder(qos),
-                                })
-                                .unwrap();
-                        } else {
-                            (btx.1)
-                                .send(MatchedEntity::DiscoveredSubscription {
-                                    topic_name: String::from(topic_name),
-                                    type_name: String::from(type_name),
-                                    keyless,
-                                    partition: Some(String::from(p)),
-                                    qos: QosHolder(qos),
-                                })
-                                .unwrap();
+        }
+    } else {
+        None
+    };
+
+    let join_subscriptions: Vec<String> = args
+        .values_of("dds-generalise-sub")
+        .unwrap_or_default()
+        .map(|s| s.to_string())
+        .collect::<Vec<String>>();
+    let join_publications: Vec<String> = args
+        .values_of("dds-generalise-pub")
+        .unwrap_or_default()
+        .map(|s| s.to_string())
+        .collect::<Vec<String>>();
+
+    // open zenoh-net Session
+    let z = Arc::new(Session::init(runtime, true, join_subscriptions, join_publications).await);
+
+    // create DDS Participant
+    let dp = unsafe { dds_create_participant(did, std::ptr::null(), std::ptr::null()) };
+    let (tx, rx): (Sender<MatchedEntity>, Receiver<MatchedEntity>) = unbounded();
+    run_discovery(dp, tx);
+    let mut rid_map = HashMap::<String, ResourceId>::new();
+    let mut rd_map = HashMap::<String, dds_entity_t>::new();
+    let mut wr_map = HashMap::<String, dds_entity_t>::new();
+    let _zsub_map = HashMap::<String, CallbackSubscriber>::new();
+    loop {
+        select!(
+            me = rx.recv().fuse() => {
+                match me.unwrap() {
+                    MatchedEntity::DiscoveredPublication {
+                        topic_name,
+                        type_name,
+                        keyless,
+                        partition,
+                        qos,
+                    } => {
+                        debug!(
+                            "DiscoveredPublication({}, {}, {:?}",
+                            topic_name, type_name, partition
+                        );
+                        let key = match partition {
+                            Some(p) => format!("{}/{}/{}", scope, p, topic_name),
+                            None => format!("{}/{}", scope, topic_name),
+                        };
+                        if !is_allowed(&allow_re, &key) {
+                            info!(
+                                "Ignoring Publication for key {} as it is not allowed (see --allow option)",
+                                &key
+                            );
+                            break;
                         }
-                    } else if btx.0 {
-                        (btx.1)
-                            .send(MatchedEntity::UndiscoveredPublication {
-                                topic_name: String::from(topic_name),
-                                type_name: String::from(type_name),
-                                partition: Some(String::from(p)),
-                            })
-                            .unwrap();
-                    } else {
-                        (btx.1)
-                            .send(MatchedEntity::UndiscoveredSubscription {
-                                topic_name: String::from(topic_name),
-                                type_name: String::from(type_name),
-                                partition: Some(String::from(p)),
-                            })
-                            .unwrap();
+                        debug!("Declaring resource {}", key);
+                        match rd_map.get(&key) {
+                            None => {
+                                let rkey = ResKey::RName(key.clone());
+                                let nrid = z.declare_resource(&rkey).await.unwrap();
+                                let rid = ResKey::RId(nrid);
+                                let _ = z.declare_publisher(&rid).await;
+                                rid_map.insert(key.clone(), nrid);
+                                info!(
+                                    "New route: DDS '{}' => zenoh '{}' (rid={}) with type '{}'",
+                                    topic_name, key, rid, type_name
+                                );
+                                let dr: dds_entity_t = create_forwarding_dds_reader(
+                                    dp,
+                                    topic_name,
+                                    type_name,
+                                    keyless,
+                                    qos,
+                                    rid,
+                                    z.clone(),
+                                );
+                                rd_map.insert(key, dr);
+                            }
+                            _ => {
+                                debug!(
+                                    "Already forwarding matching subscription {} -- ignoring",
+                                    topic_name
+                                );
+                            }
+                        }
+                    }
+                    MatchedEntity::UndiscoveredPublication {
+                        topic_name,
+                        type_name,
+                        partition,
+                    } => {
+                        debug!(
+                            "UndiscoveredPublication({}, {}, {:?}",
+                            topic_name, type_name, partition
+                        );
+                    }
+                    MatchedEntity::DiscoveredSubscription {
+                        topic_name,
+                        type_name,
+                        keyless,
+                        partition,
+                        qos,
+                    } => {
+                        debug!(
+                            "DiscoveredSubscription({}, {}, {:?}",
+                            topic_name, type_name, partition
+                        );
+                        let key = match &partition {
+                            Some(p) => format!("{}/{}/{}", scope, p, topic_name),
+                            None => format!("{}/{}", scope, topic_name),
+                        };
+
+                        if !is_allowed(&allow_re, &key) {
+                            info!("Ignoring subscription for key {} as it is not allowed (see --allow option)", &key);
+                            break;
+                        }
+                        if let Some(wr) = match wr_map.get(&key) {
+                            Some(_) => {
+                                debug!(
+                                    "The Subscription({}, {}, {:?} is aready handled, IGNORING",
+                                    topic_name, type_name, partition
+                                );
+                                None
+                            }
+                            None => {
+                                info!(
+                                    "New route: zenoh '{}' => DDS '{}' with type '{}'",
+                                    key, topic_name, type_name
+                                );
+                                // Workaround for the Publisher to correctly match with a FastRTPS Subscriber declaring a Reliability max_blocking_time < infinite
+                                let mut kind: dds_reliability_kind_t =
+                                    dds_reliability_kind_DDS_RELIABILITY_RELIABLE;
+                                let mut max_blocking_time: dds_duration_t = 0;
+                                unsafe {
+                                    if dds_qget_reliability(qos.0, &mut kind, &mut max_blocking_time)
+                                        && max_blocking_time < DDS_INFINITE_TIME
+                                    {
+                                        // Add 1 nanosecond to max_blocking_time for the Publisher
+                                        max_blocking_time += 1;
+                                        dds_qset_reliability(qos.0, kind, max_blocking_time);
+                                    }
+                                }
+
+                                let wr = create_forwarding_dds_writer(
+                                    dp,
+                                    topic_name.clone(),
+                                    type_name.clone(),
+                                    keyless,
+                                    qos,
+                                );
+                                wr_map.insert(key.clone(), wr);
+                                Some(wr)
+                            }
+                        } {
+                            debug!(
+                                "The Subscription({}, {}, {:?} is new setting up zenoh and DDS endpoings",
+                                topic_name, type_name, partition
+                            );
+                            let sub_info = SubInfo {
+                                reliability: Reliability::Reliable,
+                                mode: SubMode::Push,
+                                period: None,
+                            };
+
+                            let zn = z.clone();
+                            task::spawn(async move {
+                                let rkey = ResKey::RName(key);
+                                let mut sub = zn.declare_subscriber(&rkey, &sub_info).await.unwrap();
+                                let stream = sub.stream();
+                                while let Some(d) = stream.next().await {
+                                    log::trace!("Route data to DDS '{}'", topic_name);
+                                    let ton = topic_name.clone();
+                                    let tyn = type_name.clone();
+                                    unsafe {
+                                        let bs = d.payload.to_vec();
+                                        // As per the Vec documentation (see https://doc.rust-lang.org/std/vec/struct.Vec.html#method.into_raw_parts)
+                                        // the only way to correctly releasing it is to create a vec using from_raw_parts
+                                        // and then have its destructor do the cleanup.
+                                        // Thus, while tempting to just pass the raw pointer to cyclone and then free it from C,
+                                        // that is not necessarily safe or guaranteed to be leak free.
+                                        let (ptr, len, capacity) = bs.into_raw_parts();
+                                        let cton = CString::new(ton).unwrap().into_raw();
+                                        let ctyn = CString::new(tyn).unwrap().into_raw();
+                                        let st = cdds_create_blob_sertopic(
+                                            dp,
+                                            cton as *mut std::os::raw::c_char,
+                                            ctyn as *mut std::os::raw::c_char,
+                                            keyless,
+                                        );
+                                        drop(CString::from_raw(cton));
+                                        drop(CString::from_raw(ctyn));
+                                        let fwdp = cdds_ddsi_payload_create(
+                                            st,
+                                            ddsi_serdata_kind_SDK_DATA,
+                                            ptr,
+                                            len as u64,
+                                        );
+                                        dds_writecdr(wr, fwdp as *mut ddsi_serdata);
+                                        drop(Vec::from_raw_parts(ptr, len, capacity));
+                                        cdds_sertopic_unref(st);
+                                    };
+                                }
+                            });
+                        }
+                    }
+                    MatchedEntity::UndiscoveredSubscription {
+                        topic_name,
+                        type_name,
+                        partition,
+                    } => {
+                        debug!(
+                            "UndiscoveredSubscription({}, {}, {:?}",
+                            topic_name, type_name, partition
+                        );
                     }
                 }
-            } else if si[i as usize].instance_state == dds_instance_state_DDS_IST_ALIVE {
-                if btx.0 {
-                    (btx.1)
-                        .send(MatchedEntity::DiscoveredPublication {
-                            topic_name: String::from(topic_name),
-                            type_name: String::from(type_name),
-                            keyless,
-                            partition: None,
-                            qos: QosHolder(qos),
-                        })
-                        .unwrap();
-                } else {
-                    (btx.1)
-                        .send(MatchedEntity::DiscoveredSubscription {
-                            topic_name: String::from(topic_name),
-                            type_name: String::from(type_name),
-                            keyless,
-                            partition: None,
-                            qos: QosHolder(qos),
-                        })
-                        .unwrap();
-                }
-            } else if btx.0 {
-                (btx.1)
-                    .send(MatchedEntity::UndiscoveredPublication {
-                        topic_name: String::from(topic_name),
-                        type_name: String::from(type_name),
-                        partition: None,
-                    })
-                    .unwrap();
-            } else {
-                (btx.1)
-                    .send(MatchedEntity::UndiscoveredSubscription {
-                        topic_name: String::from(topic_name),
-                        type_name: String::from(type_name),
-                        partition: None,
-                    })
-                    .unwrap();
             }
-        }
+        )
     }
-    dds_return_loan(
-        dr,
-        samples.as_mut_ptr() as *mut *mut raw::c_void,
-        MAX_SAMPLES as i32,
-    );
-    Box::into_raw(btx);
-}
-pub fn run_discovery(dp: dds_entity_t, tx: Sender<MatchedEntity>) {
-    unsafe {
-        let ptx = Box::new((true, tx.clone()));
-        let stx = Box::new((false, tx));
-        let sub_listener = dds_create_listener(Box::into_raw(ptx) as *mut std::os::raw::c_void);
-        dds_lset_data_available(sub_listener, Some(on_data));
 
-        let _pr = dds_create_reader(
-            dp,
-            DDS_BUILTIN_TOPIC_DCPSPUBLICATION,
-            std::ptr::null(),
-            sub_listener,
-        );
-
-        let sub_listener = dds_create_listener(Box::into_raw(stx) as *mut std::os::raw::c_void);
-        dds_lset_data_available(sub_listener, Some(on_data));
-        let _sr = dds_create_reader(
-            dp,
-            DDS_BUILTIN_TOPIC_DCPSSUBSCRIPTION,
-            std::ptr::null(),
-            sub_listener,
-        );
-    }
-}
-
-unsafe extern "C" fn data_forwarder_listener(dr: dds_entity_t, arg: *mut std::os::raw::c_void) {
-    let pa = arg as *mut (ResKey, Arc<Session>);
-    let mut zp: *mut cdds_ddsi_payload = std::ptr::null_mut();
-    #[allow(clippy::uninit_assumed_init)]
-    let mut si: [dds_sample_info_t; 1] = { MaybeUninit::uninit().assume_init() };
-    while cdds_take_blob(dr, &mut zp, si.as_mut_ptr()) > 0 {
-        if si[0].valid_data {
-            log::trace!("Route data to zenoh resource with rid={}", &(*pa).0);
-            let bs = Vec::from_raw_parts((*zp).payload, (*zp).size as usize, (*zp).size as usize);
-            let rbuf = RBuf::from(bs);
-            let _ = task::block_on(async { (*pa).1.write(&(*pa).0, rbuf).await });
-            (*zp).payload = std::ptr::null_mut();
-        }
-        cdds_serdata_unref(zp as *mut ddsi_serdata);
-    }
-}
-pub fn create_forwarding_dds_reader(
-    dp: dds_entity_t,
-    topic_name: String,
-    type_name: String,
-    keyless: bool,
-    qos: QosHolder,
-    z_key: ResKey,
-    z: Arc<Session>,
-) -> dds_entity_t {
-    let cton = CString::new(topic_name).unwrap().into_raw();
-    let ctyn = CString::new(type_name).unwrap().into_raw();
-
-    unsafe {
-        let t = cdds_create_blob_topic(dp, cton, ctyn, keyless);
-        let arg = Box::new((z_key, z));
-        let sub_listener = dds_create_listener(Box::into_raw(arg) as *mut std::os::raw::c_void);
-        dds_lset_data_available(sub_listener, Some(data_forwarder_listener));
-        dds_create_reader(dp, t, qos.0, sub_listener)
-    }
-}
-
-pub fn create_forwarding_dds_writer(
-    dp: dds_entity_t,
-    topic_name: String,
-    type_name: String,
-    keyless: bool,
-    qos: QosHolder,
-) -> dds_entity_t {
-    let cton = CString::new(topic_name).unwrap().into_raw();
-    let ctyn = CString::new(type_name).unwrap().into_raw();
-
-    unsafe {
-        let t = cdds_create_blob_topic(dp, cton, ctyn, keyless);
-        dds_create_writer(dp, t, qos.0, std::ptr::null_mut())
-    }
+    drop(rx);
 }
