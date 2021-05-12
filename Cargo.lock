@@ -2844,9 +2844,12 @@ dependencies = [
  "cyclors",
  "env_logger",
  "futures",
+ "hex",
  "libc",
  "log 0.4.14",
  "regex",
+ "serde",
+ "serde_json",
  "zenoh",
  "zenoh-plugin-rest",
 ]
