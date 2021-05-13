@@ -118,11 +118,9 @@ async fn main() {
 
     // start REST plugin
     if rest_plugin {
-        zplugin_rest::run(runtime.clone(), args.clone()).await;
+        async_std::task::spawn(zplugin_rest::run(runtime.clone(), args.clone()));
     }
 
     // start DDS plugin
     zplugin_dds::run(runtime.clone(), args.clone()).await;
-
-    future::pending::<()>().await;
 }
