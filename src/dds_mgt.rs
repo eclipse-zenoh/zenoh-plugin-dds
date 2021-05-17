@@ -25,6 +25,14 @@ use zenoh::net::{RBuf, ResKey, Session};
 
 const MAX_SAMPLES: usize = 32;
 
+#[derive(PartialEq, Debug, Serialize)]
+pub(crate) enum RouteStatus {
+    Routed,
+    RouterOnSomePartitions,
+    NotAllowed,
+    _QoSConflict,
+}
+
 #[derive(Debug, Serialize)]
 pub(crate) struct DdsEntity {
     pub(crate) key: String,
@@ -34,6 +42,7 @@ pub(crate) struct DdsEntity {
     pub(crate) partitions: Vec<String>,
     pub(crate) keyless: bool,
     pub(crate) qos: QosHolder,
+    pub(crate) route_status: Option<RouteStatus>,
 }
 
 #[derive(Debug)]
@@ -128,6 +137,7 @@ unsafe extern "C" fn on_data(dr: dds_entity_t, arg: *mut std::os::raw::c_void) {
                     keyless,
                     partitions,
                     qos: QosHolder(qos),
+                    route_status: None,
                 };
 
                 if pub_discovery {

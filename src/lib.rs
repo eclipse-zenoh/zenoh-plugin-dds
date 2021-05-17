@@ -33,7 +33,7 @@ use zenoh::net::*;
 use zenoh::{GetRequest, Path, PathExpr, Value, Zenoh};
 
 mod qos;
-use qos::QosHolder;
+use qos::*;
 mod dds_mgt;
 use dds_mgt::*;
 
@@ -134,12 +134,6 @@ pub async fn run(runtime: Runtime, args: ArgMatches<'_>) {
     };
 
     dds_plugin.run().await;
-}
-
-enum RouteStatus {
-    Created,
-    NotAllowed,
-    _QoSConflict,
 }
 
 struct DdsPlugin {
@@ -254,7 +248,7 @@ impl DdsPlugin {
                 "Route from DDS to resource {} already exists -- ignoring",
                 zkey
             );
-            return RouteStatus::Created;
+            return RouteStatus::Routed;
         }
 
         // declare the zenoh resource and the publisher
@@ -287,7 +281,7 @@ impl DdsPlugin {
         );
 
         self.insert_route_from_dds(zkey, dr);
-        RouteStatus::Created
+        RouteStatus::Routed
     }
 
     async fn try_add_route_to_dds(&mut self, zkey: &str, sub_to_match: &DdsEntity) -> RouteStatus {
@@ -307,7 +301,7 @@ impl DdsPlugin {
                 "Route from resource {} to DDS already exists -- ignoring",
                 zkey
             );
-            return RouteStatus::Created;
+            return RouteStatus::Routed;
         }
 
         info!(
@@ -326,7 +320,7 @@ impl DdsPlugin {
             let mut kind: dds_reliability_kind_t = dds_reliability_kind_DDS_RELIABILITY_RELIABLE;
             let mut max_blocking_time: dds_duration_t = 0;
             if dds_qget_reliability(qos, &mut kind, &mut max_blocking_time)
-                && max_blocking_time < qos::DDS_INFINITE_TIME
+                && max_blocking_time < DDS_INFINITE_TIME
             {
                 // Add 1 nanosecond to max_blocking_time for the Publisher
                 max_blocking_time += 1;
@@ -389,7 +383,7 @@ impl DdsPlugin {
         });
 
         self.insert_route_to_dds(zkey, dw);
-        RouteStatus::Created
+        RouteStatus::Routed
     }
 
     async fn treat_admin_query(&self, get_request: GetRequest, admin_path_prefix: &str) {
@@ -483,16 +477,31 @@ impl DdsPlugin {
                 evt = rx.recv().fuse() => {
                     match evt.unwrap() {
                         DiscoveryEvent::DiscoveredPublication {
-                            entity
+                            mut entity
                         } => {
                             if entity.partitions.is_empty() {
                                 let zkey = format!("{}/{}", self.scope, entity.topic_name);
-                                let _route_status = self.try_add_route_from_dds(&zkey, &entity).await;
+                                let route_status = self.try_add_route_from_dds(&zkey, &entity).await;
+                                entity.route_status = Some(route_status);
                             } else {
+                                let mut stats: Vec<RouteStatus> = Vec::with_capacity(entity.partitions.len());
                                 for p in &entity.partitions {
                                     let zkey = format!("{}/{}/{}", self.scope, p, entity.topic_name);
-                                    let _route_status = self.try_add_route_from_dds(&zkey, &entity).await;
+                                    stats.push(self.try_add_route_from_dds(&zkey, &entity).await);
                                 }
+                                entity.route_status = if !stats.contains(&RouteStatus::Routed) {
+                                    if stats.contains(&RouteStatus::_QoSConflict) {
+                                        Some(RouteStatus::_QoSConflict)
+                                    } else {
+                                        Some(RouteStatus::NotAllowed)
+                                    }
+                                } else {
+                                    if stats.contains(&RouteStatus::_QoSConflict) {
+                                        Some(RouteStatus::_QoSConflict)
+                                    } else {
+                                        Some(RouteStatus::RouterOnSomePartitions)
+                                    }
+                                };
                             }
                             self.insert_dds_writer(entity);
                         }
@@ -504,16 +513,31 @@ impl DdsPlugin {
                             }
                         }
                         DiscoveryEvent::DiscoveredSubscription {
-                            entity
+                            mut entity
                         } => {
                             if entity.partitions.is_empty() {
                                 let zkey = format!("{}/{}", self.scope, entity.topic_name);
-                                let _route_status = self.try_add_route_to_dds(&zkey, &entity).await;
+                                let route_status = self.try_add_route_to_dds(&zkey, &entity).await;
+                                entity.route_status = Some(route_status);
                             } else {
+                                let mut stats: Vec<RouteStatus> = Vec::with_capacity(entity.partitions.len());
                                 for p in &entity.partitions {
                                     let zkey = format!("{}/{}/{}", self.scope, p, entity.topic_name);
-                                    let _route_status = self.try_add_route_to_dds(&zkey, &entity).await;
+                                    stats.push(self.try_add_route_to_dds(&zkey, &entity).await);
                                 }
+                                entity.route_status = if !stats.contains(&RouteStatus::Routed) {
+                                    if stats.contains(&RouteStatus::_QoSConflict) {
+                                        Some(RouteStatus::_QoSConflict)
+                                    } else {
+                                        Some(RouteStatus::NotAllowed)
+                                    }
+                                } else {
+                                    if stats.contains(&RouteStatus::_QoSConflict) {
+                                        Some(RouteStatus::_QoSConflict)
+                                    } else {
+                                        Some(RouteStatus::RouterOnSomePartitions)
+                                    }
+                                };
                             }
                             self.insert_dds_reader(entity);
                         }
