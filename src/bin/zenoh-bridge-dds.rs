@@ -14,7 +14,6 @@
 #![feature(vec_into_raw_parts)]
 
 use clap::{App, Arg, ArgMatches};
-use futures::prelude::*;
 use zenoh::Properties;
 
 // customize the DDS plugin args for retro-compatibility with previous versions of the standalone bridge

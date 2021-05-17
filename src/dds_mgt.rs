@@ -11,12 +11,12 @@
 // Contributors:
 //   ADLINK zenoh team, <zenoh@adlink-labs.tech>
 //
+use crate::qos::*;
 use async_std::channel::Sender;
 use async_std::task;
 use cyclors::*;
 use log::debug;
-use serde::ser::SerializeStruct;
-use serde::{Serialize, Serializer};
+use serde::Serialize;
 use std::ffi::{CStr, CString};
 use std::mem::MaybeUninit;
 use std::os::raw;
@@ -25,38 +25,14 @@ use zenoh::net::{RBuf, ResKey, Session};
 
 const MAX_SAMPLES: usize = 32;
 
-#[derive(Debug)]
-pub struct QosHolder(pub *mut dds_qos_t);
-unsafe impl Send for QosHolder {}
-unsafe impl Sync for QosHolder {}
-
-impl Serialize for QosHolder {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        let mut s = serializer.serialize_struct("QoS", 2)?;
-
-        let mut kind: dds_reliability_kind_t = dds_reliability_kind_DDS_RELIABILITY_RELIABLE;
-        let mut max_blocking_time: dds_duration_t = 0;
-        unsafe {
-            if dds_qget_reliability(self.0, &mut kind, &mut max_blocking_time) {
-                s.serialize_field("reliability_kind", &kind)?;
-                s.serialize_field("reliability_max_blocking_time", &max_blocking_time)?;
-            }
-        }
-        s.end()
-    }
-}
-
 #[derive(Debug, Serialize)]
 pub(crate) struct DdsEntity {
     pub(crate) key: String,
     pub(crate) participant_key: String,
     pub(crate) topic_name: String,
     pub(crate) type_name: String,
-    pub(crate) keyless: bool,
     pub(crate) partitions: Vec<String>,
+    pub(crate) keyless: bool,
     pub(crate) qos: QosHolder,
 }
 
@@ -66,25 +42,6 @@ pub(crate) enum DiscoveryEvent {
     UndiscoveredPublication { key: String },
     DiscoveredSubscription { entity: DdsEntity },
     UndiscoveredSubscription { key: String },
-}
-
-#[allow(clippy::not_unsafe_ptr_arg_deref)]
-pub fn print_qos_partitions(qos: *const dds_qos_t) {
-    let mut n: u32 = 0;
-    let mut ps: *mut *mut ::std::os::raw::c_char = std::ptr::null_mut();
-    unsafe {
-        let _ = dds_qget_partition(
-            qos,
-            &mut n as *mut u32,
-            &mut ps as *mut *mut *mut ::std::os::raw::c_char,
-        );
-        if n > 0 {
-            for k in 0..n {
-                let p = CStr::from_ptr(*(ps.offset(k as isize))).to_str().unwrap();
-                debug!("Partition[{}]: {:?}", k, p);
-            }
-        }
-    }
 }
 
 unsafe extern "C" fn on_data(dr: dds_entity_t, arg: *mut std::os::raw::c_void) {

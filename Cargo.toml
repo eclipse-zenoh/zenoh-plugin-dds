@@ -41,8 +41,10 @@ clap = "2.33"
 env_logger = "0.8.2"
 regex = "1.4.3"
 hex = "0.4.3"
+lazy_static = "1.4.0"
 serde = "1.0.125"
 serde_json = "1.0.64"
+
 
 
 [dependencies.async-std]
