@@ -37,10 +37,10 @@ use qos::*;
 mod dds_mgt;
 use dds_mgt::*;
 
-#[no_mangle]
-pub fn get_expected_args<'a, 'b>() -> Vec<Arg<'a, 'b>> {
-    get_expected_args2()
-}
+// #[no_mangle]
+// pub fn get_expected_args<'a, 'b>() -> Vec<Arg<'a, 'b>> {
+//     get_expected_args2()
+// }
 
 // NOTE: temporary hack for static link of DDS plugin in zenoh-bridge-dds, thus it can call this function
 // instead of relying on #[no_mangle] functions that will conflicts with those defined in REST plugin.
@@ -65,10 +65,10 @@ pub fn get_expected_args2<'a, 'b>() -> Vec<Arg<'a, 'b>> {
     ]
 }
 
-#[no_mangle]
-pub fn start(runtime: Runtime, args: &'static ArgMatches<'_>) {
-    async_std::task::spawn(run(runtime, args.clone()));
-}
+// #[no_mangle]
+// pub fn start(runtime: Runtime, args: &'static ArgMatches<'_>) {
+//     async_std::task::spawn(run(runtime, args.clone()));
+// }
 
 pub async fn run(runtime: Runtime, args: ArgMatches<'_>) {
     // Try to initiate login.
