@@ -128,12 +128,31 @@ pub async fn run(runtime: Runtime, args: ArgMatches<'_>) {
         dp,
         dds_writer: HashMap::<String, DdsEntity>::new(),
         dds_reader: HashMap::<String, DdsEntity>::new(),
-        routes_from_dds: HashMap::<String, dds_entity_t>::new(),
-        routes_to_dds: HashMap::<String, dds_entity_t>::new(),
-        admin_space: HashMap::<String, String>::new(),
+        routes_from_dds: HashMap::<String, Route>::new(),
+        routes_to_dds: HashMap::<String, Route>::new(),
+        admin_space: HashMap::<String, AdminRef>::new(),
     };
 
     dds_plugin.run().await;
+}
+
+// An reference used in admin space to point to a struct (DdsEntiry or Route) stored in another map
+enum AdminRef {
+    DdsWriterEntity(String),
+    DdsReaderEntity(String),
+    FromDdsRoute(String),
+    ToDdsRoute(String),
+    Config,
+}
+
+// a route from or to DDS
+#[derive(Debug, Serialize)]
+struct Route {
+    // the local DDS entity created to match the discovered user's DDS entites
+    #[serde(skip)]
+    matching_entity: dds_entity_t,
+    // the list of discovered user's DDS entities keys that are routed by this route
+    routed_entities: Vec<String>,
 }
 
 struct DdsPlugin {
@@ -146,11 +165,11 @@ struct DdsPlugin {
     dds_writer: HashMap<String, DdsEntity>,
     dds_reader: HashMap<String, DdsEntity>,
     // maps of established routes from/to DDS (indexed by zenoh resource key)
-    routes_from_dds: HashMap<String, dds_entity_t>,
-    routes_to_dds: HashMap<String, dds_entity_t>,
+    routes_from_dds: HashMap<String, Route>,
+    routes_to_dds: HashMap<String, Route>,
     // admin space: index is the admin_path (relative to admin_prefix)
     // value is the JSon string to return to queries.
-    admin_space: HashMap<String, String>,
+    admin_space: HashMap<String, AdminRef>,
 }
 
 impl Serialize for DdsPlugin {
@@ -158,6 +177,7 @@ impl Serialize for DdsPlugin {
     where
         S: Serializer,
     {
+        // return the plugin's config as a JSON struct
         let mut s = serializer.serialize_struct("dds", 3)?;
         s.serialize_field("domain_id", &self.domain_id)?;
         s.serialize_field("scope", &self.scope)?;
@@ -186,55 +206,61 @@ impl DdsPlugin {
 
     fn insert_dds_writer(&mut self, e: DdsEntity) {
         // insert reference in admin_space
-        let path = format!(
-            "participant/{}/writer/{}/{}",
-            e.participant_key, e.key, e.topic_name
-        );
-        // self.admin_space.insert(path, e.key.clone());
+        let path = format!("participant/{}/writer/{}", e.participant_key, e.key);
         self.admin_space
-            .insert(path, serde_json::to_string(&e).unwrap());
+            .insert(path, AdminRef::DdsWriterEntity(e.key.clone()));
 
         // insert DdsEntity in dds_writer map
         self.dds_writer.insert(e.key.clone(), e);
     }
 
+    fn remove_dds_writer(&mut self, key: &str) {
+        // remove from dds_writer map
+        if let Some(e) = self.dds_writer.remove(key) {
+            // remove from admin space
+            let path = format!("participant/{}/writer/{}", e.participant_key, e.key);
+            self.admin_space.remove(&path);
+
+            // TODO: check is matching routes are unused and remove them
+        }
+    }
+
     fn insert_dds_reader(&mut self, e: DdsEntity) {
         // insert reference in admin_space
-        let path = format!(
-            "participant/{}/reader/{}/{}",
-            e.participant_key, e.key, e.topic_name
-        );
+        let path = format!("participant/{}/reader/{}", e.participant_key, e.key);
         self.admin_space
-            .insert(path, serde_json::to_string(&e).unwrap());
+            .insert(path, AdminRef::DdsReaderEntity(e.key.clone()));
 
         // insert DdsEntity in dds_reader map
         self.dds_reader.insert(e.key.clone(), e);
     }
 
-    fn insert_route_from_dds(&mut self, zkey: &str, e: dds_entity_t) {
+    fn insert_route_from_dds(&mut self, zkey: &str, r: Route) {
         // insert reference in admin_space
         let path = format!("route/from_dds/{}", zkey);
-        self.admin_space.insert(path, (*JSON_NULL_STR).clone());
+        self.admin_space
+            .insert(path, AdminRef::FromDdsRoute(zkey.to_string()));
 
         // insert route in routes_from_dds map
-        self.routes_from_dds.insert(zkey.to_string(), e);
+        self.routes_from_dds.insert(zkey.to_string(), r);
     }
 
-    fn insert_route_to_dds(&mut self, zkey: &str, e: dds_entity_t) {
+    fn insert_route_to_dds(&mut self, zkey: &str, r: Route) {
         // insert reference in admin_space
         let path = format!("route/to_dds/{}", zkey);
-        self.admin_space.insert(path, (*JSON_NULL_STR).clone());
+        self.admin_space
+            .insert(path, AdminRef::ToDdsRoute(zkey.to_string()));
 
         // insert route in routes_from_dds map
-        self.routes_to_dds.insert(zkey.to_string(), e);
+        self.routes_to_dds.insert(zkey.to_string(), r);
     }
 
     async fn try_add_route_from_dds(
         &mut self,
-        zkey: &str,
+        zkey: String,
         pub_to_match: &DdsEntity,
     ) -> RouteStatus {
-        if !self.is_allowed(zkey) {
+        if !self.is_allowed(&zkey) {
             info!(
                 "Ignoring Publication for resource {} as it is not allowed (see --allow option)",
                 zkey
@@ -242,17 +268,18 @@ impl DdsPlugin {
             return RouteStatus::NotAllowed;
         }
 
-        if self.routes_from_dds.contains_key(zkey) {
+        if let Some(route) = self.routes_from_dds.get_mut(&zkey) {
             // TODO: check if there is no QoS conflict with existing route
             debug!(
                 "Route from DDS to resource {} already exists -- ignoring",
                 zkey
             );
-            return RouteStatus::Routed;
+            route.routed_entities.push(pub_to_match.key.clone());
+            return RouteStatus::Routed(zkey);
         }
 
         // declare the zenoh resource and the publisher
-        let rkey = ResKey::RName(zkey.to_string());
+        let rkey = ResKey::RName(zkey.clone());
         let nrid = self.zsession.declare_resource(&rkey).await.unwrap();
         let rid = ResKey::RId(nrid);
         let _ = self.zsession.declare_publisher(&rid).await;
@@ -280,13 +307,23 @@ impl DdsPlugin {
             self.zsession.clone(),
         );
 
-        self.insert_route_from_dds(zkey, dr);
-        RouteStatus::Routed
+        self.insert_route_from_dds(
+            &zkey,
+            Route {
+                matching_entity: dr,
+                routed_entities: vec![pub_to_match.key.clone()],
+            },
+        );
+        RouteStatus::Routed(zkey)
     }
 
-    async fn try_add_route_to_dds(&mut self, zkey: &str, sub_to_match: &DdsEntity) -> RouteStatus {
+    async fn try_add_route_to_dds(
+        &mut self,
+        zkey: String,
+        sub_to_match: &DdsEntity,
+    ) -> RouteStatus {
         if let Some(re) = &self.allow_re {
-            if !re.is_match(zkey) {
+            if !re.is_match(&zkey) {
                 info!(
                         "Ignoring Subscription for resource {} as it is not allowed (see --allow option)",
                         zkey
@@ -295,13 +332,14 @@ impl DdsPlugin {
             }
         }
 
-        if self.routes_to_dds.contains_key(zkey) {
+        if let Some(route) = self.routes_to_dds.get_mut(&zkey) {
             // TODO: check if there is no type or QoS conflict with existing route
             debug!(
                 "Route from resource {} to DDS already exists -- ignoring",
                 zkey
             );
-            return RouteStatus::Routed;
+            route.routed_entities.push(sub_to_match.key.clone());
+            return RouteStatus::Routed(zkey);
         }
 
         info!(
@@ -382,8 +420,36 @@ impl DdsPlugin {
             }
         });
 
-        self.insert_route_to_dds(zkey, dw);
-        RouteStatus::Routed
+        self.insert_route_to_dds(
+            &zkey,
+            Route {
+                matching_entity: dw,
+                routed_entities: vec![sub_to_match.key.clone()],
+            },
+        );
+        RouteStatus::Routed(zkey)
+    }
+
+    fn get_admin_value(&self, admin_ref: &AdminRef) -> Option<Value> {
+        match admin_ref {
+            AdminRef::DdsReaderEntity(key) => self
+                .dds_reader
+                .get(key)
+                .map(|e| Value::Json(serde_json::to_string(e).unwrap())),
+            AdminRef::DdsWriterEntity(key) => self
+                .dds_writer
+                .get(key)
+                .map(|e| Value::Json(serde_json::to_string(e).unwrap())),
+            AdminRef::FromDdsRoute(zkey) => self
+                .routes_from_dds
+                .get(zkey)
+                .map(|e| Value::Json(serde_json::to_string(e).unwrap())),
+            AdminRef::ToDdsRoute(zkey) => self
+                .routes_to_dds
+                .get(zkey)
+                .map(|e| Value::Json(serde_json::to_string(e).unwrap())),
+            AdminRef::Config => Some(Value::Json(serde_json::to_string(self).unwrap())),
+        }
     }
 
     async fn treat_admin_query(&self, get_request: GetRequest, admin_path_prefix: &str) {
@@ -395,29 +461,34 @@ impl DdsPlugin {
             Self::get_sub_path_exprs(get_request.selector.path_expr.as_str(), admin_path_prefix);
 
         // Get all matching keys/values
-        let mut kvs: Vec<(&str, &str)> = Vec::with_capacity(path_exprs.len());
+        let mut kvs: Vec<(&str, Value)> = Vec::with_capacity(path_exprs.len());
         for path_expr in path_exprs {
             if path_expr.contains('*') {
                 // iterate over all admin space to find matching keys
-                for (path, v) in self.admin_space.iter() {
+                for (path, admin_ref) in self.admin_space.iter() {
                     if resource_name::intersect(path_expr, path) {
-                        kvs.push((path, v));
+                        if let Some(v) = self.get_admin_value(admin_ref) {
+                            kvs.push((path, v));
+                        }
                     }
                 }
             } else {
                 // path_expr correspond to 1 key - just get it.
-                if let Some(v) = self.admin_space.get(path_expr) {
-                    kvs.push((path_expr, v));
+                if let Some(admin_ref) = self.admin_space.get(path_expr) {
+                    if let Some(v) = self.get_admin_value(admin_ref) {
+                        kvs.push((path_expr, v));
+                    }
                 }
             }
         }
 
         // send replies
-        for (path, v) in kvs.iter() {
+        for (path, v) in kvs.drain(..) {
             let admin_path = Path::try_from(format!("{}/{}", admin_path_prefix, path)).unwrap();
+            // support the case of empty fragment in Selector (e.g.: "/@/**?[]"), returning 'null' value in such case
             let value = match &get_request.selector.fragment {
                 Some(f) if f.is_empty() => Value::Json((*JSON_NULL_STR).clone()),
-                _ => Value::Json(v.to_string()),
+                _ => v,
             };
             get_request.reply(admin_path, value).await;
         }
@@ -469,8 +540,7 @@ impl DdsPlugin {
 
         // add plugin's config in admin space
         let path = format!("config");
-        self.admin_space
-            .insert(path, serde_json::to_string(&self).unwrap());
+        self.admin_space.insert(path, AdminRef::Config);
 
         loop {
             select!(
@@ -481,63 +551,35 @@ impl DdsPlugin {
                         } => {
                             if entity.partitions.is_empty() {
                                 let zkey = format!("{}/{}", self.scope, entity.topic_name);
-                                let route_status = self.try_add_route_from_dds(&zkey, &entity).await;
-                                entity.route_status = Some(route_status);
+                                let route_status = self.try_add_route_from_dds(zkey, &entity).await;
+                                entity.routes.insert("*".to_string(), route_status);
                             } else {
-                                let mut stats: Vec<RouteStatus> = Vec::with_capacity(entity.partitions.len());
                                 for p in &entity.partitions {
                                     let zkey = format!("{}/{}/{}", self.scope, p, entity.topic_name);
-                                    stats.push(self.try_add_route_from_dds(&zkey, &entity).await);
+                                    let route_status = self.try_add_route_from_dds(zkey, &entity).await;
+                                    entity.routes.insert(p.clone(), route_status);
                                 }
-                                entity.route_status = if !stats.contains(&RouteStatus::Routed) {
-                                    if stats.contains(&RouteStatus::_QoSConflict) {
-                                        Some(RouteStatus::_QoSConflict)
-                                    } else {
-                                        Some(RouteStatus::NotAllowed)
-                                    }
-                                } else {
-                                    if stats.contains(&RouteStatus::_QoSConflict) {
-                                        Some(RouteStatus::_QoSConflict)
-                                    } else {
-                                        Some(RouteStatus::RouterOnSomePartitions)
-                                    }
-                                };
                             }
                             self.insert_dds_writer(entity);
                         }
                         DiscoveryEvent::UndiscoveredPublication {
                             key,
                         } => {
-                            if let Some(_entity) = self.dds_writer.remove(&key) {
-                                // TODO: check is matching routes are unused and remove them
-                            }
+                            self.remove_dds_writer(&key);
                         }
                         DiscoveryEvent::DiscoveredSubscription {
                             mut entity
                         } => {
                             if entity.partitions.is_empty() {
                                 let zkey = format!("{}/{}", self.scope, entity.topic_name);
-                                let route_status = self.try_add_route_to_dds(&zkey, &entity).await;
-                                entity.route_status = Some(route_status);
+                                let route_status = self.try_add_route_to_dds(zkey, &entity).await;
+                                entity.routes.insert("*".to_string(), route_status);
                             } else {
-                                let mut stats: Vec<RouteStatus> = Vec::with_capacity(entity.partitions.len());
                                 for p in &entity.partitions {
                                     let zkey = format!("{}/{}/{}", self.scope, p, entity.topic_name);
-                                    stats.push(self.try_add_route_to_dds(&zkey, &entity).await);
+                                    let route_status = self.try_add_route_to_dds(zkey, &entity).await;
+                                    entity.routes.insert(p.clone(), route_status);
                                 }
-                                entity.route_status = if !stats.contains(&RouteStatus::Routed) {
-                                    if stats.contains(&RouteStatus::_QoSConflict) {
-                                        Some(RouteStatus::_QoSConflict)
-                                    } else {
-                                        Some(RouteStatus::NotAllowed)
-                                    }
-                                } else {
-                                    if stats.contains(&RouteStatus::_QoSConflict) {
-                                        Some(RouteStatus::_QoSConflict)
-                                    } else {
-                                        Some(RouteStatus::RouterOnSomePartitions)
-                                    }
-                                };
                             }
                             self.insert_dds_reader(entity);
                         }

@@ -17,6 +17,7 @@ use async_std::task;
 use cyclors::*;
 use log::debug;
 use serde::Serialize;
+use std::collections::HashMap;
 use std::ffi::{CStr, CString};
 use std::mem::MaybeUninit;
 use std::os::raw;
@@ -27,8 +28,7 @@ const MAX_SAMPLES: usize = 32;
 
 #[derive(PartialEq, Debug, Serialize)]
 pub(crate) enum RouteStatus {
-    Routed,
-    RouterOnSomePartitions,
+    Routed(String),
     NotAllowed,
     _QoSConflict,
 }
@@ -42,7 +42,7 @@ pub(crate) struct DdsEntity {
     pub(crate) partitions: Vec<String>,
     pub(crate) keyless: bool,
     pub(crate) qos: QosHolder,
-    pub(crate) route_status: Option<RouteStatus>,
+    pub(crate) routes: HashMap<String, RouteStatus>, // map of routes names (zenoh resources) indexed by partition ("*" only if no partition)
 }
 
 #[derive(Debug)]
@@ -137,7 +137,7 @@ unsafe extern "C" fn on_data(dr: dds_entity_t, arg: *mut std::os::raw::c_void) {
                     keyless,
                     partitions,
                     qos: QosHolder(qos),
-                    route_status: None,
+                    routes: HashMap::<String, RouteStatus>::new(),
                 };
 
                 if pub_discovery {
