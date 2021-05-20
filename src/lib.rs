@@ -206,7 +206,10 @@ impl DdsPlugin {
 
     fn insert_dds_writer(&mut self, e: DdsEntity) {
         // insert reference in admin_space
-        let path = format!("participant/{}/writer/{}", e.participant_key, e.key);
+        let path = format!(
+            "participant/{}/writer/{}/{}",
+            e.participant_key, e.key, e.topic_name
+        );
         self.admin_space
             .insert(path, AdminRef::DdsWriterEntity(e.key.clone()));
 
@@ -218,7 +221,10 @@ impl DdsPlugin {
         // remove from dds_writer map
         if let Some(e) = self.dds_writer.remove(key) {
             // remove from admin space
-            let path = format!("participant/{}/writer/{}", e.participant_key, e.key);
+            let path = format!(
+                "participant/{}/writer/{}/{}",
+                e.participant_key, e.key, e.topic_name
+            );
             self.admin_space.remove(&path);
 
             // TODO: check is matching routes are unused and remove them
