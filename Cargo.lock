@@ -2755,7 +2755,7 @@ dependencies = [
 [[package]]
 name = "zenoh"
 version = "0.5.0-dev"
-source = "git+https://github.com/eclipse-zenoh/zenoh#a32ba33953e37992df8b4be068f2cb99d7813947"
+source = "git+https://github.com/eclipse-zenoh/zenoh#4a28777342de1ea3747ec2e1ce95f310644ba0a8"
 dependencies = [
  "async-rustls",
  "async-std",
@@ -2793,7 +2793,7 @@ dependencies = [
 [[package]]
 name = "zenoh-plugin-rest"
 version = "0.5.0-dev"
-source = "git+https://github.com/eclipse-zenoh/zenoh#a32ba33953e37992df8b4be068f2cb99d7813947"
+source = "git+https://github.com/eclipse-zenoh/zenoh#4a28777342de1ea3747ec2e1ce95f310644ba0a8"
 dependencies = [
  "async-std",
  "base64 0.13.0",
@@ -2810,7 +2810,7 @@ dependencies = [
 [[package]]
 name = "zenoh-util"
 version = "0.5.0-dev"
-source = "git+https://github.com/eclipse-zenoh/zenoh#a32ba33953e37992df8b4be068f2cb99d7813947"
+source = "git+https://github.com/eclipse-zenoh/zenoh#4a28777342de1ea3747ec2e1ce95f310644ba0a8"
 dependencies = [
  "aes-soft",
  "async-std",
