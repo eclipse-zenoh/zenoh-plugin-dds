@@ -25,13 +25,10 @@ RUN mkdir /usr/share/man/man1/
 #  * for CycloneDDS
 #     - g++
 #     - cmake
-#     - libssl-dev
-#     - openjdk-11-jdk-headless
-#     - maven
 #  * for zenoh-dds-plugin
 #     - git
 #     - clang
-RUN apt-get update && apt-get -y install g++ cmake libssl-dev openjdk-11-jdk-headless maven git clang
+RUN apt-get update && apt-get -y install g++ cmake git clang
 
 COPY . .
 RUN cargo install --path .

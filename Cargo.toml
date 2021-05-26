@@ -26,11 +26,12 @@ description = "Zenoh plugin for ROS2 and DDS in general"
 
 [lib]
 name = "zplugin_dds"
-# crate-type = ["cdylib"]
+crate-type = ["cdylib", "rlib"]
 
 
 [dependencies]
 zenoh =  { git = "https://github.com/eclipse-zenoh/zenoh"}
+zenoh-plugin-rest =  { git = "https://github.com/eclipse-zenoh/zenoh"}
 cyclors = "0.1.1"
 log = "0.4.14"
 async-trait = "0.1.42"
@@ -39,6 +40,12 @@ libc = "0.2.85"
 clap = "2.33"
 env_logger = "0.8.2"
 regex = "1.4.3"
+hex = "0.4.3"
+lazy_static = "1.4.0"
+serde = "1.0.125"
+serde_json = "1.0.64"
+
+
 
 [dependencies.async-std]
 version = "1.9.0"
