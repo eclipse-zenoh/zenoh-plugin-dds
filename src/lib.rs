@@ -48,19 +48,21 @@ use dds_mgt::*;
 pub fn get_expected_args2<'a, 'b>() -> Vec<Arg<'a, 'b>> {
     vec![
         Arg::from_usage(
-            "--dds-scope=[String]...   'A string used as prefix to scope DDS traffic.'\n"
+            "--dds-scope=[String]   'A string used as prefix to scope DDS traffic.'"
         ),
         Arg::from_usage(
-            "--dds-generalise-pub=[String]...   'A comma separated list of key expression to use for generalising pubblications.'\n"
+            "--dds-generalise-pub=[String]...   'A list of key expression to use for generalising publications (usable multiple times).'"
         ),
         Arg::from_usage(
-            "--dds-generalise-sub=[String]...   'A comma separated list of key expression to use for generalising subscriptions.'\n"
+            "--dds-generalise-sub=[String]...   'A list of key expression to use for generalising subscriptions (usable multiple times).'"
         ),
         Arg::from_usage(
-            "--dds-domain=[ID] 'The DDS Domain ID (if using with ROS this should be the same as ROS_DOMAIN_ID).'\n"
+            "--dds-domain=[ID]   'The DDS Domain ID (if using with ROS this should be the same as ROS_DOMAIN_ID).'"
         ),
         Arg::from_usage(
-            "--dds-allow=[String] 'The regular expression describing set of /partition/topic-name that should be bridged, everything is forwarded by default.'\n"
+            "--dds-allow=[String]   'A regular expression matching the set of 'partition/topic-name' that should be bridged. \
+            By default, all partitions and topic are allowed. \
+            Examples of expressions: '.*/TopicA', 'Partition-?/.*', 'cmd_vel|rosout'...'"
         )
     ]
 }
@@ -233,12 +235,29 @@ impl DdsPlugin {
 
     fn insert_dds_reader(&mut self, e: DdsEntity) {
         // insert reference in admin_space
-        let path = format!("participant/{}/reader/{}", e.participant_key, e.key);
+        let path = format!(
+            "participant/{}/reader/{}/{}",
+            e.participant_key, e.key, e.topic_name
+        );
         self.admin_space
             .insert(path, AdminRef::DdsReaderEntity(e.key.clone()));
 
         // insert DdsEntity in dds_reader map
         self.dds_reader.insert(e.key.clone(), e);
+    }
+
+    fn remove_dds_reader(&mut self, key: &str) {
+        // remove from dds_reader map
+        if let Some(e) = self.dds_reader.remove(key) {
+            // remove from admin space
+            let path = format!(
+                "participant/{}/reader/{}/{}",
+                e.participant_key, e.key, e.topic_name
+            );
+            self.admin_space.remove(&path);
+
+            // TODO: check is matching routes are unused and remove them
+        }
     }
 
     fn insert_route_from_dds(&mut self, zkey: &str, r: Route) {
@@ -592,9 +611,7 @@ impl DdsPlugin {
                         DiscoveryEvent::UndiscoveredSubscription {
                             key,
                         } => {
-                            if let Some(_entity) = self.dds_reader.remove(&key) {
-                                // TODO: check is matching routes are unused and remove them
-                            }
+                            self.remove_dds_reader(&key)
                         }
                     }
                 },

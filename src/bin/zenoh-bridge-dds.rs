@@ -39,16 +39,16 @@ fn customize_dds_args<'a, 'b>(mut args: Vec<Arg<'a, 'b>>) -> Vec<Arg<'a, 'b>> {
 fn parse_args() -> (Properties, bool, ArgMatches<'static>) {
     let app = App::new("zenoh bridge for DDS")
         .arg(Arg::from_usage(
-            "-e, --peer=[LOCATOR]...  'Peer locator used to initiate the zenoh session.'\n",
+            "-e, --peer=[LOCATOR]...  'Peer locator used to initiate the zenoh session.'",
         ))
         .arg(Arg::from_usage(
-            "-l, --listener=[LOCATOR]...   'Locators to listen on.'\n",
+            "-l, --listener=[LOCATOR]...   'Locators to listen on.'",
         ))
         .arg(Arg::from_usage(
-            "-c, --config=[FILE]      'A configuration file.'\n",
+            "-c, --config=[FILE]      'A configuration file.'",
         ))
         .arg(
-            Arg::from_usage("-m, --mode=[MODE]  'The zenoh session mode.'\n")
+            Arg::from_usage("-m, --mode=[MODE]  'The zenoh session mode.'")
                 .possible_values(&["peer", "client"])
                 .default_value("peer"),
         )
