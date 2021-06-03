@@ -415,8 +415,7 @@ impl DdsPlugin {
         let dp = self.dp;
         task::spawn(async move {
             let mut sub = zn.declare_subscriber(&rkey, &sub_info).await.unwrap();
-            let stream = sub.stream();
-            while let Some(d) = stream.next().await {
+            while let Some(d) = sub.receiver().next().await {
                 log::trace!("Route data to DDS '{}'", &ton);
                 unsafe {
                     let bs = d.payload.to_vec();
@@ -515,7 +514,7 @@ impl DdsPlugin {
                 Some(f) if f.is_empty() => Value::Json((*JSON_NULL_STR).clone()),
                 _ => v,
             };
-            get_request.reply(admin_path, value).await;
+            get_request.reply(admin_path, value);
         }
     }
 
