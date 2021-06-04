@@ -11,8 +11,6 @@
 // Contributors:
 //   ADLINK zenoh team, <zenoh@adlink-labs.tech>
 //
-#![feature(vec_into_raw_parts)]
-
 use clap::{App, Arg, ArgMatches};
 use zenoh::Properties;
 

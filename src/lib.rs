@@ -11,8 +11,6 @@
 // Contributors:
 //   ADLINK zenoh team, <zenoh@adlink-labs.tech>
 //
-#![feature(vec_into_raw_parts)]
-
 use async_std::channel::{unbounded, Receiver, Sender};
 use async_std::task;
 use clap::{Arg, ArgMatches};
@@ -26,6 +24,7 @@ use serde::{Serialize, Serializer};
 use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::ffi::CString;
+use std::mem::ManuallyDrop;
 use std::sync::Arc;
 use zenoh::net::runtime::Runtime;
 use zenoh::net::utils::resource_name;
@@ -424,7 +423,8 @@ impl DdsPlugin {
                     // and then have its destructor do the cleanup.
                     // Thus, while tempting to just pass the raw pointer to cyclone and then free it from C,
                     // that is not necessarily safe or guaranteed to be leak free.
-                    let (ptr, len, capacity) = bs.into_raw_parts();
+                    // TODO replace when stable https://github.com/rust-lang/rust/issues/65816
+                    let (ptr, len, capacity) = vec_into_raw_parts(bs);
                     let cton = CString::new(ton.clone()).unwrap().into_raw();
                     let ctyn = CString::new(tyn.clone()).unwrap().into_raw();
                     let st = cdds_create_blob_sertopic(
@@ -563,8 +563,8 @@ impl DdsPlugin {
             .unwrap();
 
         // add plugin's config in admin space
-        let path = format!("config");
-        self.admin_space.insert(path, AdminRef::Config);
+        self.admin_space
+            .insert("config".to_string(), AdminRef::Config);
 
         loop {
             select!(
@@ -621,4 +621,11 @@ impl DdsPlugin {
             )
         }
     }
+}
+
+//TODO replace when stable https://github.com/rust-lang/rust/issues/65816
+#[inline]
+pub(crate) fn vec_into_raw_parts<T>(v: Vec<T>) -> (*mut T, usize, usize) {
+    let mut me = ManuallyDrop::new(v);
+    (me.as_mut_ptr(), me.len(), me.capacity())
 }
