@@ -90,7 +90,7 @@ Otherwise, just run them on the same machine, you will see a stream of ROS2 *Hel
 
 ### zenoh-bridge-dds command line arguments
 
-`zenoh-dds-bridge` accepts the following arguments:
+`zenoh-bridge-dds` accepts the following arguments:
  * zenoh-related arguments:
    - `-m, --mode <MODE>` : The zenoh session mode. Default: `peer` Possible values: `peer` or `client`.  
       See [zenoh documentation](https://zenoh.io/docs/getting-started/key-concepts/#deployment-units) for more details.
@@ -120,7 +120,7 @@ Otherwise, just run them on the same machine, you will see a stream of ROS2 *Hel
 The zenoh bridge for DDS exposes and administration space allowing to browse the DDS entities that have been discovered (with their QoS), and the routes that have been established between DDS and zenoh.
 This administration space is accessible via any zenoh API, including the REST API.
 
-The `zenoh-dds-bridge` exposes this administration space with paths prefixed by `/@/service/<uuid>/dds` (where `<uuid>` is the unique identifier of the bridge instance). The informations are then organized with such paths:
+The `zenoh-bridge-dds` exposes this administration space with paths prefixed by `/@/service/<uuid>/dds` (where `<uuid>` is the unique identifier of the bridge instance). The informations are then organized with such paths:
  - `/@/service/<uuid>/dds/config` : the bridge configuration
  - `/@/service/<uuid>/dds/participant/<gid>/reader/<gid>/<topic>` : a discovered DDS reader on `<topic>`
  - `/@/service/<uuid>/dds/participant/<gid>/writer/<gid>/<topic>` : a discovered DDS reader on `<topic>`
