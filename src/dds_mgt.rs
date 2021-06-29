@@ -22,7 +22,7 @@ use std::ffi::{CStr, CString};
 use std::mem::MaybeUninit;
 use std::os::raw;
 use std::sync::Arc;
-use zenoh::net::{RBuf, ResKey, Session};
+use zenoh::net::{ResKey, Session, ZBuf};
 
 const MAX_SAMPLES: usize = 32;
 
@@ -202,7 +202,7 @@ unsafe extern "C" fn data_forwarder_listener(dr: dds_entity_t, arg: *mut std::os
         if si[0].valid_data {
             log::trace!("Route data to zenoh resource with rid={}", &(*pa).0);
             let bs = Vec::from_raw_parts((*zp).payload, (*zp).size as usize, (*zp).size as usize);
-            let rbuf = RBuf::from(bs);
+            let rbuf = ZBuf::from(bs);
             let _ = task::block_on(async { (*pa).1.write(&(*pa).0, rbuf).await });
             (*zp).payload = std::ptr::null_mut();
         }
