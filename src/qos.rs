@@ -23,6 +23,29 @@ pub struct QosHolder(pub *mut dds_qos_t);
 unsafe impl Send for QosHolder {}
 unsafe impl Sync for QosHolder {}
 
+impl QosHolder {
+    pub fn is_transient_local(&self) -> bool {
+        unsafe {
+            let mut dur_kind: dds_durability_kind_t = dds_durability_kind_DDS_DURABILITY_VOLATILE;
+            dds_qget_durability(self.0, &mut dur_kind)
+                && dur_kind == dds_durability_kind_DDS_DURABILITY_TRANSIENT_LOCAL
+        }
+    }
+
+    pub fn history_length(&self) -> usize {
+        unsafe {
+            let mut kind = dds_history_kind_DDS_HISTORY_KEEP_LAST;
+            let mut depth = 1;
+            dds_qget_history(self.0, &mut kind, &mut depth);
+            if kind == dds_history_kind_DDS_HISTORY_KEEP_ALL {
+                usize::MAX
+            } else {
+                depth as usize
+            }
+        }
+    }
+}
+
 impl Serialize for QosHolder {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where

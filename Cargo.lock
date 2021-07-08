@@ -2703,7 +2703,7 @@ dependencies = [
 [[package]]
 name = "zenoh"
 version = "0.5.0-dev"
-source = "git+https://github.com/eclipse-zenoh/zenoh#672ebf32fe3f426596e3c54ecd30e28ddd29fb8c"
+source = "git+https://github.com/eclipse-zenoh/zenoh#ee629b24c8eba786e3804384922d1b976afb8856"
 dependencies = [
  "async-global-executor",
  "async-rustls",
@@ -2742,9 +2742,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "zenoh-ext"
+version = "0.5.0-dev"
+source = "git+https://github.com/eclipse-zenoh/zenoh#ee629b24c8eba786e3804384922d1b976afb8856"
+dependencies = [
+ "async-std",
+ "bincode",
+ "env_logger",
+ "flume",
+ "futures",
+ "futures-lite",
+ "log",
+ "serde",
+ "zenoh",
+ "zenoh-util",
+]
+
+[[package]]
 name = "zenoh-plugin-rest"
 version = "0.5.0-dev"
-source = "git+https://github.com/eclipse-zenoh/zenoh#672ebf32fe3f426596e3c54ecd30e28ddd29fb8c"
+source = "git+https://github.com/eclipse-zenoh/zenoh#ee629b24c8eba786e3804384922d1b976afb8856"
 dependencies = [
  "async-std",
  "base64 0.13.0",
@@ -2762,7 +2779,7 @@ dependencies = [
 [[package]]
 name = "zenoh-util"
 version = "0.5.0-dev"
-source = "git+https://github.com/eclipse-zenoh/zenoh#672ebf32fe3f426596e3c54ecd30e28ddd29fb8c"
+source = "git+https://github.com/eclipse-zenoh/zenoh#ee629b24c8eba786e3804384922d1b976afb8856"
 dependencies = [
  "aes 0.7.4",
  "async-std",
@@ -2806,5 +2823,6 @@ dependencies = [
  "serde",
  "serde_json",
  "zenoh",
+ "zenoh-ext",
  "zenoh-plugin-rest",
 ]
