@@ -17,7 +17,7 @@ use clap::{Arg, ArgMatches};
 use cyclors::*;
 use futures::prelude::*;
 use futures::select;
-use log::{debug, info};
+use log::{debug, info, warn};
 use regex::Regex;
 use serde::ser::SerializeStruct;
 use serde::{Serialize, Serializer};
@@ -25,16 +25,29 @@ use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::ffi::CString;
 use std::mem::ManuallyDrop;
+use std::pin::Pin;
 use std::sync::Arc;
+use std::time::Duration;
 use zenoh::net::runtime::Runtime;
 use zenoh::net::utils::resource_name;
 use zenoh::net::*;
 use zenoh::{GetRequest, Path, PathExpr, Value, Zenoh};
+use zenoh_ext::net::group::{Group, GroupEvent, JoinEvent, Member};
+use zenoh_ext::net::{
+    PublicationCache, QueryingSubscriber, SessionExt, PUBLICATION_CACHE_QUERYABLE_KIND,
+};
 
 mod qos;
 use qos::*;
 mod dds_mgt;
 use dds_mgt::*;
+
+const GROUP_NAME: &str = "zenoh-plugin-dds";
+const GROUP_DEFAULT_LEASE: &str = "3";
+lazy_static::lazy_static!(
+    static ref DDS_DOMAIN_DEFAULT_STR: String = DDS_DOMAIN_DEFAULT.to_string();
+);
+const PUB_CACHE_QUERY_PREFIX: &str = "/zenoh_dds_plugin/pub_cache";
 
 // #[no_mangle]
 // pub fn get_expected_args<'a, 'b>() -> Vec<Arg<'a, 'b>> {
@@ -48,7 +61,7 @@ pub fn get_expected_args2<'a, 'b>() -> Vec<Arg<'a, 'b>> {
     vec![
         Arg::from_usage(
             "--dds-scope=[String]   'A string used as prefix to scope DDS traffic.'"
-        ),
+        ).default_value(""),
         Arg::from_usage(
             "--dds-generalise-pub=[String]...   'A list of key expression to use for generalising publications (usable multiple times).'"
         ),
@@ -57,12 +70,18 @@ pub fn get_expected_args2<'a, 'b>() -> Vec<Arg<'a, 'b>> {
         ),
         Arg::from_usage(
             "--dds-domain=[ID]   'The DDS Domain ID (if using with ROS this should be the same as ROS_DOMAIN_ID).'"
-        ),
+        ).default_value(&*DDS_DOMAIN_DEFAULT_STR),
         Arg::from_usage(
             "--dds-allow=[String]   'A regular expression matching the set of 'partition/topic-name' that should be bridged. \
             By default, all partitions and topic are allowed. \
             Examples of expressions: '.*/TopicA', 'Partition-?/.*', 'cmd_vel|rosout'...'"
-        )
+        ),
+        Arg::from_usage(
+            "--dds-group-member-id=[ID]   'A custom identifier for the bridge, that will be used in group management (if not specified, the zenoh UUID is used).'"
+        ),
+        Arg::from_usage(
+            "--dds-group-lease=[Duration]   'The lease duration (in seconds) used in group management for all DDS plugins.'"
+        ).default_value(GROUP_DEFAULT_LEASE),
     ]
 }
 
@@ -77,19 +96,21 @@ pub async fn run(runtime: Runtime, args: ArgMatches<'_>) {
     // But cannot be done twice in case of static link.
     let _ = env_logger::try_init();
 
-    let scope: String = args
-        .value_of("dds-scope")
-        .map(String::from)
-        .or_else(|| Some(String::from("")))
-        .unwrap();
+    let scope = args.value_of("dds-scope").unwrap().to_string();
 
-    let domain_id = if let Some(sdid) = args.value_of("dds-domain") {
-        match sdid.parse::<u32>() {
-            Ok(adid) => adid,
-            Err(_) => panic!("ERROR: {} is not a valid domain ID ", sdid),
-        }
-    } else {
-        DDS_DOMAIN_DEFAULT
+    let domain_id_str = args.value_of("dds-domain").unwrap();
+    let domain_id = match domain_id_str.parse::<u32>() {
+        Ok(adid) => adid,
+        Err(_) => panic!("ERROR: {} is not a valid domain ID ", domain_id_str),
+    };
+
+    let group_lease_str = args.value_of("dds-group-lease").unwrap();
+    let group_lease = match group_lease_str.parse::<u64>() {
+        Ok(lease) => Duration::from_secs(lease),
+        Err(_) => panic!(
+            "ERROR: {} is not a valid lease duration in seconds ",
+            group_lease_str
+        ),
     };
 
     let allow_re = if let Some(res) = args.value_of("dds-allow") {
@@ -118,19 +139,25 @@ pub async fn run(runtime: Runtime, args: ArgMatches<'_>) {
     let zsession =
         Arc::new(Session::init(runtime, true, join_subscriptions, join_publications).await);
 
+    // create group member
+    let zid = zsession.id().await;
+    let member_id = args.value_of("dds-group-member-id").unwrap_or(&zid);
+    let member = Member::new(member_id).lease(group_lease);
+
     // create DDS Participant
     let dp = unsafe { dds_create_participant(domain_id, std::ptr::null(), std::ptr::null()) };
 
-    let mut dds_plugin = DdsPlugin {
+    let dds_plugin = DdsPlugin {
         scope,
         domain_id,
         allow_re,
-        zsession,
+        zsession: &zsession,
+        member,
         dp,
         dds_writer: HashMap::<String, DdsEntity>::new(),
         dds_reader: HashMap::<String, DdsEntity>::new(),
-        routes_from_dds: HashMap::<String, Route>::new(),
-        routes_to_dds: HashMap::<String, Route>::new(),
+        routes_from_dds: HashMap::<String, FromDDSRoute>::new(),
+        routes_to_dds: HashMap::<String, ToDDSRoute>::new(),
         admin_space: HashMap::<String, AdminRef>::new(),
     };
 
@@ -146,34 +173,63 @@ enum AdminRef {
     Config,
 }
 
-// a route from or to DDS
-#[derive(Debug, Serialize)]
-struct Route {
-    // the local DDS entity created to match the discovered user's DDS entites
-    #[serde(skip)]
-    matching_entity: dds_entity_t,
-    // the list of discovered user's DDS entities keys that are routed by this route
-    routed_entities: Vec<String>,
+enum ZPublisher<'a> {
+    Publisher(Publisher<'a>),
+    PublicationCache(PublicationCache<'a>),
 }
 
-struct DdsPlugin {
+// a route from DDS
+#[derive(Serialize)]
+struct FromDDSRoute<'a> {
+    // the local DDS Reader created to match the discovered user's DDS Writers
+    #[serde(skip)]
+    _dds_reader: dds_entity_t,
+    // the zenoh publisher used to re-publish to zenoh the data received by the DDS Reader
+    #[serde(skip)]
+    _zenoh_publisher: ZPublisher<'a>,
+    // the list of discovered user's DDS writers keys that are routed by this route
+    routed_writers: Vec<String>,
+}
+
+enum ZSubscriber<'a> {
+    Subscriber(Subscriber<'a>),
+    QueryingSubscriber(QueryingSubscriber<'a>),
+}
+
+// a route to DDS
+#[derive(Serialize)]
+struct ToDDSRoute<'a> {
+    // the local DDS Writer created to match the discovered user's DDS Readers
+    #[serde(skip)]
+    _dds_writer: dds_entity_t,
+    // the zenoh subscriber receiving data to be re-published by the DDS Writer
+    #[serde(skip)]
+    zenoh_subscriber: ZSubscriber<'a>,
+    // the list of discovered user's DDS readers keys that are routed by this route
+    routed_readers: Vec<String>,
+}
+
+struct DdsPlugin<'a> {
     scope: String,
     domain_id: u32,
     allow_re: Option<Regex>,
-    zsession: Arc<Session>,
+    // Note: &'a Arc<Session> here to keep the ownership of Session outside this struct
+    // and be able to store the publishers/subscribers it creates in this same struct.
+    zsession: &'a Arc<Session>,
+    member: Member,
     dp: dds_entity_t,
     // maps of all discovered DDS entities (indexed by DDS key)
     dds_writer: HashMap<String, DdsEntity>,
     dds_reader: HashMap<String, DdsEntity>,
     // maps of established routes from/to DDS (indexed by zenoh resource key)
-    routes_from_dds: HashMap<String, Route>,
-    routes_to_dds: HashMap<String, Route>,
+    routes_from_dds: HashMap<String, FromDDSRoute<'a>>,
+    routes_to_dds: HashMap<String, ToDDSRoute<'a>>,
     // admin space: index is the admin_path (relative to admin_prefix)
     // value is the JSon string to return to queries.
     admin_space: HashMap<String, AdminRef>,
 }
 
-impl Serialize for DdsPlugin {
+impl Serialize for DdsPlugin<'_> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
@@ -197,7 +253,7 @@ lazy_static::lazy_static! {
     static ref JSON_NULL_STR: String = serde_json::to_string(&serde_json::json!(null)).unwrap();
 }
 
-impl DdsPlugin {
+impl<'a> DdsPlugin<'a> {
     fn is_allowed(&self, zkey: &str) -> bool {
         match &self.allow_re {
             Some(re) => re.is_match(zkey),
@@ -228,7 +284,7 @@ impl DdsPlugin {
             );
             self.admin_space.remove(&path);
 
-            // TODO: check is matching routes are unused and remove them
+            // TODO: check if matching routes are unused and remove them
         }
     }
 
@@ -255,11 +311,11 @@ impl DdsPlugin {
             );
             self.admin_space.remove(&path);
 
-            // TODO: check is matching routes are unused and remove them
+            // TODO: check if matching routes are unused and remove them
         }
     }
 
-    fn insert_route_from_dds(&mut self, zkey: &str, r: Route) {
+    fn insert_route_from_dds(&mut self, zkey: &str, r: FromDDSRoute<'a>) {
         // insert reference in admin_space
         let path = format!("route/from_dds/{}", zkey);
         self.admin_space
@@ -269,7 +325,7 @@ impl DdsPlugin {
         self.routes_from_dds.insert(zkey.to_string(), r);
     }
 
-    fn insert_route_to_dds(&mut self, zkey: &str, r: Route) {
+    fn insert_route_to_dds(&mut self, zkey: &str, r: ToDDSRoute<'a>) {
         // insert reference in admin_space
         let path = format!("route/to_dds/{}", zkey);
         self.admin_space
@@ -298,7 +354,7 @@ impl DdsPlugin {
                 "Route from DDS to resource {} already exists -- ignoring",
                 zkey
             );
-            route.routed_entities.push(pub_to_match.key.clone());
+            route.routed_writers.push(pub_to_match.key.clone());
             return RouteStatus::Routed(zkey);
         }
 
@@ -306,7 +362,23 @@ impl DdsPlugin {
         let rkey = ResKey::RName(zkey.clone());
         let nrid = self.zsession.declare_resource(&rkey).await.unwrap();
         let rid = ResKey::RId(nrid);
-        let _ = self.zsession.declare_publisher(&rid).await;
+        let zenoh_publisher: ZPublisher<'a> = if pub_to_match.qos.is_transient_local() {
+            let history = pub_to_match.qos.history_length();
+            debug!(
+                "Caching publications for TRANSIENT_LOCAL Writer on resource {} with history {}",
+                zkey, history
+            );
+            ZPublisher::PublicationCache(
+                self.zsession
+                    .declare_publication_cache(&rid)
+                    .history(history)
+                    .queryable_prefix(format!("{}/{}", PUB_CACHE_QUERY_PREFIX, self.member.id()))
+                    .await
+                    .unwrap(),
+            )
+        } else {
+            ZPublisher::Publisher(self.zsession.declare_publisher(&rid).await.unwrap())
+        };
 
         info!(
             "New route: DDS '{}' => zenoh '{}' (rid={}) with type '{}'",
@@ -333,9 +405,10 @@ impl DdsPlugin {
 
         self.insert_route_from_dds(
             &zkey,
-            Route {
-                matching_entity: dr,
-                routed_entities: vec![pub_to_match.key.clone()],
+            FromDDSRoute {
+                _dds_reader: dr,
+                _zenoh_publisher: zenoh_publisher,
+                routed_writers: vec![pub_to_match.key.clone()],
             },
         );
         RouteStatus::Routed(zkey)
@@ -362,7 +435,7 @@ impl DdsPlugin {
                 "Route from resource {} to DDS already exists -- ignoring",
                 zkey
             );
-            route.routed_entities.push(sub_to_match.key.clone());
+            route.routed_readers.push(sub_to_match.key.clone());
             return RouteStatus::Routed(zkey);
         }
 
@@ -400,21 +473,45 @@ impl DdsPlugin {
         );
 
         // create zenoh subscriber
+        let rkey = ResKey::RName(zkey.to_string());
         let sub_info = SubInfo {
             reliability: Reliability::Reliable,
             mode: SubMode::Push,
             period: None,
         };
+        let (zenoh_subscriber, mut receiver): (_, Pin<Box<dyn Stream<Item = Sample> + Send>>) =
+            if sub_to_match.qos.is_transient_local() {
+                debug!(
+                    "Querying historical data for TRANSIENT_LOCAL Reader on resource {}",
+                    zkey
+                );
+                let mut sub = self
+                    .zsession
+                    .declare_querying_subscriber(&rkey)
+                    .query_reskey(format!("{}/*{}", PUB_CACHE_QUERY_PREFIX, zkey).into())
+                    .await
+                    .unwrap();
+                let receiver = sub.receiver().clone();
+                (ZSubscriber::QueryingSubscriber(sub), Box::pin(receiver))
+            } else {
+                let mut sub = self
+                    .zsession
+                    .declare_subscriber(&rkey, &sub_info)
+                    .await
+                    .unwrap();
+                let receiver = sub.receiver().clone();
+                (ZSubscriber::Subscriber(sub), Box::pin(receiver))
+            };
 
-        let zn = self.zsession.clone();
-        let rkey = ResKey::RName(zkey.to_string());
+        // let zn = self.zsession.clone();
+        // let rkey = ResKey::RName(zkey.to_string());
         let ton = sub_to_match.topic_name.clone();
         let tyn = sub_to_match.type_name.clone();
         let keyless = sub_to_match.keyless;
         let dp = self.dp;
         task::spawn(async move {
-            let mut sub = zn.declare_subscriber(&rkey, &sub_info).await.unwrap();
-            while let Some(d) = sub.receiver().next().await {
+            // let mut sub = zn.declare_subscriber(&rkey, &sub_info).await.unwrap();
+            while let Some(d) = receiver.next().await {
                 log::trace!("Route data to DDS '{}'", &ton);
                 unsafe {
                     let bs = d.payload.to_vec();
@@ -446,9 +543,10 @@ impl DdsPlugin {
 
         self.insert_route_to_dds(
             &zkey,
-            Route {
-                matching_entity: dw,
-                routed_entities: vec![sub_to_match.key.clone()],
+            ToDDSRoute {
+                _dds_writer: dw,
+                zenoh_subscriber,
+                routed_readers: vec![sub_to_match.key.clone()],
             },
         );
         RouteStatus::Routed(zkey)
@@ -518,7 +616,7 @@ impl DdsPlugin {
         }
     }
 
-    pub fn get_sub_path_exprs<'a>(path_expr: &'a str, prefix: &str) -> Vec<&'a str> {
+    pub fn get_sub_path_exprs<'s>(path_expr: &'s str, prefix: &str) -> Vec<&'s str> {
         if let Some(remaining) = path_expr.strip_prefix(prefix) {
             vec![remaining]
         } else {
@@ -546,7 +644,13 @@ impl DdsPlugin {
             result
         }
     }
-    async fn run(&mut self) {
+
+    async fn run(mut self) {
+        // join DDS plugins group
+        let group = Group::join(self.zsession.clone(), GROUP_NAME, self.member.clone()).await;
+        let group_subscriber = group.subscribe().await;
+        let mut group_stream = group_subscriber.stream();
+
         // run DDS discovery
         let (tx, rx): (Sender<DiscoveryEvent>, Receiver<DiscoveryEvent>) = unbounded();
         run_discovery(self.dp, tx);
@@ -554,7 +658,7 @@ impl DdsPlugin {
         // declare admin space queryable
         let admin_path_prefix = format!("/@/service/{}/dds", self.zsession.id().await);
         let admin_path_expr = format!("{}/**", admin_path_prefix);
-        let z = Zenoh::from(&*self.zsession);
+        let z = Zenoh::from(self.zsession.as_ref());
         let w = z.workspace(None).await.unwrap();
         debug!("Declare admin space on {}", admin_path_expr);
         let mut admin_space = w
@@ -566,6 +670,7 @@ impl DdsPlugin {
         self.admin_space
             .insert("config".to_string(), AdminRef::Config);
 
+        let scope = self.scope.clone();
         loop {
             select!(
                 evt = rx.recv().fuse() => {
@@ -574,12 +679,12 @@ impl DdsPlugin {
                             mut entity
                         } => {
                             if entity.partitions.is_empty() {
-                                let zkey = format!("{}/{}", self.scope, entity.topic_name);
+                                let zkey = format!("{}/{}", scope, entity.topic_name);
                                 let route_status = self.try_add_route_from_dds(zkey, &entity).await;
                                 entity.routes.insert("*".to_string(), route_status);
                             } else {
                                 for p in &entity.partitions {
-                                    let zkey = format!("{}/{}/{}", self.scope, p, entity.topic_name);
+                                    let zkey = format!("{}/{}/{}", scope, p, entity.topic_name);
                                     let route_status = self.try_add_route_from_dds(zkey, &entity).await;
                                     entity.routes.insert(p.clone(), route_status);
                                 }
@@ -595,12 +700,12 @@ impl DdsPlugin {
                             mut entity
                         } => {
                             if entity.partitions.is_empty() {
-                                let zkey = format!("{}/{}", self.scope, entity.topic_name);
+                                let zkey = format!("{}/{}", scope, entity.topic_name);
                                 let route_status = self.try_add_route_to_dds(zkey, &entity).await;
                                 entity.routes.insert("*".to_string(), route_status);
                             } else {
                                 for p in &entity.partitions {
-                                    let zkey = format!("{}/{}/{}", self.scope, p, entity.topic_name);
+                                    let zkey = format!("{}/{}/{}", scope, p, entity.topic_name);
                                     let route_status = self.try_add_route_to_dds(zkey, &entity).await;
                                     entity.routes.insert(p.clone(), route_status);
                                 }
@@ -614,6 +719,26 @@ impl DdsPlugin {
                         }
                     }
                 },
+
+                group_event = group_stream.next().fuse() => {
+                    if let Some(GroupEvent::Join(JoinEvent{member})) = group_event {
+                        debug!("New zenoh_dds_plugin detected: {}", member.id());
+                        // make all QueryingSubscriber to query this new member
+                        for (zkey, zsub) in &mut self.routes_to_dds {
+                            if let ZSubscriber::QueryingSubscriber(sub) = &mut zsub.zenoh_subscriber {
+                                let rkey: ResKey = format!("{}/{}/{}", PUB_CACHE_QUERY_PREFIX, member.id(), zkey).into();
+                                debug!("Query for TRANSIENT_LOCAL topic on: {}", rkey);
+                                let target = QueryTarget {
+                                    kind: PUBLICATION_CACHE_QUERYABLE_KIND,
+                                    target: Target::All,
+                                };
+                                if let Err(e) = sub.query_on(&rkey, "", target, QueryConsolidation::none()).await {
+                                    warn!("Query on {} for TRANSIENT_LOCAL topic failed: {}", rkey, e);
+                                }
+                            }
+                        }
+                    }
+                }
 
                 get_request = admin_space.next().fuse() => {
                     self.treat_admin_query(get_request.unwrap(), &admin_path_prefix).await;

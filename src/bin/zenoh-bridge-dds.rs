@@ -17,9 +17,9 @@ use zenoh::Properties;
 // customize the DDS plugin args for retro-compatibility with previous versions of the standalone bridge
 fn customize_dds_args<'a, 'b>(mut args: Vec<Arg<'a, 'b>>) -> Vec<Arg<'a, 'b>> {
     // NOTE: no way to check what's each Arg is in the Vec!
-    // We need to assume that there are 5, and that they are in correct order...
+    // We need to assume that there are 7, and that they are in correct order...
     // as specifed in src/lib.rs in get_expected_args()
-    assert_eq!(5, args.len());
+    assert_eq!(7, args.len());
     let arg = args.remove(0).short("s").visible_alias("scope");
     args.push(arg);
     let arg = args.remove(0).short("w").visible_alias("generalise-pub");
@@ -29,6 +29,10 @@ fn customize_dds_args<'a, 'b>(mut args: Vec<Arg<'a, 'b>>) -> Vec<Arg<'a, 'b>> {
     let arg = args.remove(0).short("d").visible_alias("domain");
     args.push(arg);
     let arg = args.remove(0).short("a").visible_alias("allow");
+    args.push(arg);
+    let arg = args.remove(0).visible_alias("group-member-id");
+    args.push(arg);
+    let arg = args.remove(0).visible_alias("group-lease");
     args.push(arg);
 
     args
@@ -86,6 +90,9 @@ fn parse_args() -> (Properties, bool, ArgMatches<'static>) {
 
     // Disable local routing to avoid loops
     config.insert("local_routing".into(), "false".into());
+
+    // Add timestamps to publications (required for PublicationCache usage)
+    config.insert("add_timestamp".into(), "true".into());
 
     (config, args.is_present("rest-plugin"), args)
 }
