@@ -503,14 +503,11 @@ impl<'a> DdsPlugin<'a> {
                 (ZSubscriber::Subscriber(sub), Box::pin(receiver))
             };
 
-        // let zn = self.zsession.clone();
-        // let rkey = ResKey::RName(zkey.to_string());
         let ton = sub_to_match.topic_name.clone();
         let tyn = sub_to_match.type_name.clone();
         let keyless = sub_to_match.keyless;
         let dp = self.dp;
         task::spawn(async move {
-            // let mut sub = zn.declare_subscriber(&rkey, &sub_info).await.unwrap();
             while let Some(d) = receiver.next().await {
                 log::trace!("Route data to DDS '{}'", &ton);
                 unsafe {
