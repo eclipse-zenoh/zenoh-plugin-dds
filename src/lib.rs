@@ -75,6 +75,8 @@ impl Plugin for DDSPlugin {
     }
 }
 
+zenoh_plugin_trait::declare_plugin!(DDSPlugin);
+
 // NOTE: temporary hack for static link of DDS plugin in zenoh-bridge-dds, thus it can call this function
 // instead of relying on #[no_mangle] functions that will conflicts with those defined in REST plugin.
 // TODO: remove once eclipse-zenoh/zenoh#89 is implemented
