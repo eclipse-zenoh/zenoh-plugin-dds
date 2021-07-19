@@ -84,9 +84,6 @@ fn parse_args() -> (Properties, bool, ArgMatches<'static>) {
         config.insert("multicast_scouting".into(), "false".into());
     }
 
-    // Disable local routing to avoid loops
-    config.insert("local_routing".into(), "false".into());
-
     (config, args.is_present("rest-plugin"), args)
 }
 
