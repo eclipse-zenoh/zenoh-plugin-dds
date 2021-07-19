@@ -2703,7 +2703,7 @@ dependencies = [
 [[package]]
 name = "zenoh"
 version = "0.5.0-dev"
-source = "git+https://github.com/eclipse-zenoh/zenoh#ee629b24c8eba786e3804384922d1b976afb8856"
+source = "git+https://github.com/eclipse-zenoh/zenoh#7fd415c4443e8d50f6474b8620d19f715a1d97a7"
 dependencies = [
  "async-global-executor",
  "async-rustls",
@@ -2738,13 +2738,14 @@ dependencies = [
  "uuid",
  "vec_map",
  "webpki 0.22.0",
+ "zenoh-plugin-trait",
  "zenoh-util",
 ]
 
 [[package]]
 name = "zenoh-ext"
 version = "0.5.0-dev"
-source = "git+https://github.com/eclipse-zenoh/zenoh#ee629b24c8eba786e3804384922d1b976afb8856"
+source = "git+https://github.com/eclipse-zenoh/zenoh#7fd415c4443e8d50f6474b8620d19f715a1d97a7"
 dependencies = [
  "async-std",
  "bincode",
@@ -2761,7 +2762,7 @@ dependencies = [
 [[package]]
 name = "zenoh-plugin-rest"
 version = "0.5.0-dev"
-source = "git+https://github.com/eclipse-zenoh/zenoh#ee629b24c8eba786e3804384922d1b976afb8856"
+source = "git+https://github.com/eclipse-zenoh/zenoh#7fd415c4443e8d50f6474b8620d19f715a1d97a7"
 dependencies = [
  "async-std",
  "base64 0.13.0",
@@ -2774,12 +2775,24 @@ dependencies = [
  "serde_json",
  "tide",
  "zenoh",
+ "zenoh-plugin-trait",
+]
+
+[[package]]
+name = "zenoh-plugin-trait"
+version = "0.1.0-dev"
+source = "git+https://github.com/eclipse-zenoh/zenoh#7fd415c4443e8d50f6474b8620d19f715a1d97a7"
+dependencies = [
+ "clap",
+ "libloading",
+ "log",
+ "zenoh-util",
 ]
 
 [[package]]
 name = "zenoh-util"
 version = "0.5.0-dev"
-source = "git+https://github.com/eclipse-zenoh/zenoh#ee629b24c8eba786e3804384922d1b976afb8856"
+source = "git+https://github.com/eclipse-zenoh/zenoh#7fd415c4443e8d50f6474b8620d19f715a1d97a7"
 dependencies = [
  "aes 0.7.4",
  "async-std",
@@ -2825,4 +2838,5 @@ dependencies = [
  "zenoh",
  "zenoh-ext",
  "zenoh-plugin-rest",
+ "zenoh-plugin-trait",
 ]
