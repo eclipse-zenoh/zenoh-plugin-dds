@@ -2742,6 +2742,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "zenoh-bridge-dds"
+version = "0.5.0-beta.2"
+dependencies = [
+ "async-std",
+ "clap",
+ "env_logger",
+ "zenoh",
+ "zenoh-plugin-rest",
+ "zenoh-plugin-trait",
+ "zplugin-dds",
+]
+
+[[package]]
 name = "zenoh-ext"
 version = "0.5.0-dev"
 source = "git+https://github.com/eclipse-zenoh/zenoh#bd2255dc91359774ea89e29631a743a384fa6899"

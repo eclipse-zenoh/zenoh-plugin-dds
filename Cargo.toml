@@ -11,65 +11,17 @@
 # Contributors:
 #   ADLINK zenoh team, <zenoh@adlink-labs.tech>
 #
-[package]
-name = "zplugin-dds"
-version = "0.5.0-beta.2"
-authors = [
-    "kydos <angelo@icorsaro.net>",
-    "Esteve Fernandez <esteve.fernandez@gmail.com>",
-    "Pierre Avital <pierre.avital@adlinktech.com",
-]
-edition = "2018"
-repository = "https://github.com/eclipse-zenoh/zenoh-plugin-dds"
-homepage = "http://zenoh.io"
-license = " EPL-2.0 OR Apache-2.0"
-categories = ["network-programming"]
-description = "Zenoh plugin for ROS2 and DDS in general"
-
-[lib]
-name = "zplugin_dds"
-crate-type = ["cdylib", "rlib"]
-
-[features]
-no_mangle = ["zenoh-plugin-trait/no_mangle"]
-default = []
-
-[dependencies]
-zenoh = { git = "https://github.com/eclipse-zenoh/zenoh" }
-zenoh-ext = { git = "https://github.com/eclipse-zenoh/zenoh" }
-zenoh-plugin-rest = { git = "https://github.com/eclipse-zenoh/zenoh", default-features = false }
-zenoh-plugin-trait = { git = "https://github.com/eclipse-zenoh/zenoh", default-features = false }
-cyclors = "0.1.1"
-log = "0.4.14"
-async-trait = "0.1.42"
-futures = "0.3.12"
-libc = "0.2.85"
-clap = "2.33"
-env_logger = "0.8.2"
-regex = "1.4.3"
-hex = "0.4.3"
-lazy_static = "1.4.0"
-serde = "1.0.125"
-serde_json = "1.0.64"
+[workspace]
+members = ["zplugin-dds", "zenoh-bridge-dds"]
 
 
-[dependencies.async-std]
-version = "1.9.0"
-features = ["unstable", "attributes"]
-
-
-[[bin]]
-name = "zenoh-bridge-dds"
-path = "src/bin/zenoh-bridge-dds.rs"
-
-# dzd: old name, deprecated. Keep it for a transition period
-[[bin]]
-name = "dzd"
-path = "src/bin/zenoh-bridge-dds.rs"
+[profile.dev]
+debug = true
+opt-level = 0
 
 
 [profile.release]
-debug = false
+debug = false     # If you want debug symbol in release mode, set the env variable: RUSTFLAGS=-g
 lto = "fat"
 codegen-units = 1
 opt-level = 3
