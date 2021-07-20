@@ -32,7 +32,7 @@ crate-type = ["cdylib", "rlib"]
 
 [features]
 no_mangle = ["zenoh-plugin-trait/no_mangle"]
-default = []
+default = ["no_mangle"]
 
 [dependencies]
 zenoh = { git = "https://github.com/eclipse-zenoh/zenoh" }
