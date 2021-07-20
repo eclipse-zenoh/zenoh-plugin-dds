@@ -13,6 +13,7 @@
 //
 use clap::{App, Arg, ArgMatches};
 use zenoh::Properties;
+use zenoh_plugin_trait::Plugin;
 
 // customize the DDS plugin args for retro-compatibility with previous versions of the standalone bridge
 fn customize_dds_args<'a, 'b>(mut args: Vec<Arg<'a, 'b>>) -> Vec<Arg<'a, 'b>> {
@@ -64,8 +65,8 @@ fn parse_args() -> (Properties, bool, ArgMatches<'static>) {
             Arg::from_usage(
                 "--rest-plugin   'Enable the zenoh REST plugin (disabled by default)'")
         )
-        .args(&zplugin_rest::get_expected_args2()) // add REST plugin expected args
-        .args(&customize_dds_args(zplugin_dds::get_expected_args2()));
+        .args(&zplugin_rest::RestPlugin::get_requirements()) // add REST plugin expected args
+        .args(&customize_dds_args(zplugin_dds::DDSPlugin::get_requirements()));
 
     let args = app.get_matches();
 
@@ -120,11 +121,13 @@ async fn main() {
         .await
         .unwrap();
 
+    let runtime_args = (runtime, args);
     // start REST plugin
     if rest_plugin {
-        async_std::task::spawn(zplugin_rest::run(runtime.clone(), args.clone()));
+        zplugin_rest::RestPlugin::start(&runtime_args).unwrap();
     }
 
     // start DDS plugin
-    zplugin_dds::run(runtime.clone(), args.clone()).await;
+    zplugin_dds::DDSPlugin::start(&runtime_args).unwrap();
+    async_std::task::block_on(async_std::future::pending::<()>());
 }

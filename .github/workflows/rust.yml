@@ -15,53 +15,76 @@ name: Rust
 
 on:
   push:
-    branches: [ '**' ]
+    branches: ["**"]
   pull_request:
-    branches: [ '**' ]
+    branches: ["**"]
   schedule:
-    - cron: '0 6 * * 1-5'
+    - cron: "0 6 * * 1-5"
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
   build:
-
     name: Build on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macOS-latest]   # Note: windows not supported because of cyclocut not ported
+        os: [ubuntu-latest, macOS-latest] # Note: windows not supported because of cyclocut not ported
 
     steps:
-    - uses: actions/checkout@v2
+      - uses: actions/checkout@v2
 
-    - name: Install Rust toolchain
-      uses: actions-rs/toolchain@v1
-      with:
+      - name: Install Rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
           components: rustfmt, clippy
 
-    - name: Code format check
-      uses: actions-rs/cargo@v1
-      with:
-        command: fmt
-        args: -- --check
+      - name: zplugin-dds > Code format check
+        uses: actions-rs/cargo@v1
+        with:
+          command: fmt
+          args: --manifest-path zplugin-dds/Cargo.toml -- --check
 
-    - name: Clippy
-      uses: actions-rs/cargo@v1
-      with:
-        command: clippy
-        args: --all --examples -- -D warnings
+      - name: zplugin-dds > Clippy
+        uses: actions-rs/cargo@v1
+        with:
+          command: clippy
+          args: --manifest-path zplugin-dds/Cargo.toml --all --examples -- -D warnings
 
-    - name: Build
-      uses: actions-rs/cargo@v1
-      with:
-        command: build
-        args: --verbose --all-targets
+      - name: zplugin-dds > Build
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --manifest-path zplugin-dds/Cargo.toml --verbose --all-targets
 
-    - name: Run tests
-      uses: actions-rs/cargo@v1
-      with:
-        command: test
-        args: --verbose
+      - name: zplugin-dds > Run tests
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --manifest-path zplugin-dds/Cargo.toml --verbose
+
+      - name: zenoh-bridge-dds > Code format check
+        uses: actions-rs/cargo@v1
+        with:
+          command: fmt
+          args: --manifest-path zenoh-bridge-dds/Cargo.toml -- --check
+
+      - name: zenoh-bridge-dds > Clippy
+        uses: actions-rs/cargo@v1
+        with:
+          command: clippy
+          args: --manifest-path zenoh-bridge-dds/Cargo.toml --all --examples -- -D warnings
+
+      - name: zenoh-bridge-dds > Build
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --manifest-path zenoh-bridge-dds/Cargo.toml --verbose --all-targets
+
+      - name: zenoh-bridge-dds > Run tests
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --manifest-path zenoh-bridge-dds/Cargo.toml --verbose

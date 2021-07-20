@@ -50,11 +50,24 @@ In order to build the zenoh bridge for DDS you need first to install the followi
    - on Alpine do: `apk install llvm11-dev clang-dev`
 - [CMake](https://cmake.org/download/) (to build CycloneDDS which is a native dependency)
 
-Once these dependencies are in place, simply do:
+Once these dependencies are in place, you may clone the repository on your machine:
 
 ```bash
 $ git clone https://github.com/eclipse-zenoh/zenoh-plugin-dds.git
 $ cd zenoh-plugin-dds
+```
+
+You can then choose between building the zenoh bridge for DDS:
+- as a dynamically loaded plugin:
+```bash
+$ cd zplugin-dds
+$ cargo build --release
+```
+The plugin shared library (`*.so` on Linux, `*.dlib` on Mac OS, `*.dll` on Windows) will be generated in the `target/release` subdirectory.
+
+- or as a standalone binary:
+```bash
+$ cd zenoh-bridge-dds
 $ cargo build --release
 ```
 The **zenoh-bridge-dds** binary will be generated in the `target/release` sub-directory.
