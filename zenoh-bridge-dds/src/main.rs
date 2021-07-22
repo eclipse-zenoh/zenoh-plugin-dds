@@ -89,9 +89,6 @@ fn parse_args() -> (Properties, bool, ArgMatches<'static>) {
         config.insert("multicast_scouting".into(), "false".into());
     }
 
-    // Disable local routing to avoid loops
-    config.insert("local_routing".into(), "false".into());
-
     // Add timestamps to publications (required for PublicationCache usage)
     config.insert("add_timestamp".into(), "true".into());
 

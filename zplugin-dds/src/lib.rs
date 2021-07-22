@@ -153,9 +153,9 @@ pub async fn run(runtime: Runtime, args: ArgMatches<'_>) {
         .map(|s| s.to_string())
         .collect::<Vec<String>>();
 
-    // open zenoh-net Session
+    // open zenoh-net Session (with local routing disabled to avoid loops)
     let zsession =
-        Arc::new(Session::init(runtime, true, join_subscriptions, join_publications).await);
+        Arc::new(Session::init(runtime, false, join_subscriptions, join_publications).await);
 
     // create group member
     let zid = zsession.id().await;
