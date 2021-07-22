@@ -17,6 +17,7 @@ use clap::{Arg, ArgMatches};
 use cyclors::*;
 use futures::prelude::*;
 use futures::select;
+use git_version::git_version;
 use log::{debug, info};
 use regex::Regex;
 use serde::ser::SerializeStruct;
@@ -35,6 +36,12 @@ mod qos;
 use qos::*;
 mod dds_mgt;
 use dds_mgt::*;
+
+pub const GIT_VERSION: &str = git_version!(prefix = "v", cargo_prefix = "v");
+
+lazy_static::lazy_static!(
+    pub static ref LONG_VERSION: String = format!("{} built with {}", GIT_VERSION, env!("RUSTC_VERSION"));
+);
 
 // #[no_mangle]
 // pub fn get_expected_args<'a, 'b>() -> Vec<Arg<'a, 'b>> {
@@ -76,6 +83,7 @@ pub async fn run(runtime: Runtime, args: ArgMatches<'_>) {
     // Required in case of dynamic lib, otherwise no logs.
     // But cannot be done twice in case of static link.
     let _ = env_logger::try_init();
+    debug!("DDS plugin {}", LONG_VERSION.as_str());
 
     let scope: String = args
         .value_of("dds-scope")
@@ -137,13 +145,14 @@ pub async fn run(runtime: Runtime, args: ArgMatches<'_>) {
     dds_plugin.run().await;
 }
 
-// An reference used in admin space to point to a struct (DdsEntiry or Route) stored in another map
+// An reference used in admin space to point to a struct (DdsEntity or Route) stored in another map
 enum AdminRef {
     DdsWriterEntity(String),
     DdsReaderEntity(String),
     FromDdsRoute(String),
     ToDdsRoute(String),
     Config,
+    Version,
 }
 
 // a route from or to DDS
@@ -473,6 +482,7 @@ impl DdsPlugin {
                 .get(zkey)
                 .map(|e| Value::Json(serde_json::to_string(e).unwrap())),
             AdminRef::Config => Some(Value::Json(serde_json::to_string(self).unwrap())),
+            AdminRef::Version => Some(Value::Json(format!(r#""{}""#, LONG_VERSION.as_str()))),
         }
     }
 
@@ -562,9 +572,11 @@ impl DdsPlugin {
             .await
             .unwrap();
 
-        // add plugin's config in admin space
+        // add plugin's config and version in admin space
         self.admin_space
             .insert("config".to_string(), AdminRef::Config);
+        self.admin_space
+            .insert("version".to_string(), AdminRef::Version);
 
         loop {
             select!(

@@ -39,6 +39,7 @@ futures = "0.3.12"
 libc = "0.2.85"
 clap = "2.33"
 env_logger = "0.8.2"
+git-version = "0.3.4"
 regex = "1.4.3"
 hex = "0.4.3"
 lazy_static = "1.4.0"
@@ -51,6 +52,8 @@ serde_json = "1.0.64"
 version = "1.9.0"
 features = ["unstable", "attributes"]
 
+[build-dependencies]
+rustc_version = "0.4"
 
 [[bin]]
 name = "zenoh-bridge-dds"
