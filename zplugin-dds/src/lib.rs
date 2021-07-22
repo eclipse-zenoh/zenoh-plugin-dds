@@ -44,10 +44,10 @@ use qos::*;
 mod dds_mgt;
 use dds_mgt::*;
 
-const GIT_VERSION: &str = git_version!(prefix = "v", cargo_prefix = "v");
+pub const GIT_VERSION: &str = git_version!(prefix = "v", cargo_prefix = "v");
 
 lazy_static::lazy_static!(
-    static ref LONG_VERSION: String = format!("{} built with {}", GIT_VERSION, env!("RUSTC_VERSION"));
+    pub static ref LONG_VERSION: String = format!("{} built with {}", GIT_VERSION, env!("RUSTC_VERSION"));
 );
 
 const GROUP_NAME: &str = "zenoh-plugin-dds";

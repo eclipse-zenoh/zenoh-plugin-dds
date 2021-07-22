@@ -41,6 +41,8 @@ fn customize_dds_args<'a, 'b>(mut args: Vec<Arg<'a, 'b>>) -> Vec<Arg<'a, 'b>> {
 
 fn parse_args() -> (Properties, bool, ArgMatches<'static>) {
     let app = App::new("zenoh bridge for DDS")
+        .version(zplugin_dds::GIT_VERSION)
+        .long_version(zplugin_dds::LONG_VERSION.as_str())
         .arg(Arg::from_usage(
             "-e, --peer=[LOCATOR]...  'Peer locator used to initiate the zenoh session.'",
         ))
