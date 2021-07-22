@@ -31,7 +31,7 @@ RUN mkdir /usr/share/man/man1/
 RUN apt-get update && apt-get -y install g++ cmake git clang
 
 COPY . .
-RUN cargo install --path .
+RUN cargo install --locked --path .
 
 
 ###
@@ -50,6 +50,7 @@ RUN chmod +x /entrypoint.sh
 
 EXPOSE 7447/udp
 EXPOSE 7447/tcp
+EXPOSE 8000/tcp
 
 ENV RUST_LOG info
 
