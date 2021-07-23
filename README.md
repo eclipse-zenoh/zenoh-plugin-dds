@@ -1,4 +1,4 @@
-![zenoh banner](http://zenoh.io/img/zenoh-dragon-small.png)
+<img src="http://zenoh.io/img/zenoh-dragon-small.png" height="150">
 
 [![CI](https://github.com/eclipse-zenoh/zenoh-plugin-dds/workflows/Rust/badge.svg)](https://github.com/eclipse-zenoh/zenoh-plugin-dds/actions?query=workflow%3ARust)
 [![License](https://img.shields.io/badge/License-EPL%202.0-blue)](https://choosealicense.com/licenses/epl-2.0/)
@@ -20,26 +20,6 @@ Thus, the main motivations to have a **zenoh bridge** for **DDS** are:
 - Support use cases of edge robotics.
 - Give the possibility to use **zenoh**'s geo-distributed storage and query system to better manage robot's data.
 
-## Architecture
-
-The **zenoh bridge for DDS** will soon be available as a library that can be loaded by a zenoh router at startup.
-
-Currently, it's a standalone executable named **`zenoh-bridge-dds`** that:
-- discover the DDS readers and writers declared by any DDS application, via the standard DDS discovery protocol (that uses UDP multicast)
-- create a mirror DDS writer or reader for each discovered reader or writer (using the same QoS)
-- map the discovered DDS topics and partitions to zenoh resources (see mapping details below)
-- forward user's data from a DDS topic to the corresponding zenoh resource, and vice versa
-
-### Routing of DDS discovery information
-:warning: **Important notice** :warning: :  
-The DDS discovery protocol is not routed through zenoh.  
-Meaning that, in case you use 2 **`zenoh-bridge-dds`** to interconnect 2 DDS domains, the DDS entities discovered in one domain won't be advertised in the other domain. Thus, the DDS data will be routed between the 2 domains only if matching readers and writers are declared in the 2 domains independently.
-
-### Mapping DDS topics to zenoh resources
-The mapping between DDS and zenoh is rather straightforward. Given a DDS Reader/Writer for topic **`A`** in a given partition **`P`**, then the equivalent zenoh resource will be named as **`/P/A`**. If no partition is defined, the equivalent zenoh resource will be named as **`/A`**.
-
-Optionally, the bridge can be configured with a **scope** that will be used as a prefix to each zenoh resource. That is, for scope **`/S`** the equivalent zenoh resource will be **`/S/P/A`** for a topic **`A`** and a partition **`P`**, and **`/S/A`** for a topic without partition.
-
 ## How to build it
 In order to build the zenoh bridge for DDS you need first to install the following dependencies:
 
@@ -57,38 +37,90 @@ $ git clone https://github.com/eclipse-zenoh/zenoh-plugin-dds.git
 $ cd zenoh-plugin-dds
 $ cargo build --release
 ```
-The **zenoh-bridge-dds** binary will be generated in the `target/release` sub-directory.
+The **`zenoh-bridge-dds`** binary will be generated in the `target/release` sub-directory.
 
-## How to test it
-Assuming you want to try this with ROS2, then install it by following the instructions available [here](https://index.ros.org/doc/ros2/Installation/Foxy/).
-Once you've installed ROS2, you easily let ROS applications communicate across the internet.
-That said the simplest way to quicky try out the zenoh bridge for DDS is to use it to bridge ROS2/DDS communnication across different ROS2/DDS domains.
-This can be quickly tested on a single machine or on two (or more) machines connected to the same network. More complicated deployments with
-multiple networks and zenoh routers across the Internet are just extensions of this basic scenario.
+## For a quick test with ROS2 turtlesim
+Prerequisites:
+ - A [ROS2 environment](http://docs.ros.org/en/galactic/Installation.html) (no matter the DDS implementation as soon as it implements the standard DDSI protocol - the default [Eclipse CycloneDDS](https://github.com/eclipse-cyclonedds/cyclonedds) being just fine)
+ - The [turtlesim package](http://docs.ros.org/en/galactic/Tutorials/Turtlesim/Introducing-Turtlesim.html#install-turtlesim)
 
-Let's assume that we have one ROS2 application running on domain **21** and another running on domain **42**. This alone will ensure
-that the two applications won't be able to discover or echange data. As a test you can try to run them as shown below without
-starting **zenoh-bridge-dds**  -- you remark  that nothing flows between the two. If you have two machines connected to the same network then run
-these commands on one of them:
+### 1 host, 2 ROS domains
+For a quick test on a single host, you can run the `turtlesim_node` and the `turtle_teleop_key` on distinct ROS domains. As soon as you run 2 `zenoh-bridge-dds` (1 per domain) the `turtle_teleop_key` can drive the `turtlesim_node`.  
+Here are the commands to run:
+  - `ROS_DOMAIN_ID=1 ros2 run turtlesim turtlesim_node`
+  - `ROS_DOMAIN_ID=2 ros2 run turtlesim turtle_teleop_key`
+  - `./target/release/zenoh-bridge-dds -d 1`
+  - `./target/release/zenoh-bridge-dds -d 2`
 
+Notice that by default the 2 bridges will discover each other using UDP multicast.
 
-```
-$ ROS_DOMAINID=21 ros2 run demo_nodes_py listener
+### 2 hosts, avoiding UDP multicast communication
+By default DDS (and thus ROS2) uses UDP multicast for discovery and publications. But on some networks, UDP multicast is not or badly supported.  
+In such cases, deploying the `zenoh-bridge-dds` on both hosts will make it to:
+  - limit the DDS discovery traffic, as detailled in [this blog](https://zenoh.io/blog/2021-03-23-discovery/#leveraging-resource-generalisation)
+  - route all the DDS publications made on UDP multicast by each node through the zenoh protocol that by default uses TCP.
 
-$ ./target/release/zenoh-bridge-dds --scope /demo/dds -m peer -d 21
-```
+Here are the commands to test this configuration with turtlesim:
+  - on host 1:
+    - `ROS_DOMAIN_ID=1 ros2 run turtlesim turtlesim_node`
+    - `./target/release/zenoh-bridge-dds -d 1`
+  - on host 2:
+    - `ROS_DOMAIN_ID=2 ros2 run turtlesim turtle_teleop_key`
+    - `./target/release/zenoh-bridge-dds -d 2 -e tcp/<host-1-ip>:7447` - where `<host-1-ip>` is the IP of host 1
 
-and these commands on the other:
+Notice that to avoid unwanted direct DDS communication, 2 disctinct ROS domains are still used.
 
-```
-$ ROS_DOMAIN_ID=42 ros2 run demo_nodes_cpp talker
+### 2 hosts, with an intermediate zenoh router in the cloud
+In case your 2 hosts can't have a point-to-point communication, you could leverage a [zenoh router](https://github.com/eclipse-zenoh/zenoh#how-to-build-it) deployed in a cloud instance (any Linux VM will do the job). You just need to configure your cloud instanse with a public IP and authorize the TCP port **7447**.
 
-$ ./target/release/zenoh-bridge-dds --scope /demo/dds -m peer -d 42
-```
+:warning: the zenoh protocol is still under development leading to possible incompatibilities between the bridge and the router if their zenoh version differ. Please make sure you use a zenoh router built from a recent commit id from its `master` branch.
 
-Otherwise, just run them on the same machine, you will see a stream of ROS2 *Hello World* messages coming across. Once again, as the ROS2 applications are using different domains, they are unable to discover and communicate, thus the data you see is flowing over zenoh.
+Here are the commands to test this configuration with turtlesim:
+  - on cloud VM:
+    - `zenohd`
+  - on host 1:
+    - `ros2 run turtlesim turtlesim_node`
+    - `./target/release/zenoh-bridge-dds -e tcp/<cloud-ip>:7447` - where `<cloud-ip>` is the IP of your cloud instance
+  - on host 2:
+    - `ros2 run turtlesim turtle_teleop_key`
+    - `./target/release/zenoh-bridge-dds -e tcp/<cloud-ip>:7447` - where `<cloud-ip>` is the IP of your cloud instance
 
-### zenoh-bridge-dds command line arguments
+Notice that there is no need to use distinct ROS domain here, since the 2 hosts are not supposed to directly communicate with each other.
+
+## More advanced usage for ROS2
+### Limiting the ROS2 topics/services to be routed
+By default 2 zenoh bridges will route all ROS2 topics and services for which they detect a Writer on one side and a Reader on the other side. But you might want to avoid some topics and services to be routed by the bridge.
+
+Starting `zenoh-bridge-dds` you can use the `--dds-allow` argument to specify the subset of topics and services that will be routed by the bridge. This argument accepts a string wich is a regular expression that must match a substring of an allowed zenoh resource (see details of [mapping of ROS2 names to zenoh resources](#mapping-ros2-topics-and-services-names-to-zenoh-resources)).
+
+Here are some examples of usage:
+| `--dds-allow` value | allowed ROS2 communication |
+| :-- | :-- |
+| `/rosout` | `/rosout`|
+| `/rosout\|/turtle1/cmd_vel\|/turtle1/rotate_absolute` | `/rosout`<br>`/turtle1/cmd_vel`<br>`/turtle1/rotate_absolute` |
+| `/rosout\|/turtle1/` | `/rosout` and all `/turtle1` topics, services, parameters and actions |
+| `/turtle1/.*` | all topics and services with name containing `/turtle1/` |
+| `/turtle1/` | same: all topics, services, parameters and actions with name containing `/turtle1/` |
+| `/rt/turtle1` | all topics with name containing `/turtle1` (no services, parameters or actions) |
+| `/rq/turtle1\|/rr/turtle1` | all services and parameters with name containing `/turtle1` (no topics or actions) |
+| `/rq/turtlesim/.*parameter\|/rr/turtlesim/.*parameter` | all parameters with name containing `/turtlesim` (no topics, services or actions) |
+| `/rq/turtle1/.*/_action\|/rr/turtle1/.*/_action` | all actions with name containing `/turtle1` (no topics, services or parameters) |
+
+### Running several robots without changing the ROS2 configuration
+If you run similar robots in the same network, they will by default all us the same DDS topics, leading to interferences in their operations.  
+A simple way to address this issue using the zenoh bridge is to:
+ - deploy 1 zenoh bridge per robot
+ - have each bridge started with the `--dds-scope "/<id>"` argument, each robot having its own id.
+ - make sure each robot cannot directly communicate via DDS with another robot by setting a distinct domain per robot, or configuring its network interface to not route UDP multicast outside the host.
+
+Using the `--dds-scope` option, a prefix is added to each zenoh resource published/subscribed by the bridge (more details in [mapping of ROS2 names to zenoh resources](#mapping-ros2-topics-and-services-names-to-zenoh-resources)). To interact with a robot, a remote ROS2 application must use a zenoh bridge configured with the same scope than the robot.  
+
+### Closer integration of ROS2 with zenoh
+As you understood, using the zenoh bridge, each ROS2 publications and subscriptions are mapped to a zenoh resource. Therefore, its relatively easy to develop an application using one of the [zenoh APIs](https://zenoh.io/docs/apis/apis/) to interact with one or more robot at the same time.
+
+See in details how to achieve that in [this blog](https://zenoh.io/blog/2021-04-28-ros2-integration/).
+
+## All zenoh-bridge-dds command line arguments
 
 `zenoh-bridge-dds` accepts the following arguments:
  * zenoh-related arguments:
@@ -102,8 +134,8 @@ Otherwise, just run them on the same machine, you will see a stream of ROS2 *Hel
  * DDS-related arguments:
    - `-d, --dds-domain <ID>` : The DDS Domain ID (if using with ROS this should be the same as `ROS_DOMAIN_ID`)
    - `-s, --dds-scope <String>` : A string used as prefix to scope DDS traffic when mapped to zenoh resources.
-   - `-a, --dds-allow <String>`:  A regular expression matching the set of 'partition/topic-name' that should
-     be bridged. By default, all partitions and topic are allowed.  
+   - `-a, --dds-allow <String>`:  A regular expression matching the set of 'partition/topic-name' that must
+     be routed. By default, all partitions and topic are allowed.  
      Examples of expressions: 
         - `.*/TopicA` will allow only the `TopicA` to be routed, whatever the partition.
         - `PartitionX/.*` will allow all the topics to be routed, but only on `PartitionX`.
@@ -115,20 +147,20 @@ Otherwise, just run them on the same machine, you will see a stream of ROS2 *Hel
      the zenoh subscriptions, and thus minimizing the discovery traffic (usable multiple times).
      See [this blog](https://zenoh.io/blog/2021-03-23-discovery/#leveraging-resource-generalisation) for more details.
 
-### Admin space
+## Admin space
 
 The zenoh bridge for DDS exposes and administration space allowing to browse the DDS entities that have been discovered (with their QoS), and the routes that have been established between DDS and zenoh.
-This administration space is accessible via any zenoh API, including the REST API.
+This administration space is accessible via any zenoh API, including the REST API that you can activate at `zenoh-bridge-dds` startup using the `--rest-plugin` argument.
 
 The `zenoh-bridge-dds` exposes this administration space with paths prefixed by `/@/service/<uuid>/dds` (where `<uuid>` is the unique identifier of the bridge instance). The informations are then organized with such paths:
+ - `/@/service/<uuid>/dds/version` : the bridge version
  - `/@/service/<uuid>/dds/config` : the bridge configuration
  - `/@/service/<uuid>/dds/participant/<gid>/reader/<gid>/<topic>` : a discovered DDS reader on `<topic>`
  - `/@/service/<uuid>/dds/participant/<gid>/writer/<gid>/<topic>` : a discovered DDS reader on `<topic>`
  - `/@/service/<uuid>/dds/route/from_dds/<zenoh-resource>` : a route established from a DDS writer to a zenoh resource named `<zenoh-resource>` (see [mapping rules](#mapping-dds-topics-to-zenoh-resources)).
  - `/@/service/<uuid>/dds/route/to_dds/<zenoh-resource>` : a route established from a zenoh resource named `<zenoh-resource>` (see [mapping rules](#mapping-dds-topics-to-zenoh-resources))..
 
-Example of queries on administration space using the REST API with the `curl` command line tool
-(don't forget to activate the REST API with `--rest-plugin` argument):
+Example of queries on administration space using the REST API with the `curl` command line tool (don't forget to activate the REST API with `--rest-plugin` argument):
  - List all the DDS entities that have been discovered:
     ```bash
     curl http://localhost:8000:/@/service/**/participant/**
@@ -137,34 +169,47 @@ Example of queries on administration space using the REST API with the `curl` co
     ```bash
     curl http://localhost:8000:/@/service/**/route/**
     ```
- - List all discovered DDS entities and established route for topic `cmd_vel`:
+ - List all discovered DDS entities and established route for topic `turtle1/cmd_vel` | `/rosout` `/turtle1/cmd_vel` |
+ `:
     ```bash
-    curl http://localhost:8000:/@/service/**/cmd_vel
+    curl http://localhost:8000:/@/service/**/turtle1/cmd_vel` | `/rosout` `/turtle1/cmd_vel` |
+
     ```
 
 > _Pro tip: pipe the result into [**jq**](https://stedolan.github.io/jq/) command for JSON pretty print or transformation._
 
-### Troubleshooting
-In case you do not see any data flowing around when running  on different computers across a network, it may be due to your network does not allowing for multicast - this latter is used for scouting in zenoh. The simplest way to fix this issue is to explicitely pass locators as described next.
+## Architecture details
 
-On one of the two computers which we'll call computer-a run:
+The **zenoh bridge for DDS** will soon be available as a library that can be loaded by a zenoh router at startup.
 
-```
-$ ROS_DOMAIN_ID=21 ros2 run demo_nodes_py listener
+Currently, it's a standalone executable named **`zenoh-bridge-dds`** that:
+- discover the DDS readers and writers declared by any DDS application, via the standard DDS discovery protocol (that uses UDP multicast)
+- create a mirror DDS writer or reader for each discovered reader or writer (using the same QoS)
+- map the discovered DDS topics and partitions to zenoh resources (see mapping details below)
+- forward user's data from a DDS topic to the corresponding zenoh resource, and vice versa
 
-$ ./target/release/zenoh-bridge-dds --scope /demo/dds -m peer -d 21 -l tcp/<computer-a-ip-address>:7447
-```
+### Routing of DDS discovery information
+:warning: **Important notice** :warning: :  
+The DDS discovery protocol is not routed through zenoh.  
+Meaning that, in case you use 2 **`zenoh-bridge-dds`** to interconnect 2 DDS domains, the DDS entities discovered in one domain won't be advertised in the other domain. Thus, the DDS data will be routed between the 2 domains only if matching readers and writers are declared in the 2 domains independently.
 
-and these commands on the other:
+This has an impact on ROS2 behaviour: on one side of the bridge the ROS graph might not reflect all the nodes from the other side of the bridge. And the `ros2 topic list` command might not list all the topics declared on the other side.
 
-```
-$ ROS_DOMAIN_ID=42 ros2 run demo_nodes_cpp talker
+### Mapping of DDS topics to zenoh resources
+The mapping between DDS and zenoh is rather straightforward. Given a DDS Reader/Writer for topic **`A`** in a given partition **`P`**, then the equivalent zenoh resource will be named as **`/P/A`**. If no partition is defined, the equivalent zenoh resource will be named as **`/A`**.
 
-$ ./target/release/zenoh-bridge-dds --scope /demo/dds -m peer -d 42 -e tcp/<computer-a-ip-address>:7447
-```
+Optionally, the bridge can be configured with a **scope** that will be used as a prefix to each zenoh resource. That is, for scope **`/S`** the equivalent zenoh resource will be **`/S/P/A`** for a topic **`A`** and a partition **`P`**, and **`/S/A`** for a topic without partition.
 
-Where the <computer-a-ip-address> should be replaced by the IP address used to communicate on the
-network to which both computers are connected. If you enconter any issues do not hesitate
-to reach us out on [gitter](http://gitter.im/atolab/zenoh)
+### Mapping ROS2 names to zenoh resources
+The mapping from ROS2 topics and services name to DDS topics is specified [here](https://design.ros2.org/articles/topic_and_service_names.html#mapping-of-ros-2-topic-and-service-names-to-dds-concepts).
+Notice that ROS2 does not use the DDS partitions.  
+As a consequence of this mapping and of the DDS to zenoh mapping specified above, here are some examples of mapping from ROS2 names to zenoh resources:
 
-Good Hacking!
+| ROS2 names | DDS Topics names | zenoh resources names (no scope) | zenohs resources names (if scope="`/scope`") |
+| --- | --- | --- | --- |
+| topic: `/rosout` | `rt/rosout` | `/rt/rosout` | `/scope/rt/rosout` |
+| topic: `/turtle1/cmd_vel` | `rt/turtle1/cmd_vel` | `/rt/turtle1/cmd_vel` | `/scope/rt/turtle1/cmd_vel` |
+| service: `/turtle1/set_pen` | `rq/turtle1/set_penRequest`<br>`rr/turtle1/set_penReply` | `/rq/turtle1/set_penRequest`<br>`/rr/turtle1/set_penReply` | `/scope/rq/turtle1/set_penRequest`<br>`/scope/rr/turtle1/set_penReply` |
+| action: `/turtle1/rotate_absolute` | `rq/turtle1/rotate_absolute/_action/send_goalRequest`<br>`rr/turtle1/rotate_absolute/_action/send_goalReply`<br>`rq/turtle1/rotate_absolute/_action/cancel_goalRequest`<br>`rr/turtle1/rotate_absolute/_action/cancel_goalReply`<br>`rq/turtle1/rotate_absolute/_action/get_resultRequest`<br>`rr/turtle1/rotate_absolute/_action/get_resultReply`<br>`rt/turtle1/rotate_absolute/_action/status`<br>`rt/turtle1/rotate_absolute/_action/feedback` | `/rq/turtle1/rotate_absolute/_action/send_goalRequest`<br>`/rr/turtle1/rotate_absolute/_action/send_goalReply`<br>`/rq/turtle1/rotate_absolute/_action/cancel_goalRequest`<br>`/rr/turtle1/rotate_absolute/_action/cancel_goalReply`<br>`/rq/turtle1/rotate_absolute/_action/get_resultRequest`<br>`/rr/turtle1/rotate_absolute/_action/get_resultReply`<br>`/rt/turtle1/rotate_absolute/_action/status`<br>`/rt/turtle1/rotate_absolute/_action/feedback` | `/scope/rq/turtle1/rotate_absolute/_action/send_goalRequest`<br>`/scope/rr/turtle1/rotate_absolute/_action/send_goalReply`<br>`/scope/rq/turtle1/rotate_absolute/_action/cancel_goalRequest`<br>`/scope/rr/turtle1/rotate_absolute/_action/cancel_goalReply`<br>`/scope/rq/turtle1/rotate_absolute/_action/get_resultRequest`<br>`/scope/rr/turtle1/rotate_absolute/_action/get_resultReply`<br>`/scope/rt/turtle1/rotate_absolute/_action/status`<br>`/scope/rt/turtle1/rotate_absolute/_action/feedback` |
+| all parameters for node `turtlesim`| `rq/turtlesim/list_parametersRequest`<br>`rr/turtlesim/list_parametersReply`<br>`rq/turtlesim/describe_parametersRequest`<br>`rr/turtlesim/describe_parametersReply`<br>`rq/turtlesim/get_parametersRequest`<br>`rr/turtlesim/get_parametersReply`<br>`rr/turtlesim/get_parameter_typesReply`<br>`rq/turtlesim/get_parameter_typesRequest`<br>`rq/turtlesim/set_parametersRequest`<br>`rr/turtlesim/set_parametersReply`<br>`rq/turtlesim/set_parameters_atomicallyRequest`<br>`rr/turtlesim/set_parameters_atomicallyReply` | `/rq/turtlesim/list_parametersRequest`<br>`/rr/turtlesim/list_parametersReply`<br>`/rq/turtlesim/describe_parametersRequest`<br>`/rr/turtlesim/describe_parametersReply`<br>`/rq/turtlesim/get_parametersRequest`<br>`/rr/turtlesim/get_parametersReply`<br>`/rr/turtlesim/get_parameter_typesReply`<br>`/rq/turtlesim/get_parameter_typesRequest`<br>`/rq/turtlesim/set_parametersRequest`<br>`/rr/turtlesim/set_parametersReply`<br>`/rq/turtlesim/set_parameters_atomicallyRequest`<br>`/rr/turtlesim/set_parameters_atomicallyReply` | `/scope/rq/turtlesim/list_parametersRequest`<br>`/scope/rr/turtlesim/list_parametersReply`<br>`/scope/rq/turtlesim/describe_parametersRequest`<br>`/scope/rr/turtlesim/describe_parametersReply`<br>`/scope/rq/turtlesim/get_parametersRequest`<br>`/scope/rr/turtlesim/get_parametersReply`<br>`/scope/rr/turtlesim/get_parameter_typesReply`<br>`/scope/rq/turtlesim/get_parameter_typesRequest`<br>`/scope/rq/turtlesim/set_parametersRequest`<br>`/scope/rr/turtlesim/set_parametersReply`<br>`/scope/rq/turtlesim/set_parameters_atomicallyRequest`<br>`/scope/rr/turtlesim/set_parameters_atomicallyReply` |
+| specific ROS discovery topic | `ros_discovery_info` | `/ros_discovery_info` | `/scope/ros_discovery_info`
