@@ -18,9 +18,6 @@ FROM rust:slim as builder
 
 WORKDIR /usr/src/zenoh-plugin-dds
 
-# Required for correct installation of maven package
-RUN mkdir /usr/share/man/man1/
-
 # List of installed tools:
 #  * for CycloneDDS
 #     - g++
