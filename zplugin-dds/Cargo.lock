@@ -309,7 +309,7 @@ dependencies = [
  "cexpr",
  "clang-sys",
  "clap",
- "env_logger",
+ "env_logger 0.8.4",
  "lazy_static",
  "lazycell",
  "log",
@@ -633,6 +633,19 @@ name = "env_logger"
 version = "0.8.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a19187fea3ac7e84da7dacf48de0c45d63c6a76f9490dae389aead16c243fce3"
+dependencies = [
+ "atty",
+ "humantime",
+ "log",
+ "regex",
+ "termcolor",
+]
+
+[[package]]
+name = "env_logger"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0b2cf0344971ee6c64c31be0d530793fba457d322dfec2810c453d0ef228f9c3"
 dependencies = [
  "atty",
  "humantime",
@@ -1139,19 +1152,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "729eb334247daa1803e0a094d0a5c55711b85571179f5ec6e53eccfdf7008958"
 dependencies = [
  "getrandom 0.2.3",
-]
-
-[[package]]
-name = "nix"
-version = "0.21.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5c3728fec49d363a50a8828a190b379a446cc5cf085c06259bbbeb34447e4ec7"
-dependencies = [
- "bitflags",
- "cc",
- "cfg-if",
- "libc",
- "memoffset",
 ]
 
 [[package]]
@@ -1853,7 +1853,7 @@ checksum = "681a9e90340f748af3a1cc52eb2c040eee29f976b763e99ad90fc0c5df6f9791"
 dependencies = [
  "cfg-if",
  "libc",
- "nix 0.22.0",
+ "nix",
  "rand 0.8.4",
  "winapi",
 ]
@@ -2435,7 +2435,7 @@ dependencies = [
 [[package]]
 name = "zenoh"
 version = "0.5.0-dev"
-source = "git+https://github.com/eclipse-zenoh/zenoh#33b63d974f467435c7b3800e4f16641b7e898f95"
+source = "git+https://github.com/eclipse-zenoh/zenoh#730b20335c701852405feef649723b478d4a467b"
 dependencies = [
  "async-global-executor",
  "async-rustls",
@@ -2444,7 +2444,7 @@ dependencies = [
  "base64",
  "bincode",
  "clap",
- "env_logger",
+ "env_logger 0.9.0",
  "event-listener",
  "flume",
  "futures",
@@ -2455,7 +2455,7 @@ dependencies = [
  "lazy_static",
  "libloading",
  "log",
- "nix 0.21.0",
+ "nix",
  "petgraph",
  "quinn",
  "rand 0.8.4",
@@ -2477,11 +2477,11 @@ dependencies = [
 [[package]]
 name = "zenoh-ext"
 version = "0.5.0-dev"
-source = "git+https://github.com/eclipse-zenoh/zenoh#33b63d974f467435c7b3800e4f16641b7e898f95"
+source = "git+https://github.com/eclipse-zenoh/zenoh#730b20335c701852405feef649723b478d4a467b"
 dependencies = [
  "async-std",
  "bincode",
- "env_logger",
+ "env_logger 0.9.0",
  "flume",
  "futures",
  "futures-lite",
@@ -2494,7 +2494,7 @@ dependencies = [
 [[package]]
 name = "zenoh-plugin-trait"
 version = "0.1.0-dev"
-source = "git+https://github.com/eclipse-zenoh/zenoh#33b63d974f467435c7b3800e4f16641b7e898f95"
+source = "git+https://github.com/eclipse-zenoh/zenoh#730b20335c701852405feef649723b478d4a467b"
 dependencies = [
  "clap",
  "libloading",
@@ -2505,7 +2505,7 @@ dependencies = [
 [[package]]
 name = "zenoh-util"
 version = "0.5.0-dev"
-source = "git+https://github.com/eclipse-zenoh/zenoh#33b63d974f467435c7b3800e4f16641b7e898f95"
+source = "git+https://github.com/eclipse-zenoh/zenoh#730b20335c701852405feef649723b478d4a467b"
 dependencies = [
  "aes 0.7.4",
  "async-std",
@@ -2539,7 +2539,7 @@ dependencies = [
  "async-trait",
  "clap",
  "cyclors",
- "env_logger",
+ "env_logger 0.8.4",
  "futures",
  "git-version",
  "hex",
