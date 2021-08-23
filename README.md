@@ -52,6 +52,16 @@ $ cargo build --release
 ```
 The **`zenoh-bridge-dds`** binary will be generated in the `target/release` sub-directory.
 
+## Docker image
+The **`zenoh-bridge-dds`** standalone executable is also available as a [Docker images](https://hub.docker.com/r/eclipse/zenoh-bridge-dds/tags?page=1&ordering=last_updated) for both amd64 and arm64. To get it, do:
+  - `docker pull eclipse/zenoh-bridge-dds:master` for the master branch version
+
+:warning: **However, notice that it's usage is limited to Docker on Linux and using the `--net host` option.**  
+The cause being that DDS uses UDP multicast and Docker doesn't support UDP multicast between a container and its host (see cases [moby/moby#23659](https://github.com/moby/moby/issues/23659), [moby/libnetwork#2397](https://github.com/moby/libnetwork/issues/2397) or [moby/libnetwork#552](https://github.com/moby/libnetwork/issues/552)). The only known way to make it work is to use the `--net host` option that is [only supported on Linux hosts](https://docs.docker.com/network/host/).
+
+Usage: **`docker run --init --net host eclipse/zenoh-bridge-dds`**  
+It supports the same command line arguments than the `zenoh-bridge-dds` (see below or check with `-h` argument).
+
 ## For a quick test with ROS2 turtlesim
 Prerequisites:
  - A [ROS2 environment](http://docs.ros.org/en/galactic/Installation.html) (no matter the DDS implementation as soon as it implements the standard DDSI protocol - the default [Eclipse CycloneDDS](https://github.com/eclipse-cyclonedds/cyclonedds) being just fine)
