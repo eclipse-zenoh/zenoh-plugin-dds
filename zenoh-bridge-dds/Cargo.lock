@@ -2698,7 +2698,7 @@ dependencies = [
 [[package]]
 name = "zenoh"
 version = "0.5.0-dev"
-source = "git+https://github.com/eclipse-zenoh/zenoh#5fbf504d0f06dd8c12a1e413acd72fd381c9675a"
+source = "git+https://github.com/eclipse-zenoh/zenoh#ee2c418fe9d1d7de43a984bc85c29a232c5f48d9"
 dependencies = [
  "async-global-executor",
  "async-rustls",
@@ -2739,7 +2739,7 @@ dependencies = [
 
 [[package]]
 name = "zenoh-bridge-dds"
-version = "0.5.0-beta.2"
+version = "0.5.0-dev"
 dependencies = [
  "async-std",
  "clap",
@@ -2753,7 +2753,7 @@ dependencies = [
 [[package]]
 name = "zenoh-ext"
 version = "0.5.0-dev"
-source = "git+https://github.com/eclipse-zenoh/zenoh#5fbf504d0f06dd8c12a1e413acd72fd381c9675a"
+source = "git+https://github.com/eclipse-zenoh/zenoh#ee2c418fe9d1d7de43a984bc85c29a232c5f48d9"
 dependencies = [
  "async-std",
  "bincode",
@@ -2770,7 +2770,7 @@ dependencies = [
 [[package]]
 name = "zenoh-plugin-rest"
 version = "0.5.0-dev"
-source = "git+https://github.com/eclipse-zenoh/zenoh#5fbf504d0f06dd8c12a1e413acd72fd381c9675a"
+source = "git+https://github.com/eclipse-zenoh/zenoh#ee2c418fe9d1d7de43a984bc85c29a232c5f48d9"
 dependencies = [
  "async-std",
  "base64 0.13.0",
@@ -2789,7 +2789,7 @@ dependencies = [
 [[package]]
 name = "zenoh-plugin-trait"
 version = "0.1.0-dev"
-source = "git+https://github.com/eclipse-zenoh/zenoh#5fbf504d0f06dd8c12a1e413acd72fd381c9675a"
+source = "git+https://github.com/eclipse-zenoh/zenoh#ee2c418fe9d1d7de43a984bc85c29a232c5f48d9"
 dependencies = [
  "clap",
  "libloading",
@@ -2800,7 +2800,7 @@ dependencies = [
 [[package]]
 name = "zenoh-util"
 version = "0.5.0-dev"
-source = "git+https://github.com/eclipse-zenoh/zenoh#5fbf504d0f06dd8c12a1e413acd72fd381c9675a"
+source = "git+https://github.com/eclipse-zenoh/zenoh#ee2c418fe9d1d7de43a984bc85c29a232c5f48d9"
 dependencies = [
  "aes 0.7.4",
  "async-std",
@@ -2828,7 +2828,7 @@ dependencies = [
 
 [[package]]
 name = "zplugin-dds"
-version = "0.5.0-beta.2"
+version = "0.5.0-dev"
 dependencies = [
  "async-std",
  "async-trait",
