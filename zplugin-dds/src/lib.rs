@@ -39,8 +39,8 @@ use zenoh_ext::net::{
 };
 use zenoh_plugin_trait::{prelude::*, PluginId};
 
-mod qos;
 mod dds_mgt;
+mod qos;
 use dds_mgt::*;
 
 pub const GIT_VERSION: &str = git_version!(prefix = "v", cargo_prefix = "v");
