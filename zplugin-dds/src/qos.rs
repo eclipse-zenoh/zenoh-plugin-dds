@@ -1,5 +1,3 @@
-use std::time::Duration;
-
 //
 // Copyright (c) 2017, 2020 ADLINK Technology Inc.
 //
@@ -17,6 +15,7 @@ use cyclors::*;
 use serde::ser::SerializeStruct;
 use serde::{Serialize, Serializer};
 use serde_json::json;
+use std::time::Duration;
 
 pub const DDS_INFINITE_TIME: i64 = 0x7FFFFFFFFFFFFFFF;
 
@@ -40,6 +39,12 @@ impl QosHolder {
             let mut hist_depth = 1;
             dds_qget_history(self.0, &mut hist_kind, &mut hist_depth);
             (hist_kind, hist_depth)
+        }
+    }
+
+    pub fn set_history(&mut self, kind: dds_history_kind_t, depth: i32) {
+        unsafe {
+            dds_qset_history(self.0, kind, depth);
         }
     }
 

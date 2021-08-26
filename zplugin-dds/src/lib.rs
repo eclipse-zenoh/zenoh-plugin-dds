@@ -40,7 +40,6 @@ use zenoh_ext::net::{
 use zenoh_plugin_trait::{prelude::*, PluginId};
 
 mod qos;
-use qos::*;
 mod dds_mgt;
 use dds_mgt::*;
 
@@ -463,20 +462,19 @@ impl<'a> DdsPlugin<'a> {
             pub_to_match.topic_name, zkey, rid, pub_to_match.type_name
         );
 
-        // create matching DDS Reader that forwards to zenoh
-        let qos = unsafe {
-            let qos = dds_create_qos();
-            dds_copy_qos(qos, pub_to_match.qos.0);
-            dds_qset_ignorelocal(qos, dds_ignorelocal_kind_DDS_IGNORELOCAL_PARTICIPANT);
-            dds_qset_history(qos, dds_history_kind_DDS_HISTORY_KEEP_ALL, 0);
-            qos
-        };
+        // copy Writer's QoS
+        let mut qos = pub_to_match.qos.clone();
+        qos.set_ignore_local_participant();
+        // set history to KEEP_LAST 0 (no need to keep history since all is transfered to zenoh)
+        qos.set_history(dds_history_kind_DDS_HISTORY_KEEP_ALL, 0);
+
+        // create matching DDS Writer that forwards data coming from zenoh
         let dr: dds_entity_t = create_forwarding_dds_reader(
             self.dp,
             pub_to_match.topic_name.clone(),
             pub_to_match.type_name.clone(),
             pub_to_match.keyless,
-            QosHolder(qos),
+            qos,
             rid,
             self.zsession.clone(),
         );
