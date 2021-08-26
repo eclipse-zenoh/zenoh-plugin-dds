@@ -210,12 +210,20 @@ enum ZPublisher<'a> {
 struct FromDDSRoute<'a> {
     // the local DDS Reader created to match the discovered user's DDS Writers
     #[serde(skip)]
-    _dds_reader: dds_entity_t,
+    dds_reader: dds_entity_t,
     // the zenoh publisher used to re-publish to zenoh the data received by the DDS Reader
     #[serde(skip)]
     _zenoh_publisher: ZPublisher<'a>,
     // the list of discovered user's DDS writers keys that are routed by this route
     routed_writers: Vec<String>,
+}
+
+impl Drop for FromDDSRoute<'_> {
+    fn drop(&mut self) {
+        if let Err(e) = delete_dds_entity(self.dds_reader) {
+            warn!("Error dropping a route from DDS: {}", e);
+        }
+    }
 }
 
 enum ZSubscriber<'a> {
@@ -228,12 +236,20 @@ enum ZSubscriber<'a> {
 struct ToDDSRoute<'a> {
     // the local DDS Writer created to match the discovered user's DDS Readers
     #[serde(skip)]
-    _dds_writer: dds_entity_t,
+    dds_writer: dds_entity_t,
     // the zenoh subscriber receiving data to be re-published by the DDS Writer
     #[serde(skip)]
     zenoh_subscriber: ZSubscriber<'a>,
     // the list of discovered user's DDS readers keys that are routed by this route
     routed_readers: Vec<String>,
+}
+
+impl Drop for ToDDSRoute<'_> {
+    fn drop(&mut self) {
+        if let Err(e) = delete_dds_entity(self.dds_writer) {
+            warn!("Error dropping a route from DDS: {}", e);
+        }
+    }
 }
 
 struct DdsPlugin<'a> {
@@ -311,7 +327,22 @@ impl<'a> DdsPlugin<'a> {
             );
             self.admin_space.remove(&path);
 
-            // TODO: check if matching routes are unused and remove them
+            // Remove this writer from all the active routes it was using (1 per partition)
+            for (_, route_status) in &e.routes {
+                if let RouteStatus::Routed(zkey) = route_status {
+                    if let Some(route) = self.routes_from_dds.get_mut(zkey) {
+                        route.routed_writers.retain(|k| k != &e.key);
+                        // if route is no longer routing any writer, remove it
+                        if route.routed_writers.is_empty() {
+                            info!(
+                                "Remove unused route: DDS '{}' => zenoh '{}'",
+                                e.topic_name, zkey
+                            );
+                            self.routes_from_dds.remove(zkey);
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -338,7 +369,22 @@ impl<'a> DdsPlugin<'a> {
             );
             self.admin_space.remove(&path);
 
-            // TODO: check if matching routes are unused and remove them
+            // Remove this reader from all the active routes it was using (1 per partition)
+            for (_, route_status) in &e.routes {
+                if let RouteStatus::Routed(zkey) = route_status {
+                    if let Some(route) = self.routes_to_dds.get_mut(zkey) {
+                        route.routed_readers.retain(|k| k != &e.key);
+                        // if route is no longer routing any reader, remove it
+                        if route.routed_readers.is_empty() {
+                            info!(
+                                "Remove unused route: zenoh '{}' => DDS '{}'",
+                                zkey, e.topic_name
+                            );
+                            self.routes_to_dds.remove(zkey);
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -390,7 +436,12 @@ impl<'a> DdsPlugin<'a> {
         let nrid = self.zsession.declare_resource(&rkey).await.unwrap();
         let rid = ResKey::RId(nrid);
         let zenoh_publisher: ZPublisher<'a> = if pub_to_match.qos.is_transient_local() {
-            let history = pub_to_match.qos.history_length();
+            #[allow(non_upper_case_globals)]
+            let history = match pub_to_match.qos.get_history() {
+                (dds_history_kind_DDS_HISTORY_KEEP_LAST, n) => n as usize,
+                (dds_history_kind_DDS_HISTORY_KEEP_ALL, _) => usize::MAX,
+                (x, _) => panic!("Internal error: impossible DDS History king value: {}", x),
+            };
             debug!(
                 "Caching publications for TRANSIENT_LOCAL Writer on resource {} with history {}",
                 zkey, history
@@ -433,7 +484,7 @@ impl<'a> DdsPlugin<'a> {
         self.insert_route_from_dds(
             &zkey,
             FromDDSRoute {
-                _dds_reader: dr,
+                dds_reader: dr,
                 _zenoh_publisher: zenoh_publisher,
                 routed_writers: vec![pub_to_match.key.clone()],
             },
@@ -471,32 +522,34 @@ impl<'a> DdsPlugin<'a> {
             zkey, sub_to_match.topic_name, sub_to_match.type_name
         );
 
+        // copy Reader's QoS
+        let mut qos = sub_to_match.qos.clone();
+        qos.set_ignore_local_participant();
+
+        // if Reader is TRANSIENT_LOCAL, configure durability_service QoS with same history than the Reader.
+        // This is because CycloneDDS is actually usinf durability_service.history for transient_local historical data.
+        if qos.is_transient_local() {
+            let (hist_kind, hist_depth) = qos.get_history();
+            qos.set_durability_service(
+                &Duration::from_secs(60),
+                hist_kind,
+                hist_depth,
+                DDS_LENGTH_UNLIMITED,
+                DDS_LENGTH_UNLIMITED,
+                DDS_LENGTH_UNLIMITED,
+            );
+        }
+
+        // Workaround for the DDS Writer to correctly match with a FastRTPS Reader declaring a Reliability max_blocking_time < infinite
+        qos.inc_reliability_max_blocking_time();
+
         // create matching DDS Writer that forwards data coming from zenoh
-        let qos = unsafe {
-            let qos = dds_create_qos();
-            dds_copy_qos(qos, sub_to_match.qos.0);
-            dds_qset_ignorelocal(qos, dds_ignorelocal_kind_DDS_IGNORELOCAL_PARTICIPANT);
-            dds_qset_history(qos, dds_history_kind_DDS_HISTORY_KEEP_ALL, 0);
-
-            // Workaround for the DDS Writer to correctly match with a FastRTPS Reader declaring a Reliability max_blocking_time < infinite
-            let mut kind: dds_reliability_kind_t = dds_reliability_kind_DDS_RELIABILITY_RELIABLE;
-            let mut max_blocking_time: dds_duration_t = 0;
-            if dds_qget_reliability(qos, &mut kind, &mut max_blocking_time)
-                && max_blocking_time < DDS_INFINITE_TIME
-            {
-                // Add 1 nanosecond to max_blocking_time for the Publisher
-                max_blocking_time += 1;
-                dds_qset_reliability(qos, kind, max_blocking_time);
-            }
-            qos
-        };
-
         let dw = create_forwarding_dds_writer(
             self.dp,
             sub_to_match.topic_name.clone(),
             sub_to_match.type_name.clone(),
             sub_to_match.keyless,
-            QosHolder(qos),
+            qos,
         );
 
         // create zenoh subscriber
@@ -568,7 +621,7 @@ impl<'a> DdsPlugin<'a> {
         self.insert_route_to_dds(
             &zkey,
             ToDDSRoute {
-                _dds_writer: dw,
+                dds_writer: dw,
                 zenoh_subscriber,
                 routed_readers: vec![sub_to_match.key.clone()],
             },
@@ -705,6 +758,7 @@ impl<'a> DdsPlugin<'a> {
                         DiscoveryEvent::DiscoveredPublication {
                             mut entity
                         } => {
+                            debug!("Discovered DDS Writer on {}: {}", entity.topic_name, entity.key);
                             if entity.partitions.is_empty() {
                                 let zkey = format!("{}/{}", scope, entity.topic_name);
                                 let route_status = self.try_add_route_from_dds(zkey, &entity).await;
@@ -721,11 +775,13 @@ impl<'a> DdsPlugin<'a> {
                         DiscoveryEvent::UndiscoveredPublication {
                             key,
                         } => {
+                            debug!("Undiscovered DDS Writer {}", key);
                             self.remove_dds_writer(&key);
                         }
                         DiscoveryEvent::DiscoveredSubscription {
                             mut entity
                         } => {
+                            debug!("Discovered DDS Reader on {}: {}", entity.topic_name, entity.key);
                             if entity.partitions.is_empty() {
                                 let zkey = format!("{}/{}", scope, entity.topic_name);
                                 let route_status = self.try_add_route_to_dds(zkey, &entity).await;
@@ -742,6 +798,7 @@ impl<'a> DdsPlugin<'a> {
                         DiscoveryEvent::UndiscoveredSubscription {
                             key,
                         } => {
+                            debug!("Undiscovered DDS Reader {}", key);
                             self.remove_dds_reader(&key)
                         }
                     }

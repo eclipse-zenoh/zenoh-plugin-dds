@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 //
 // Copyright (c) 2017, 2020 ADLINK Technology Inc.
 //
@@ -32,16 +34,67 @@ impl QosHolder {
         }
     }
 
-    pub fn history_length(&self) -> usize {
+    pub fn get_history(&self) -> (dds_history_kind_t, i32) {
         unsafe {
-            let mut kind = dds_history_kind_DDS_HISTORY_KEEP_LAST;
-            let mut depth = 1;
-            dds_qget_history(self.0, &mut kind, &mut depth);
-            if kind == dds_history_kind_DDS_HISTORY_KEEP_ALL {
-                usize::MAX
-            } else {
-                depth as usize
+            let mut hist_kind = dds_history_kind_DDS_HISTORY_KEEP_LAST;
+            let mut hist_depth = 1;
+            dds_qget_history(self.0, &mut hist_kind, &mut hist_depth);
+            (hist_kind, hist_depth)
+        }
+    }
+
+    pub fn set_ignore_local_participant(&mut self) {
+        unsafe {
+            dds_qset_ignorelocal(self.0, dds_ignorelocal_kind_DDS_IGNORELOCAL_PARTICIPANT);
+        }
+    }
+
+    pub fn set_durability_service(
+        &mut self,
+        service_cleanup_delay: &Duration,
+        history_kind: dds_history_kind_t,
+        history_depth: i32,
+        max_samples: i32,
+        max_instances: i32,
+        max_samples_per_instance: i32,
+    ) {
+        let delay: dds_duration_t = service_cleanup_delay.as_nanos() as i64;
+        unsafe {
+            dds_qset_durability_service(
+                self.0,
+                delay,
+                history_kind,
+                history_depth,
+                max_samples,
+                max_instances,
+                max_samples_per_instance,
+            );
+        }
+    }
+
+    pub fn inc_reliability_max_blocking_time(&mut self) {
+        // Workaround for the DDS Writer to correctly match with a FastRTPS Reader declaring a Reliability max_blocking_time < infinite
+        unsafe {
+            let mut rel_kind: dds_reliability_kind_t =
+                dds_reliability_kind_DDS_RELIABILITY_RELIABLE;
+            let mut max_blocking_time: dds_duration_t = 0;
+            if dds_qget_reliability(self.0, &mut rel_kind, &mut max_blocking_time)
+                && max_blocking_time < DDS_INFINITE_TIME
+            {
+                // Add 1 nanosecond to max_blocking_time for the Publisher
+                max_blocking_time += 1;
+                dds_qset_reliability(self.0, rel_kind, max_blocking_time);
             }
+        }
+    }
+}
+
+impl Clone for QosHolder {
+    fn clone(&self) -> Self {
+        unsafe {
+            let qos = dds_create_qos();
+            dds_copy_qos(qos, self.0);
+            QosHolder(qos)
         }
     }
 }

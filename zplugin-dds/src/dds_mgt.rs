@@ -28,9 +28,9 @@ const MAX_SAMPLES: usize = 32;
 
 #[derive(PartialEq, Debug, Serialize)]
 pub(crate) enum RouteStatus {
-    Routed(String),
-    NotAllowed,
-    _QoSConflict,
+    Routed(String), // Routing is active, String is the zenoh zenoh resource key used for the route
+    NotAllowed,     // Routing was not allowed per configuration
+    _QoSConflict,   // A route was already established but with conflicting QoS
 }
 
 #[derive(Debug, Serialize)]
@@ -42,7 +42,7 @@ pub(crate) struct DdsEntity {
     pub(crate) partitions: Vec<String>,
     pub(crate) keyless: bool,
     pub(crate) qos: QosHolder,
-    pub(crate) routes: HashMap<String, RouteStatus>, // map of routes names (zenoh resources) indexed by partition ("*" only if no partition)
+    pub(crate) routes: HashMap<String, RouteStatus>, // map of routes statuses indexed by partition ("*" only if no partition)
 }
 
 #[derive(Debug)]
@@ -209,6 +209,7 @@ unsafe extern "C" fn data_forwarder_listener(dr: dds_entity_t, arg: *mut std::os
         cdds_serdata_unref(zp as *mut ddsi_serdata);
     }
 }
+
 pub fn create_forwarding_dds_reader(
     dp: dds_entity_t,
     topic_name: String,
@@ -243,5 +244,15 @@ pub fn create_forwarding_dds_writer(
     unsafe {
         let t = cdds_create_blob_topic(dp, cton, ctyn, keyless);
         dds_create_writer(dp, t, qos.0, std::ptr::null_mut())
+    }
+}
+
+pub fn delete_dds_entity(entity: dds_entity_t) -> Result<(), String> {
+    unsafe {
+        let r = dds_delete(entity);
+        match r {
+            0 | DDS_RETCODE_ALREADY_DELETED => Ok(()),
+            e => Err(format!("Error deleting DDS entity - retcode={}", e)),
+        }
     }
 }
