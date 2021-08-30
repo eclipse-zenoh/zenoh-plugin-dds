@@ -52,6 +52,14 @@ $ cargo build --release
 ```
 The **`zenoh-bridge-dds`** binary will be generated in the `target/release` sub-directory.
 
+### ROS2 package
+If you're a ROS2 user, you can also build `zenoh-bridge-dds` as a ROS package running:
+```bash
+rosdep install --from-paths . --ignore-src -r -y
+colcon build --packages-select zenoh-bridge-dds
+```
+The `rosdep` command will automatically install *Rust* and *clang* as build dependencies.
+
 ## Docker image
 The **`zenoh-bridge-dds`** standalone executable is also available as a [Docker images](https://hub.docker.com/r/eclipse/zenoh-bridge-dds/tags?page=1&ordering=last_updated) for both amd64 and arm64. To get it, do:
   - `docker pull eclipse/zenoh-bridge-dds:master` for the master branch version
