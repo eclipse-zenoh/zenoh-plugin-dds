@@ -327,7 +327,7 @@ impl<'a> DdsPlugin<'a> {
             self.admin_space.remove(&path);
 
             // Remove this writer from all the active routes it was using (1 per partition)
-            for (_, route_status) in &e.routes {
+            for route_status in e.routes.values() {
                 if let RouteStatus::Routed(zkey) = route_status {
                     if let Some(route) = self.routes_from_dds.get_mut(zkey) {
                         route.routed_writers.retain(|k| k != &e.key);
@@ -369,7 +369,7 @@ impl<'a> DdsPlugin<'a> {
             self.admin_space.remove(&path);
 
             // Remove this reader from all the active routes it was using (1 per partition)
-            for (_, route_status) in &e.routes {
+            for route_status in e.routes.values() {
                 if let RouteStatus::Routed(zkey) = route_status {
                     if let Some(route) = self.routes_to_dds.get_mut(zkey) {
                         route.routed_readers.retain(|k| k != &e.key);
