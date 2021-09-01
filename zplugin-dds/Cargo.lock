@@ -427,9 +427,9 @@ dependencies = [
 
 [[package]]
 name = "clang-sys"
-version = "1.2.0"
+version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "853eda514c284c2287f4bf20ae614f8781f40a81d32ecda6e91449304dfe077c"
+checksum = "81cf2cc85830eae84823884db23c5306442a6c3d5bfd3beb2f2a2c829faa1816"
 dependencies = [
  "glob",
  "libc",
@@ -1869,9 +1869,9 @@ dependencies = [
 
 [[package]]
 name = "shlex"
-version = "1.0.0"
+version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "42a568c8f2cd051a4d283bd6eb0343ac214c1b0f1ac19f93e1175b2dee38c73d"
+checksum = "43b2853a4d09f215c24cc5489c992ce46052d359b5109343cbafbf26bc62f8a3"
 
 [[package]]
 name = "signal-hook"
@@ -2432,7 +2432,7 @@ dependencies = [
 [[package]]
 name = "zenoh"
 version = "0.5.0-dev"
-source = "git+https://github.com/eclipse-zenoh/zenoh#ee2c418fe9d1d7de43a984bc85c29a232c5f48d9"
+source = "git+https://github.com/eclipse-zenoh/zenoh#000a2ba4681c49fe55fd42bafa5f4b8996c57cd7"
 dependencies = [
  "async-global-executor",
  "async-rustls",
@@ -2474,7 +2474,7 @@ dependencies = [
 [[package]]
 name = "zenoh-ext"
 version = "0.5.0-dev"
-source = "git+https://github.com/eclipse-zenoh/zenoh#ee2c418fe9d1d7de43a984bc85c29a232c5f48d9"
+source = "git+https://github.com/eclipse-zenoh/zenoh#000a2ba4681c49fe55fd42bafa5f4b8996c57cd7"
 dependencies = [
  "async-std",
  "bincode",
@@ -2491,7 +2491,7 @@ dependencies = [
 [[package]]
 name = "zenoh-plugin-trait"
 version = "0.1.0-dev"
-source = "git+https://github.com/eclipse-zenoh/zenoh#ee2c418fe9d1d7de43a984bc85c29a232c5f48d9"
+source = "git+https://github.com/eclipse-zenoh/zenoh#000a2ba4681c49fe55fd42bafa5f4b8996c57cd7"
 dependencies = [
  "clap",
  "libloading",
@@ -2502,7 +2502,7 @@ dependencies = [
 [[package]]
 name = "zenoh-util"
 version = "0.5.0-dev"
-source = "git+https://github.com/eclipse-zenoh/zenoh#ee2c418fe9d1d7de43a984bc85c29a232c5f48d9"
+source = "git+https://github.com/eclipse-zenoh/zenoh#000a2ba4681c49fe55fd42bafa5f4b8996c57cd7"
 dependencies = [
  "aes 0.7.4",
  "async-std",
