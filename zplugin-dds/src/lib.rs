@@ -682,7 +682,7 @@ impl<'a> DdsPlugin<'a> {
 
         // send replies
         for (path, v) in kvs.drain(..) {
-            let admin_path = Path::try_from(format!("{}/{}", admin_path_prefix, path)).unwrap();
+            let admin_path = Path::try_from(format!("{}{}", admin_path_prefix, path)).unwrap();
             // support the case of empty fragment in Selector (e.g.: "/@/**?[]"), returning 'null' value in such case
             let value = match &get_request.selector.fragment {
                 Some(f) if f.is_empty() => Value::Json((*JSON_NULL_STR).clone()),
@@ -732,8 +732,8 @@ impl<'a> DdsPlugin<'a> {
         run_discovery(self.dp, tx);
 
         // declare admin space queryable
-        let admin_path_prefix = format!("/@/service/{}/dds", self.zsession.id().await);
-        let admin_path_expr = format!("{}/**", admin_path_prefix);
+        let admin_path_prefix = format!("/@/service/{}/dds/", self.zsession.id().await);
+        let admin_path_expr = format!("{}**", admin_path_prefix);
         let z = Zenoh::from(self.zsession.as_ref());
         let w = z.workspace(None).await.unwrap();
         debug!("Declare admin space on {}", admin_path_expr);
