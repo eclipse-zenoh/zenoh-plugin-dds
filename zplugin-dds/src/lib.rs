@@ -42,6 +42,7 @@ use zenoh_plugin_trait::{prelude::*, PluginId};
 mod dds_mgt;
 mod qos;
 use dds_mgt::*;
+use qos::QosHolder;
 
 pub const GIT_VERSION: &str = git_version!(prefix = "v", cargo_prefix = "v");
 
@@ -213,7 +214,9 @@ struct FromDDSRoute<'a> {
     // the zenoh publisher used to re-publish to zenoh the data received by the DDS Reader
     #[serde(skip)]
     _zenoh_publisher: ZPublisher<'a>,
-    // the list of discovered user's DDS writers keys that are routed by this route
+    // the DDS entity (local Writer or remote Reader) that led to create this route when discovered (admin path)
+    initiated_by: String,
+    // the list of discovered user's DDS writers (admin paths) that are routed by this route
     routed_writers: Vec<String>,
 }
 
@@ -239,7 +242,9 @@ struct ToDDSRoute<'a> {
     // the zenoh subscriber receiving data to be re-published by the DDS Writer
     #[serde(skip)]
     zenoh_subscriber: ZSubscriber<'a>,
-    // the list of discovered user's DDS readers keys that are routed by this route
+    // the DDS entity (local Reader or remote Writer) that led to create this route when discovered (admin path)
+    initiated_by: String,
+    // the list of discovered user's DDS readers (admin path) that are routed by this route
     routed_readers: Vec<String>,
 }
 
@@ -303,14 +308,24 @@ impl<'a> DdsPlugin<'a> {
         }
     }
 
-    fn insert_dds_writer(&mut self, e: DdsEntity) {
+    fn get_admin_path(e: &DdsEntity, is_writer: bool) -> String {
+        if is_writer {
+            format!(
+                "participant/{}/writer/{}/{}",
+                e.participant_key, e.key, e.topic_name
+            )
+        } else {
+            format!(
+                "participant/{}/reader/{}/{}",
+                e.participant_key, e.key, e.topic_name
+            )
+        }
+    }
+
+    fn insert_dds_writer(&mut self, admin_path: String, e: DdsEntity) {
         // insert reference in admin_space
-        let path = format!(
-            "participant/{}/writer/{}/{}",
-            e.participant_key, e.key, e.topic_name
-        );
         self.admin_space
-            .insert(path, AdminRef::DdsWriterEntity(e.key.clone()));
+            .insert(admin_path, AdminRef::DdsWriterEntity(e.key.clone()));
 
         // insert DdsEntity in dds_writer map
         self.dds_writer.insert(e.key.clone(), e);
@@ -319,12 +334,9 @@ impl<'a> DdsPlugin<'a> {
     fn remove_dds_writer(&mut self, key: &str) {
         // remove from dds_writer map
         if let Some(e) = self.dds_writer.remove(key) {
-            // remove from admin space
-            let path = format!(
-                "participant/{}/writer/{}/{}",
-                e.participant_key, e.key, e.topic_name
-            );
-            self.admin_space.remove(&path);
+            // remove from admin_space
+            let admin_path = DdsPlugin::get_admin_path(&e, true);
+            self.admin_space.remove(&admin_path);
 
             // Remove this writer from all the active routes it was using (1 per partition)
             for route_status in e.routes.values() {
@@ -345,14 +357,10 @@ impl<'a> DdsPlugin<'a> {
         }
     }
 
-    fn insert_dds_reader(&mut self, e: DdsEntity) {
+    fn insert_dds_reader(&mut self, admin_path: String, e: DdsEntity) {
         // insert reference in admin_space
-        let path = format!(
-            "participant/{}/reader/{}/{}",
-            e.participant_key, e.key, e.topic_name
-        );
         self.admin_space
-            .insert(path, AdminRef::DdsReaderEntity(e.key.clone()));
+            .insert(admin_path, AdminRef::DdsReaderEntity(e.key.clone()));
 
         // insert DdsEntity in dds_reader map
         self.dds_reader.insert(e.key.clone(), e);
@@ -362,11 +370,8 @@ impl<'a> DdsPlugin<'a> {
         // remove from dds_reader map
         if let Some(e) = self.dds_reader.remove(key) {
             // remove from admin space
-            let path = format!(
-                "participant/{}/reader/{}/{}",
-                e.participant_key, e.key, e.topic_name
-            );
-            self.admin_space.remove(&path);
+            let admin_path = DdsPlugin::get_admin_path(&e, false);
+            self.admin_space.remove(&admin_path);
 
             // Remove this reader from all the active routes it was using (1 per partition)
             for route_status in e.routes.values() {
@@ -409,8 +414,12 @@ impl<'a> DdsPlugin<'a> {
 
     async fn try_add_route_from_dds(
         &mut self,
-        zkey: String,
-        pub_to_match: &DdsEntity,
+        zkey: &str,
+        initiator_admin_path: &str,
+        topic_name: &str,
+        topic_type: &str,
+        keyless: bool,
+        reader_qos: QosHolder,
     ) -> RouteStatus {
         if !self.is_allowed(&zkey) {
             info!(
@@ -420,23 +429,22 @@ impl<'a> DdsPlugin<'a> {
             return RouteStatus::NotAllowed;
         }
 
-        if let Some(route) = self.routes_from_dds.get_mut(&zkey) {
+        if self.routes_from_dds.contains_key(zkey) {
             // TODO: check if there is no QoS conflict with existing route
             debug!(
                 "Route from DDS to resource {} already exists -- ignoring",
                 zkey
             );
-            route.routed_writers.push(pub_to_match.key.clone());
-            return RouteStatus::Routed(zkey);
+            return RouteStatus::Routed(zkey.to_string());
         }
 
         // declare the zenoh resource and the publisher
-        let rkey = ResKey::RName(zkey.clone());
+        let rkey = ResKey::RName(zkey.to_string());
         let nrid = self.zsession.declare_resource(&rkey).await.unwrap();
         let rid = ResKey::RId(nrid);
-        let zenoh_publisher: ZPublisher<'a> = if pub_to_match.qos.is_transient_local() {
+        let zenoh_publisher: ZPublisher<'a> = if reader_qos.is_transient_local() {
             #[allow(non_upper_case_globals)]
-            let history = match pub_to_match.qos.get_history() {
+            let history = match reader_qos.get_history() {
                 (dds_history_kind_DDS_HISTORY_KEEP_LAST, n) => n as usize,
                 (dds_history_kind_DDS_HISTORY_KEEP_ALL, _) => usize::MAX,
                 (x, _) => panic!("Internal error: impossible DDS History king value: {}", x),
@@ -459,22 +467,16 @@ impl<'a> DdsPlugin<'a> {
 
         info!(
             "New route: DDS '{}' => zenoh '{}' (rid={}) with type '{}'",
-            pub_to_match.topic_name, zkey, rid, pub_to_match.type_name
+            topic_name, zkey, rid, topic_type
         );
-
-        // copy Writer's QoS
-        let mut qos = pub_to_match.qos.clone();
-        qos.set_ignore_local_participant();
-        // set history to KEEP_LAST 0 (no need to keep history since all is transfered to zenoh)
-        qos.set_history(dds_history_kind_DDS_HISTORY_KEEP_ALL, 0);
 
         // create matching DDS Writer that forwards data coming from zenoh
         let dr: dds_entity_t = create_forwarding_dds_reader(
             self.dp,
-            pub_to_match.topic_name.clone(),
-            pub_to_match.type_name.clone(),
-            pub_to_match.keyless,
-            qos,
+            topic_name.to_string(),
+            topic_type.to_string(),
+            keyless,
+            reader_qos,
             rid,
             self.zsession.clone(),
         );
@@ -484,16 +486,21 @@ impl<'a> DdsPlugin<'a> {
             FromDDSRoute {
                 dds_reader: dr,
                 _zenoh_publisher: zenoh_publisher,
-                routed_writers: vec![pub_to_match.key.clone()],
+                initiated_by: initiator_admin_path.to_string(),
+                routed_writers: vec![],
             },
         );
-        RouteStatus::Routed(zkey)
+        RouteStatus::Routed(zkey.to_string())
     }
 
     async fn try_add_route_to_dds(
         &mut self,
-        zkey: String,
-        sub_to_match: &DdsEntity,
+        zkey: &str,
+        initiator_admin_path: &str,
+        topic_name: &str,
+        topic_type: &str,
+        keyless: bool,
+        writer_qos: QosHolder,
     ) -> RouteStatus {
         if let Some(re) = &self.allow_re {
             if !re.is_match(&zkey) {
@@ -505,49 +512,28 @@ impl<'a> DdsPlugin<'a> {
             }
         }
 
-        if let Some(route) = self.routes_to_dds.get_mut(&zkey) {
+        if self.routes_to_dds.contains_key(zkey) {
             // TODO: check if there is no type or QoS conflict with existing route
             debug!(
                 "Route from resource {} to DDS already exists -- ignoring",
                 zkey
             );
-            route.routed_readers.push(sub_to_match.key.clone());
-            return RouteStatus::Routed(zkey);
+            return RouteStatus::Routed(zkey.to_string());
         }
 
         info!(
             "New route: zenoh '{}' => DDS '{}' with type '{}'",
-            zkey, sub_to_match.topic_name, sub_to_match.type_name
+            zkey, topic_name, topic_type
         );
 
-        // copy Reader's QoS
-        let mut qos = sub_to_match.qos.clone();
-        qos.set_ignore_local_participant();
-
-        // if Reader is TRANSIENT_LOCAL, configure durability_service QoS with same history than the Reader.
-        // This is because CycloneDDS is actually usinf durability_service.history for transient_local historical data.
-        if qos.is_transient_local() {
-            let (hist_kind, hist_depth) = qos.get_history();
-            qos.set_durability_service(
-                &Duration::from_secs(60),
-                hist_kind,
-                hist_depth,
-                DDS_LENGTH_UNLIMITED,
-                DDS_LENGTH_UNLIMITED,
-                DDS_LENGTH_UNLIMITED,
-            );
-        }
-
-        // Workaround for the DDS Writer to correctly match with a FastRTPS Reader declaring a Reliability max_blocking_time < infinite
-        qos.inc_reliability_max_blocking_time();
-
         // create matching DDS Writer that forwards data coming from zenoh
+        let is_transient_local = writer_qos.is_transient_local();
         let dw = create_forwarding_dds_writer(
             self.dp,
-            sub_to_match.topic_name.clone(),
-            sub_to_match.type_name.clone(),
-            sub_to_match.keyless,
-            qos,
+            topic_name.to_string(),
+            topic_type.to_string(),
+            keyless,
+            writer_qos,
         );
 
         // create zenoh subscriber
@@ -558,7 +544,7 @@ impl<'a> DdsPlugin<'a> {
             period: None,
         };
         let (zenoh_subscriber, mut receiver): (_, Pin<Box<dyn Stream<Item = Sample> + Send>>) =
-            if sub_to_match.qos.is_transient_local() {
+            if is_transient_local {
                 debug!(
                     "Querying historical data for TRANSIENT_LOCAL Reader on resource {}",
                     zkey
@@ -581,9 +567,9 @@ impl<'a> DdsPlugin<'a> {
                 (ZSubscriber::Subscriber(sub), Box::pin(receiver))
             };
 
-        let ton = sub_to_match.topic_name.clone();
-        let tyn = sub_to_match.type_name.clone();
-        let keyless = sub_to_match.keyless;
+        let ton = topic_name.to_string();
+        let tyn = topic_type.to_string();
+        let keyless = keyless;
         let dp = self.dp;
         task::spawn(async move {
             while let Some(d) = receiver.next().await {
@@ -621,10 +607,11 @@ impl<'a> DdsPlugin<'a> {
             ToDDSRoute {
                 dds_writer: dw,
                 zenoh_subscriber,
-                routed_readers: vec![sub_to_match.key.clone()],
+                initiated_by: initiator_admin_path.to_string(),
+                routed_readers: vec![],
             },
         );
-        RouteStatus::Routed(zkey)
+        RouteStatus::Routed(zkey.to_string())
     }
 
     fn get_admin_value(&self, admin_ref: &AdminRef) -> Option<Value> {
@@ -757,42 +744,99 @@ impl<'a> DdsPlugin<'a> {
                             mut entity
                         } => {
                             debug!("Discovered DDS Writer on {}: {}", entity.topic_name, entity.key);
+                            // get its admin_path
+                            let admin_path = DdsPlugin::get_admin_path(&entity, true);
+                            let full_admin_path = format!("{}/{}", admin_path_prefix, admin_path);
+
+                            // copy and adapt Writer's QoS for creation of a matching Reader
+                            let mut qos = entity.qos.clone();
+                            qos.set_ignore_local_participant();
+                            // set history to KEEP_LAST 0 (no need to keep history since all is transfered to zenoh)
+                            qos.set_history(dds_history_kind_DDS_HISTORY_KEEP_ALL, 0);
+
+                            // create 1 route per partition, or just 1 if no partition
                             if entity.partitions.is_empty() {
                                 let zkey = format!("{}/{}", scope, entity.topic_name);
-                                let route_status = self.try_add_route_from_dds(zkey, &entity).await;
+                                let route_status = self.try_add_route_from_dds(&zkey, &full_admin_path, &entity.topic_name, &entity.type_name, entity.keyless, qos).await;
+                                if let RouteStatus::Routed(ref route_key) = route_status {
+                                    // if route has been created, add this Writer in its routed_writers list
+                                    if let Some(r) = self.routes_from_dds.get_mut(route_key) { r.routed_writers.push(entity.key.clone()) }
+                                }
                                 entity.routes.insert("*".to_string(), route_status);
                             } else {
                                 for p in &entity.partitions {
                                     let zkey = format!("{}/{}/{}", scope, p, entity.topic_name);
-                                    let route_status = self.try_add_route_from_dds(zkey, &entity).await;
+                                    let route_status = self.try_add_route_from_dds(&zkey, &full_admin_path, &entity.topic_name, &entity.type_name, entity.keyless, qos.clone()).await;
+                                    if let RouteStatus::Routed(ref route_key) = route_status {
+                                        // if route has been created, add this Writer in its routed_writers list
+                                        if let Some(r) = self.routes_from_dds.get_mut(route_key) { r.routed_writers.push(entity.key.clone()) }
+                                    }
                                     entity.routes.insert(p.clone(), route_status);
                                 }
                             }
-                            self.insert_dds_writer(entity);
+
+                            // store the writer
+                            self.insert_dds_writer(admin_path, entity);
                         }
+
                         DiscoveryEvent::UndiscoveredPublication {
                             key,
                         } => {
                             debug!("Undiscovered DDS Writer {}", key);
                             self.remove_dds_writer(&key);
                         }
+
                         DiscoveryEvent::DiscoveredSubscription {
                             mut entity
                         } => {
                             debug!("Discovered DDS Reader on {}: {}", entity.topic_name, entity.key);
+                            let admin_path = DdsPlugin::get_admin_path(&entity, false);
+                            let full_admin_path = format!("{}{}", admin_path_prefix, admin_path);
+
+                            // copy and adapt Reader's QoS for creation of a matching Writer
+                            let mut qos = entity.qos.clone();
+                            qos.set_ignore_local_participant();
+                            // if Reader is TRANSIENT_LOCAL, configure durability_service QoS with same history than the Reader.
+                            // This is because CycloneDDS is actually usinf durability_service.history for transient_local historical data.
+                            if qos.is_transient_local() {
+                                let (hist_kind, hist_depth) = qos.get_history();
+                                qos.set_durability_service(
+                                    &Duration::from_secs(60),
+                                    hist_kind,
+                                    hist_depth,
+                                    DDS_LENGTH_UNLIMITED,
+                                    DDS_LENGTH_UNLIMITED,
+                                    DDS_LENGTH_UNLIMITED,
+                                );
+                            }
+                            // Workaround for the DDS Writer to correctly match with a FastRTPS Reader declaring a Reliability max_blocking_time < infinite
+                            qos.inc_reliability_max_blocking_time();
+
+                            // create 1 route per partition, or just 1 if no partition
                             if entity.partitions.is_empty() {
                                 let zkey = format!("{}/{}", scope, entity.topic_name);
-                                let route_status = self.try_add_route_to_dds(zkey, &entity).await;
+                                let route_status = self.try_add_route_to_dds(&zkey, &full_admin_path, &entity.topic_name, &entity.type_name, entity.keyless, qos).await;
+                                if let RouteStatus::Routed(ref route_key) = route_status {
+                                    // if route has been created, add this Reader in its routed_readers list
+                                    if let Some(r) = self.routes_to_dds.get_mut(route_key) { r.routed_readers.push(entity.key.clone()) }
+                                }
                                 entity.routes.insert("*".to_string(), route_status);
                             } else {
                                 for p in &entity.partitions {
                                     let zkey = format!("{}/{}/{}", scope, p, entity.topic_name);
-                                    let route_status = self.try_add_route_to_dds(zkey, &entity).await;
+                                    let route_status = self.try_add_route_to_dds(&zkey, &full_admin_path, &entity.topic_name, &entity.type_name, entity.keyless, qos.clone()).await;
+                                    if let RouteStatus::Routed(ref route_key) = route_status {
+                                        // if route has been created, add this Reader in its routed_readers list
+                                        if let Some(r) = self.routes_to_dds.get_mut(route_key) { r.routed_readers.push(entity.key.clone()) }
+                                    }
                                     entity.routes.insert(p.clone(), route_status);
                                 }
                             }
-                            self.insert_dds_reader(entity);
+
+                            // store the reader
+                            self.insert_dds_reader(admin_path, entity);
                         }
+
                         DiscoveryEvent::UndiscoveredSubscription {
                             key,
                         } => {
