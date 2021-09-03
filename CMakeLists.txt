@@ -11,6 +11,8 @@
 # Contributors:
 #   ADLINK zenoh team, <zenoh@adlink-labs.tech>
 #
+
+# ROS2 package build file (waiting for an "ament_rust" built type)
 cmake_minimum_required(VERSION 3.8)
 project(zenoh-bridge-dds)
 
@@ -24,15 +26,18 @@ find_package(ament_cmake REQUIRED)
 # further dependencies manually.
 # find_package(<dependency> REQUIRED)
 
-set(RUST_PROJECT_DIR "${CMAKE_SOURCE_DIR}/../zenoh-bridge-dds")
 set(RUST_TARGET_DIR ${CMAKE_BINARY_DIR}/target)
 
-FILE(GLOB RUST_SRC_FILES ${RUST_PROJECT_DIR}/src/*.rs ${RUST_PROJECT_DIR}/../zplugin-dds/src/*.rs)
+FILE(GLOB RUST_SRC_FILES
+  ${CMAKE_SOURCE_DIR}/zenoh-bridge-dds/src/*.rs
+  ${CMAKE_SOURCE_DIR}/zenoh-bridge-dds/Cargo.lock
+  ${CMAKE_SOURCE_DIR}/zplugin-dds/src/*.rs
+  ${CMAKE_SOURCE_DIR}/zplugin-dds/Cargo.lock)
 
 add_custom_command(
     OUTPUT
         ${RUST_TARGET_DIR}/release/zenoh-bridge-dds
-    COMMAND cargo build --release --manifest-path "${RUST_PROJECT_DIR}/Cargo.toml" --target-dir "${RUST_TARGET_DIR}"
+    COMMAND cargo build --release --manifest-path "${CMAKE_SOURCE_DIR}/zenoh-bridge-dds/Cargo.toml" --target-dir "${RUST_TARGET_DIR}"
     DEPENDS
         ${RUST_SRC_FILES}
 )
