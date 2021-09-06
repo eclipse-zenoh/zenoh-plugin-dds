@@ -14,7 +14,7 @@
 
 # ROS2 package build file (waiting for an "ament_rust" built type)
 cmake_minimum_required(VERSION 3.8)
-project(zenoh-bridge-dds)
+project(zenoh_bridge_dds)
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
@@ -50,6 +50,7 @@ add_custom_target(
 
 install(FILES
     ${RUST_TARGET_DIR}/release/zenoh-bridge-dds
+    RENAME zenoh_bridge_dds
     PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE
     DESTINATION lib/${PROJECT_NAME}
 )

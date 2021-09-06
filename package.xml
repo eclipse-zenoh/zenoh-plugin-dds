@@ -16,7 +16,7 @@ Contributors:
 <!-- ROS2 package declaration -->
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
-  <name>zenoh-bridge-dds</name>
+  <name>zenoh_bridge_dds</name>
   <version>0.5.0</version>
   <description>
     Bridge between ROS2/DDS and Eclipse zenoh (https://zenoh.io). It allows the integration of zenoh applications with ROS2,
