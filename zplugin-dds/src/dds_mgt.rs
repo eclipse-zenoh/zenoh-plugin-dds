@@ -30,6 +30,7 @@ const MAX_SAMPLES: usize = 32;
 pub(crate) enum RouteStatus {
     Routed(String), // Routing is active, String is the zenoh zenoh resource key used for the route
     NotAllowed,     // Routing was not allowed per configuration
+    CreationFailure(String), // The route creation failed
     _QoSConflict,   // A route was already established but with conflicting QoS
 }
 
@@ -205,7 +206,7 @@ pub fn create_forwarding_dds_reader(
     qos: Qos,
     z_key: ResKey,
     z: Arc<Session>,
-) -> dds_entity_t {
+) -> Result<dds_entity_t, String> {
     let cton = CString::new(topic_name).unwrap().into_raw();
     let ctyn = CString::new(type_name).unwrap().into_raw();
 
@@ -217,7 +218,21 @@ pub fn create_forwarding_dds_reader(
         let qos_native = qos.to_qos_native();
         let reader = dds_create_reader(dp, t, qos_native, sub_listener);
         Qos::delete_qos_native(qos_native);
-        reader
+        if reader >= 0 {
+            let res = dds_reader_wait_for_historical_data(reader, crate::qos::DDS_100MS_DURATION);
+            if res < 0 {
+                log::error!(
+                    "Error caling dds_reader_wait_for_historical_data(): {}",
+                    CStr::from_ptr(dds_strretcode(-res)).to_str().unwrap()
+                );
+            }
+            Ok(reader)
+        } else {
+            Err(format!(
+                "Error creating DDS Reader: {}",
+                CStr::from_ptr(dds_strretcode(-reader)).to_str().unwrap()
+            ))
+        }
     }
 }
 
@@ -227,7 +242,7 @@ pub fn create_forwarding_dds_writer(
     type_name: String,
     keyless: bool,
     qos: Qos,
-) -> dds_entity_t {
+) -> Result<dds_entity_t, String> {
     let cton = CString::new(topic_name).unwrap().into_raw();
     let ctyn = CString::new(type_name).unwrap().into_raw();
 
@@ -236,7 +251,14 @@ pub fn create_forwarding_dds_writer(
         let qos_native = qos.to_qos_native();
         let writer = dds_create_writer(dp, t, qos_native, std::ptr::null_mut());
         Qos::delete_qos_native(qos_native);
-        writer
+        if writer >= 0 {
+            Ok(writer)
+        } else {
+            Err(format!(
+                "Error creating DDS Writer: {}",
+                CStr::from_ptr(dds_strretcode(-writer)).to_str().unwrap()
+            ))
+        }
     }
 }
 

@@ -18,7 +18,7 @@ use cyclors::*;
 use futures::prelude::*;
 use futures::select;
 use git_version::git_version;
-use log::{debug, info, warn};
+use log::{debug, error, info, warn};
 use regex::Regex;
 use serde::ser::SerializeStruct;
 use serde::{Serialize, Serializer};
@@ -467,13 +467,8 @@ impl<'a> DdsPlugin<'a> {
             ZPublisher::Publisher(self.zsession.declare_publisher(&rid).await.unwrap())
         };
 
-        info!(
-            "New route: DDS '{}' => zenoh '{}' (rid={}) with type '{}'",
-            topic_name, zkey, rid, topic_type
-        );
-
         // create matching DDS Writer that forwards data coming from zenoh
-        let dr: dds_entity_t = create_forwarding_dds_reader(
+        match create_forwarding_dds_reader(
             self.dp,
             topic_name.to_string(),
             topic_type.to_string(),
@@ -481,18 +476,32 @@ impl<'a> DdsPlugin<'a> {
             reader_qos,
             rid,
             self.zsession.clone(),
-        );
+        ) {
+            Ok(dr) => {
+                info!(
+                    "New route: DDS '{}' => zenoh '{}' with type '{}'",
+                    topic_name, zkey, topic_type
+                );
 
-        self.insert_route_from_dds(
-            &zkey,
-            FromDDSRoute {
-                dds_reader: dr,
-                _zenoh_publisher: zenoh_publisher,
-                initiated_by: initiator_admin_path.to_string(),
-                routed_writers: vec![],
-            },
-        );
-        RouteStatus::Routed(zkey.to_string())
+                self.insert_route_from_dds(
+                    &zkey,
+                    FromDDSRoute {
+                        dds_reader: dr,
+                        _zenoh_publisher: zenoh_publisher,
+                        initiated_by: initiator_admin_path.to_string(),
+                        routed_writers: vec![],
+                    },
+                );
+                RouteStatus::Routed(zkey.to_string())
+            }
+            Err(e) => {
+                error!(
+                    "Failed to create route DDS '{}' => zenoh '{}: {}",
+                    topic_name, zkey, e
+                );
+                RouteStatus::CreationFailure(e)
+            }
+        }
     }
 
     async fn try_add_route_to_dds(
@@ -523,97 +532,112 @@ impl<'a> DdsPlugin<'a> {
             return RouteStatus::Routed(zkey.to_string());
         }
 
-        info!(
-            "New route: zenoh '{}' => DDS '{}' with type '{}'",
-            zkey, topic_name, topic_type
-        );
-
         // create matching DDS Writer that forwards data coming from zenoh
         let is_transient_local = writer_qos.durability.kind == DurabilityKind::TRANSIENT_LOCAL;
-        let dw = create_forwarding_dds_writer(
+        match create_forwarding_dds_writer(
             self.dp,
             topic_name.to_string(),
             topic_type.to_string(),
             keyless,
             writer_qos,
-        );
-
-        // create zenoh subscriber
-        let rkey = ResKey::RName(zkey.to_string());
-        let sub_info = SubInfo {
-            reliability: ZReliability::Reliable,
-            mode: SubMode::Push,
-            period: None,
-        };
-        let (zenoh_subscriber, mut receiver): (_, Pin<Box<dyn Stream<Item = Sample> + Send>>) =
-            if is_transient_local {
-                debug!(
-                    "Querying historical data for TRANSIENT_LOCAL Reader on resource {}",
-                    zkey
+        ) {
+            Ok(dw) => {
+                info!(
+                    "New route: zenoh '{}' => DDS '{}' with type '{}'",
+                    zkey, topic_name, topic_type
                 );
-                let mut sub = self
-                    .zsession
-                    .declare_querying_subscriber(&rkey)
-                    .query_reskey(format!("{}/*{}", PUB_CACHE_QUERY_PREFIX, zkey).into())
-                    .wait()
-                    .unwrap();
-                let receiver = sub.receiver().clone();
-                (ZSubscriber::QueryingSubscriber(sub), Box::pin(receiver))
-            } else {
-                let mut sub = self
-                    .zsession
-                    .declare_subscriber(&rkey, &sub_info)
-                    .wait()
-                    .unwrap();
-                let receiver = sub.receiver().clone();
-                (ZSubscriber::Subscriber(sub), Box::pin(receiver))
-            };
 
-        let ton = topic_name.to_string();
-        let tyn = topic_type.to_string();
-        let keyless = keyless;
-        let dp = self.dp;
-        task::spawn(async move {
-            while let Some(d) = receiver.next().await {
-                log::trace!("Route data to DDS '{}'", &ton);
-                unsafe {
-                    let bs = d.payload.to_vec();
-                    // As per the Vec documentation (see https://doc.rust-lang.org/std/vec/struct.Vec.html#method.into_raw_parts)
-                    // the only way to correctly releasing it is to create a vec using from_raw_parts
-                    // and then have its destructor do the cleanup.
-                    // Thus, while tempting to just pass the raw pointer to cyclone and then free it from C,
-                    // that is not necessarily safe or guaranteed to be leak free.
-                    // TODO replace when stable https://github.com/rust-lang/rust/issues/65816
-                    let (ptr, len, capacity) = vec_into_raw_parts(bs);
-                    let cton = CString::new(ton.clone()).unwrap().into_raw();
-                    let ctyn = CString::new(tyn.clone()).unwrap().into_raw();
-                    let st = cdds_create_blob_sertopic(
-                        dp,
-                        cton as *mut std::os::raw::c_char,
-                        ctyn as *mut std::os::raw::c_char,
-                        keyless,
-                    );
-                    drop(CString::from_raw(cton));
-                    drop(CString::from_raw(ctyn));
-                    let fwdp =
-                        cdds_ddsi_payload_create(st, ddsi_serdata_kind_SDK_DATA, ptr, len as u64);
-                    dds_writecdr(dw, fwdp as *mut ddsi_serdata);
-                    drop(Vec::from_raw_parts(ptr, len, capacity));
-                    cdds_sertopic_unref(st);
+                // create zenoh subscriber
+                let rkey = ResKey::RName(zkey.to_string());
+                let sub_info = SubInfo {
+                    reliability: ZReliability::Reliable,
+                    mode: SubMode::Push,
+                    period: None,
                 };
-            }
-        });
+                let (zenoh_subscriber, mut receiver): (
+                    _,
+                    Pin<Box<dyn Stream<Item = Sample> + Send>>,
+                ) = if is_transient_local {
+                    debug!(
+                        "Querying historical data for TRANSIENT_LOCAL Reader on resource {}",
+                        zkey
+                    );
+                    let mut sub = self
+                        .zsession
+                        .declare_querying_subscriber(&rkey)
+                        .query_reskey(format!("{}/*{}", PUB_CACHE_QUERY_PREFIX, zkey).into())
+                        .wait()
+                        .unwrap();
+                    let receiver = sub.receiver().clone();
+                    (ZSubscriber::QueryingSubscriber(sub), Box::pin(receiver))
+                } else {
+                    let mut sub = self
+                        .zsession
+                        .declare_subscriber(&rkey, &sub_info)
+                        .wait()
+                        .unwrap();
+                    let receiver = sub.receiver().clone();
+                    (ZSubscriber::Subscriber(sub), Box::pin(receiver))
+                };
 
-        self.insert_route_to_dds(
-            &zkey,
-            ToDDSRoute {
-                dds_writer: dw,
-                zenoh_subscriber,
-                initiated_by: initiator_admin_path.to_string(),
-                routed_readers: vec![],
-            },
-        );
-        RouteStatus::Routed(zkey.to_string())
+                let ton = topic_name.to_string();
+                let tyn = topic_type.to_string();
+                let keyless = keyless;
+                let dp = self.dp;
+                task::spawn(async move {
+                    while let Some(d) = receiver.next().await {
+                        log::trace!("Route data to DDS '{}'", &ton);
+                        unsafe {
+                            let bs = d.payload.to_vec();
+                            // As per the Vec documentation (see https://doc.rust-lang.org/std/vec/struct.Vec.html#method.into_raw_parts)
+                            // the only way to correctly releasing it is to create a vec using from_raw_parts
+                            // and then have its destructor do the cleanup.
+                            // Thus, while tempting to just pass the raw pointer to cyclone and then free it from C,
+                            // that is not necessarily safe or guaranteed to be leak free.
+                            // TODO replace when stable https://github.com/rust-lang/rust/issues/65816
+                            let (ptr, len, capacity) = vec_into_raw_parts(bs);
+                            let cton = CString::new(ton.clone()).unwrap().into_raw();
+                            let ctyn = CString::new(tyn.clone()).unwrap().into_raw();
+                            let st = cdds_create_blob_sertopic(
+                                dp,
+                                cton as *mut std::os::raw::c_char,
+                                ctyn as *mut std::os::raw::c_char,
+                                keyless,
+                            );
+                            drop(CString::from_raw(cton));
+                            drop(CString::from_raw(ctyn));
+                            let fwdp = cdds_ddsi_payload_create(
+                                st,
+                                ddsi_serdata_kind_SDK_DATA,
+                                ptr,
+                                len as u64,
+                            );
+                            dds_writecdr(dw, fwdp as *mut ddsi_serdata);
+                            drop(Vec::from_raw_parts(ptr, len, capacity));
+                            cdds_sertopic_unref(st);
+                        };
+                    }
+                });
+
+                self.insert_route_to_dds(
+                    &zkey,
+                    ToDDSRoute {
+                        dds_writer: dw,
+                        zenoh_subscriber,
+                        initiated_by: initiator_admin_path.to_string(),
+                        routed_readers: vec![],
+                    },
+                );
+                RouteStatus::Routed(zkey.to_string())
+            }
+            Err(e) => {
+                error!(
+                    "Failed to create route zenoh '{}' => DDS '{}' : {}",
+                    zkey, topic_name, e
+                );
+                RouteStatus::CreationFailure(e)
+            }
+        }
     }
 
     fn get_admin_value(&self, admin_ref: &AdminRef) -> Option<Value> {
@@ -753,9 +777,8 @@ impl<'a> DdsPlugin<'a> {
                             // copy and adapt Writer's QoS for creation of a matching Reader
                             let mut qos = entity.qos.clone();
                             qos.ignore_local_participant = true;
-                            // set history to KEEP_LAST 0 (no need to keep history since all is transfered to zenoh)
-                            qos.history.kind = HistoryKind::KEEP_LAST;
-                            qos.history.depth = 0;
+                            // set history to KEEP_ALL (anyway the Reader takes each sample and route it to zenoh)
+                            qos.history.kind = HistoryKind::KEEP_ALL;
 
                             // create 1 route per partition, or just 1 if no partition
                             if entity.qos.partitions.is_empty() {

@@ -225,6 +225,12 @@ impl Qos {
         unsafe {
             let qos = dds_qos_create();
 
+            // reliability
+            dds_qset_reliability(
+                qos,
+                self.reliability.kind as dds_reliability_kind_t,
+                self.reliability.max_blocking_time,
+            );
             // durability
             dds_qset_durability(qos, self.durability.kind as dds_durability_kind_t);
             // durability service
