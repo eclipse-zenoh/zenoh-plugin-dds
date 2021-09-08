@@ -448,7 +448,21 @@ impl<'a> DdsPlugin<'a> {
         {
             #[allow(non_upper_case_globals)]
             let history = match (reader_qos.history.kind, reader_qos.history.depth) {
-                (HistoryKind::KEEP_LAST, n) => n as usize,
+                (HistoryKind::KEEP_LAST, n) => {
+                    // Compute cache size as history.depth * durability_service.max_instances
+                    // This makes the assumption that the frequency of publication is the same for all instances...
+                    // But as we have no way to know have 1 cache per-instance, there is no other choice.
+                    if reader_qos.durability_service.max_instances > 0 {
+                        if let Some(m) = n.checked_mul(reader_qos.durability_service.max_instances)
+                        {
+                            m as usize
+                        } else {
+                            usize::MAX
+                        }
+                    } else {
+                        n as usize
+                    }
+                }
                 (HistoryKind::KEEP_ALL, _) => usize::MAX,
             };
             debug!(
@@ -777,8 +791,6 @@ impl<'a> DdsPlugin<'a> {
                             // copy and adapt Writer's QoS for creation of a matching Reader
                             let mut qos = entity.qos.clone();
                             qos.ignore_local_participant = true;
-                            // set history to KEEP_ALL (anyway the Reader takes each sample and route it to zenoh)
-                            qos.history.kind = HistoryKind::KEEP_ALL;
 
                             // create 1 route per partition, or just 1 if no partition
                             if entity.qos.partitions.is_empty() {
