@@ -16,7 +16,7 @@ use async_std::channel::Sender;
 use async_std::task;
 use cyclors::*;
 use log::debug;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::ffi::{CStr, CString};
 use std::mem::MaybeUninit;
@@ -26,7 +26,7 @@ use zenoh::net::{ResKey, Session, ZBuf};
 
 const MAX_SAMPLES: usize = 32;
 
-#[derive(PartialEq, Debug, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub(crate) enum RouteStatus {
     Routed(String), // Routing is active, String is the zenoh zenoh resource key used for the route
     NotAllowed,     // Routing was not allowed per configuration
@@ -34,7 +34,7 @@ pub(crate) enum RouteStatus {
     _QoSConflict,   // A route was already established but with conflicting QoS
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct DdsEntity {
     pub(crate) key: String,
     pub(crate) participant_key: String,

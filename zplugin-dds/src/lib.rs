@@ -15,6 +15,7 @@ use async_std::channel::{unbounded, Receiver, Sender};
 use async_std::task;
 use clap::{Arg, ArgMatches};
 use cyclors::*;
+use flume::r#async::RecvStream;
 use futures::prelude::*;
 use futures::select;
 use git_version::git_version;
@@ -32,7 +33,7 @@ use std::time::Duration;
 use zenoh::net::runtime::Runtime;
 use zenoh::net::utils::resource_name;
 use zenoh::net::Reliability as ZReliability;
-use zenoh::net::*;
+use zenoh::{net::*, GetRequestStream};
 use zenoh::{GetRequest, Path, PathExpr, Value, Zenoh};
 use zenoh_ext::net::group::{Group, GroupEvent, JoinEvent, Member};
 use zenoh_ext::net::{
@@ -113,6 +114,10 @@ pub fn get_expected_args<'a, 'b>() -> Vec<Arg<'a, 'b>> {
         Arg::from_usage(
             "--dds-group-lease=[Duration]   'The lease duration (in seconds) used in group management for all DDS plugins.'"
         ).default_value(GROUP_DEFAULT_LEASE),
+        Arg::from_usage(
+            "--dds-fwd-discovery   'When set, rather than creating a local route when discovering a local DDS entity, \
+            this discovery info is forwarded to the remote plugins/bridges. Those will create the routes, including a replica of the discovered entity.'"
+        ),
     ]
 }
 
@@ -174,10 +179,13 @@ pub async fn run(runtime: Runtime, args: ArgMatches<'_>) {
     // create DDS Participant
     let dp = unsafe { dds_create_participant(domain_id, std::ptr::null(), std::ptr::null()) };
 
-    let dds_plugin = DdsPlugin {
+    let fwd_discovery_mode = args.is_present("dds-fwd-discovery");
+
+    let mut dds_plugin = DdsPlugin {
         scope,
         domain_id,
         allow_re,
+        fwd_discovery_mode,
         zsession: &zsession,
         member,
         dp,
@@ -261,6 +269,7 @@ struct DdsPlugin<'a> {
     scope: String,
     domain_id: u32,
     allow_re: Option<Regex>,
+    fwd_discovery_mode: bool,
     // Note: &'a Arc<Session> here to keep the ownership of Session outside this struct
     // and be able to store the publishers/subscribers it creates in this same struct.
     zsession: &'a Arc<Session>,
@@ -284,7 +293,7 @@ impl Serialize for DdsPlugin<'_> {
     {
         // return the plugin's config as a JSON struct
         let mut s = serializer.serialize_struct("dds", 3)?;
-        s.serialize_field("domain_id", &self.domain_id)?;
+        s.serialize_field("domain", &self.domain_id)?;
         s.serialize_field("scope", &self.scope)?;
         s.serialize_field(
             "allow",
@@ -293,6 +302,7 @@ impl Serialize for DdsPlugin<'_> {
                 .as_ref()
                 .map_or_else(|| "**".to_string(), |re| re.to_string()),
         )?;
+        s.serialize_field("fwd-discovery", &self.fwd_discovery_mode)?;
         s.end()
     }
 }
@@ -332,7 +342,7 @@ impl<'a> DdsPlugin<'a> {
         self.dds_writer.insert(e.key.clone(), e);
     }
 
-    fn remove_dds_writer(&mut self, key: &str) {
+    fn remove_dds_writer(&mut self, key: &str) -> Option<String> {
         // remove from dds_writer map
         if let Some(e) = self.dds_writer.remove(key) {
             // remove from admin_space
@@ -355,6 +365,9 @@ impl<'a> DdsPlugin<'a> {
                     }
                 }
             }
+            Some(admin_path)
+        } else {
+            None
         }
     }
 
@@ -367,7 +380,7 @@ impl<'a> DdsPlugin<'a> {
         self.dds_reader.insert(e.key.clone(), e);
     }
 
-    fn remove_dds_reader(&mut self, key: &str) {
+    fn remove_dds_reader(&mut self, key: &str) -> Option<String> {
         // remove from dds_reader map
         if let Some(e) = self.dds_reader.remove(key) {
             // remove from admin space
@@ -390,6 +403,9 @@ impl<'a> DdsPlugin<'a> {
                     }
                 }
             }
+            Some(admin_path)
+        } else {
+            None
         }
     }
 
@@ -748,14 +764,14 @@ impl<'a> DdsPlugin<'a> {
         }
     }
 
-    async fn run(mut self) {
+    async fn run(&mut self) {
         // join DDS plugins group
         let group = Group::join(self.zsession.clone(), GROUP_NAME, self.member.clone()).await;
         let group_subscriber = group.subscribe().await;
         let mut group_stream = group_subscriber.stream();
 
         // run DDS discovery
-        let (tx, rx): (Sender<DiscoveryEvent>, Receiver<DiscoveryEvent>) = unbounded();
+        let (tx, dds_disco_rcv): (Sender<DiscoveryEvent>, Receiver<DiscoveryEvent>) = unbounded();
         run_discovery(self.dp, tx);
 
         // declare admin space queryable
@@ -764,7 +780,7 @@ impl<'a> DdsPlugin<'a> {
         let z = Zenoh::from(self.zsession.as_ref());
         let w = z.workspace(None).await.unwrap();
         debug!("Declare admin space on {}", admin_path_expr);
-        let mut admin_space = w
+        let mut admin_req_stream = w
             .register_eval(&PathExpr::try_from(admin_path_expr.clone()).unwrap())
             .await
             .unwrap();
@@ -775,10 +791,38 @@ impl<'a> DdsPlugin<'a> {
         self.admin_space
             .insert("version".to_string(), AdminRef::Version);
 
+        if self.fwd_discovery_mode {
+            self.run_fwd_discovery_mode(
+                &mut group_stream,
+                &dds_disco_rcv,
+                admin_path_prefix,
+                &mut admin_req_stream,
+            )
+            .await;
+        } else {
+            self.run_local_discovery_mode(
+                &mut group_stream,
+                &dds_disco_rcv,
+                admin_path_prefix,
+                &mut admin_req_stream,
+            )
+            .await;
+        }
+    }
+
+    async fn run_local_discovery_mode(
+        &mut self,
+        group_stream: &mut RecvStream<'_, GroupEvent>,
+        dds_disco_rcv: &Receiver<DiscoveryEvent>,
+        admin_path_prefix: String,
+        admin_req_stream: &mut GetRequestStream<'_>,
+    ) {
+        debug!(r#"Run in "local discovery" mode"#);
+
         let scope = self.scope.clone();
         loop {
             select!(
-                evt = rx.recv().fuse() => {
+                evt = dds_disco_rcv.recv().fuse() => {
                     match evt.unwrap() {
                         DiscoveryEvent::DiscoveredPublication {
                             mut entity
@@ -786,7 +830,7 @@ impl<'a> DdsPlugin<'a> {
                             debug!("Discovered DDS Writer on {}: {}", entity.topic_name, entity.key);
                             // get its admin_path
                             let admin_path = DdsPlugin::get_admin_path(&entity, true);
-                            let full_admin_path = format!("{}/{}", admin_path_prefix, admin_path);
+                            let full_admin_path = format!("{}{}", admin_path_prefix, admin_path);
 
                             // copy and adapt Writer's QoS for creation of a matching Reader
                             let mut qos = entity.qos.clone();
@@ -878,7 +922,7 @@ impl<'a> DdsPlugin<'a> {
                             key,
                         } => {
                             debug!("Undiscovered DDS Reader {}", key);
-                            self.remove_dds_reader(&key)
+                            self.remove_dds_reader(&key);
                         }
                     }
                 },
@@ -903,7 +947,215 @@ impl<'a> DdsPlugin<'a> {
                     }
                 }
 
-                get_request = admin_space.next().fuse() => {
+                get_request = admin_req_stream.next().fuse() => {
+                    self.treat_admin_query(get_request.unwrap(), &admin_path_prefix).await;
+                }
+            )
+        }
+    }
+
+    async fn run_fwd_discovery_mode(
+        &mut self,
+        group_stream: &mut RecvStream<'_, GroupEvent>,
+        dds_disco_rcv: &Receiver<DiscoveryEvent>,
+        admin_path_prefix: String,
+        admin_req_stream: &mut GetRequestStream<'_>,
+    ) {
+        debug!(r#"Run in "forward discovery" mode"#);
+
+        // The admin paths where discovery info will be forwarded to remote DDS plugins.
+        // Note: "/@dds" is used as prefix instead of "/@/..." to not have the PublicationCache replying to queries on admin space.
+        let uuid = self.zsession.id().await;
+        let fwd_writers_path_prefix = format!("/@dds/{}/writer/", uuid);
+        let fwd_readers_path_prefix = format!("/@dds/{}/reader/", uuid);
+
+        // Cache the publications on admin space for late joiners DDS plugins
+        let _fwd_disco_pub_cache = self
+            .zsession
+            .declare_publication_cache(&ResKey::from(format!("/@dds/{}/**", uuid)))
+            .await
+            .unwrap();
+
+        // Subscribe to remote DDS plugins publications of new Readers/Writers on admin space
+        let mut fwd_disco_sub = self
+            .zsession
+            .declare_querying_subscriber(&ResKey::from("/@dds/**"))
+            .wait()
+            .unwrap();
+
+        let scope = self.scope.clone();
+        loop {
+            select!(
+                evt = dds_disco_rcv.recv().fuse() => {
+                    match evt.unwrap() {
+                        DiscoveryEvent::DiscoveredPublication {
+                            entity
+                        } => {
+                            debug!("Discovered DDS Writer on {}: {} => advertise it", entity.topic_name, entity.key);
+                            // advertise it within admin space (bincode format)
+                            let admin_path = DdsPlugin::get_admin_path(&entity, true);
+                            let fwd_path = format!("{}{}", fwd_writers_path_prefix, admin_path);
+                            self.zsession.write(&ResKey::from(fwd_path), bincode::serialize(&entity).unwrap().into()).await.unwrap();
+
+                            // store the writer in admin space
+                            self.insert_dds_writer(admin_path, entity);
+                        }
+
+                        DiscoveryEvent::UndiscoveredPublication {
+                            key,
+                        } => {
+                            debug!("Undiscovered DDS Writer {} => advertise it", key);
+                            if let Some(admin_path) = self.remove_dds_writer(&key) {
+                                let fwd_path = format!("{}{}", fwd_writers_path_prefix, admin_path);
+                                // publish its deletion from admin space
+                                self.zsession.write_ext(
+                                    &ResKey::from(fwd_path),
+                                    ZBuf::default(),
+                                    encoding::NONE, data_kind::DELETE, CongestionControl::Block).await.unwrap();
+                            }
+                        }
+
+                        DiscoveryEvent::DiscoveredSubscription {
+                            entity
+                        } => {
+                            debug!("Discovered DDS Reader on {}: {} => advertise it", entity.topic_name, entity.key);
+                            // advertise it within admin space (bincode format)
+                            let admin_path = DdsPlugin::get_admin_path(&entity, false);
+                            let fwd_path = format!("{}{}", fwd_readers_path_prefix, admin_path);
+                            self.zsession.write(&ResKey::from(fwd_path), bincode::serialize(&entity).unwrap().into()).await.unwrap();
+
+                            // store the reader
+                            self.insert_dds_reader(admin_path, entity);
+                        }
+
+                        DiscoveryEvent::UndiscoveredSubscription {
+                            key,
+                        } => {
+                            debug!("Undiscovered DDS Reader {} => advertise it", key);
+                            if let Some(admin_path) = self.remove_dds_reader(&key) {
+                                let fwd_path = format!("{}{}", fwd_readers_path_prefix, admin_path);
+                                error!("*** DELETE {}", fwd_path);
+                                // publish its deletion from admin space
+                                self.zsession.write_ext(
+                                    &ResKey::from(fwd_path),
+                                    ZBuf::default(),
+                                    encoding::NONE, data_kind::DELETE, CongestionControl::Block).await.unwrap();
+                            }
+                        }
+                    }
+                },
+
+                sample = fwd_disco_sub.receiver().next().fuse() => {
+                    let sample = sample.unwrap();
+                    let fwd_path = &sample.res_name;
+                    debug!("Received forwarded discovery: {}", fwd_path);
+                    let is_delete = match sample.data_info {
+                        Some(info) => info.kind == Some(data_kind::DELETE),
+                        None => false
+                    };
+                    if !is_delete {
+                        // deserialize payload
+                        let entity = bincode::deserialize::<DdsEntity>(&sample.payload.to_vec()).unwrap();
+                        // get some info from the fwd_path segments (0th is empty as res_name starts with '/')
+                        let mut split_it = fwd_path.splitn(5, '/');
+                        let remote_uuid = split_it.nth(2).unwrap();
+                        let is_writer = split_it.next().unwrap() == "writer";
+                        let admin_path = split_it.next().unwrap();
+                        // reconstruct full admin path for this entity (i.e. with it's remote plugin's uuid)
+                        let full_admin_path = format!("/@/service/{}/dds/{}", remote_uuid, admin_path);
+
+                        if is_writer {
+                            // copy and adapt Writer's QoS for creation of a proxy Writer
+                            let mut qos = entity.qos.clone();
+                            qos.ignore_local_participant = true;
+
+                            // create 1 "to_dds" route per partition, or just 1 if no partition
+                            if entity.qos.partitions.is_empty() {
+                                let zkey = format!("{}/{}", scope, entity.topic_name);
+                                let route_status = self.try_add_route_to_dds(&zkey, &full_admin_path, &entity.topic_name, &entity.type_name, entity.keyless, qos).await;
+                                if let RouteStatus::Routed(ref route_key) = route_status {
+                                    // check amongst local Readers is some are matching (only wrt. topic_name and partition. TODO: consider qos match also)
+                                    for reader in self.dds_reader.values_mut() {
+                                        if reader.topic_name == entity.topic_name && reader.qos.partitions.is_empty() {
+                                            if let Some(r) = self.routes_to_dds.get_mut(route_key) { r.routed_readers.push(entity.key.clone()) }
+                                            reader.routes.insert("*".to_string(), route_status.clone());
+                                        }
+                                    }
+                                }
+                            } else {
+                                for p in &entity.qos.partitions {
+                                    let zkey = format!("{}/{}/{}", scope, p, entity.topic_name);
+                                    let route_status = self.try_add_route_to_dds(&zkey, &full_admin_path, &entity.topic_name, &entity.type_name, entity.keyless, qos.clone()).await;
+                                    if let RouteStatus::Routed(ref route_key) = route_status {
+                                        // check amongst local Readers is some are matching (only wrt. topic_name and partition. TODO: consider qos match also)
+                                        for reader in self.dds_reader.values_mut() {
+                                            if reader.topic_name == entity.topic_name && reader.qos.partitions.contains(p) {
+                                                if let Some(r) = self.routes_to_dds.get_mut(route_key) { r.routed_readers.push(entity.key.clone()) }
+                                                reader.routes.insert(p.clone(), route_status.clone());
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        } else {
+                            // copy and adapt Reader's QoS for creation of a proxy Reader
+                            let mut qos = entity.qos.clone();
+                            qos.ignore_local_participant = true;
+
+                            // create 1 'from_dds" route per partition, or just 1 if no partition
+                            if entity.qos.partitions.is_empty() {
+                                let zkey = format!("{}/{}", scope, entity.topic_name);
+                                let route_status = self.try_add_route_from_dds(&zkey, &full_admin_path, &entity.topic_name, &entity.type_name, entity.keyless, qos).await;
+                                if let RouteStatus::Routed(ref route_key) = route_status {
+                                    // check amongst local Writers is some are matching (only wrt. topic_name and partition. TODO: consider qos match also)
+                                    for writer in self.dds_writer.values_mut() {
+                                        if writer.topic_name == entity.topic_name && writer.qos.partitions.is_empty() {
+                                            if let Some(r) = self.routes_from_dds.get_mut(route_key) { r.routed_writers.push(entity.key.clone()) }
+                                            writer.routes.insert("*".to_string(), route_status.clone());
+                                        }
+                                    }
+                                }
+                            } else {
+                                for p in &entity.qos.partitions {
+                                    let zkey = format!("{}/{}/{}", scope, p, entity.topic_name);
+                                    let route_status = self.try_add_route_from_dds(&zkey, &full_admin_path, &entity.topic_name, &entity.type_name, entity.keyless, qos.clone()).await;
+                                    if let RouteStatus::Routed(ref route_key) = route_status {
+                                        // check amongst local Writers is some are matching (only wrt. topic_name and partition. TODO: consider qos match also)
+                                        for writer in self.dds_writer.values_mut() {
+                                            if writer.topic_name == entity.topic_name && writer.qos.partitions.contains(p) {
+                                                if let Some(r) = self.routes_from_dds.get_mut(route_key) { r.routed_writers.push(entity.key.clone()) }
+                                                writer.routes.insert(p.clone(), route_status.clone());
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                    }
+                },
+
+                group_event = group_stream.next().fuse() => {
+                    if let Some(GroupEvent::Join(JoinEvent{member})) = group_event {
+                        debug!("New zenoh_dds_plugin detected: {}", member.id());
+                        // make all QueryingSubscriber to query this new member
+                        for (zkey, zsub) in &mut self.routes_to_dds {
+                            if let ZSubscriber::QueryingSubscriber(sub) = &mut zsub.zenoh_subscriber {
+                                let rkey: ResKey = format!("{}/{}/{}", PUB_CACHE_QUERY_PREFIX, member.id(), zkey).into();
+                                debug!("Query for TRANSIENT_LOCAL topic on: {}", rkey);
+                                let target = QueryTarget {
+                                    kind: PUBLICATION_CACHE_QUERYABLE_KIND,
+                                    target: Target::All,
+                                };
+                                if let Err(e) = sub.query_on(&rkey, "", target, QueryConsolidation::none()).await {
+                                    warn!("Query on {} for TRANSIENT_LOCAL topic failed: {}", rkey, e);
+                                }
+                            }
+                        }
+                    }
+                }
+
+                get_request = admin_req_stream.next().fuse() => {
                     self.treat_admin_query(get_request.unwrap(), &admin_path_prefix).await;
                 }
             )
