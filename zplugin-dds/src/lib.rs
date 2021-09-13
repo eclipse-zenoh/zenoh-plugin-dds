@@ -57,7 +57,7 @@ const GROUP_DEFAULT_LEASE: &str = "3";
 lazy_static::lazy_static!(
     static ref DDS_DOMAIN_DEFAULT_STR: String = DDS_DOMAIN_DEFAULT.to_string();
 );
-const PUB_CACHE_QUERY_PREFIX: &str = "/zenoh_dds_plugin/pub_cache";
+const PUB_CACHE_QUERY_PREFIX: &str = "/@dds_pub_cache";
 
 pub struct DDSPlugin;
 
@@ -992,10 +992,11 @@ impl<'a> DdsPlugin<'a> {
                             entity
                         } => {
                             debug!("Discovered DDS Writer on {}: {} => advertise it", entity.topic_name, entity.key);
-                            // advertise it within admin space (bincode format)
+                            // advertise the entity and its scope within admin space (bincode format)
                             let admin_path = DdsPlugin::get_admin_path(&entity, true);
                             let fwd_path = format!("{}{}", fwd_writers_path_prefix, admin_path);
-                            self.zsession.write(&ResKey::from(fwd_path), bincode::serialize(&entity).unwrap().into()).await.unwrap();
+                            let msg = (&entity, &scope);
+                            self.zsession.write(&ResKey::from(fwd_path), bincode::serialize(&msg).unwrap().into()).await.unwrap();
 
                             // store the writer in admin space
                             self.insert_dds_writer(admin_path, entity);
@@ -1019,10 +1020,11 @@ impl<'a> DdsPlugin<'a> {
                             entity
                         } => {
                             debug!("Discovered DDS Reader on {}: {} => advertise it", entity.topic_name, entity.key);
-                            // advertise it within admin space (bincode format)
+                            // advertise the entity and its scope within admin space (bincode format)
                             let admin_path = DdsPlugin::get_admin_path(&entity, false);
                             let fwd_path = format!("{}{}", fwd_readers_path_prefix, admin_path);
-                            self.zsession.write(&ResKey::from(fwd_path), bincode::serialize(&entity).unwrap().into()).await.unwrap();
+                            let msg = (&entity, &scope);
+                            self.zsession.write(&ResKey::from(fwd_path), bincode::serialize(&msg).unwrap().into()).await.unwrap();
 
                             // store the reader
                             self.insert_dds_reader(admin_path, entity);
@@ -1055,7 +1057,7 @@ impl<'a> DdsPlugin<'a> {
                     };
                     if !is_delete {
                         // deserialize payload
-                        let entity = bincode::deserialize::<DdsEntity>(&sample.payload.to_vec()).unwrap();
+                        let (entity, scope) = bincode::deserialize::<(DdsEntity, String)>(&sample.payload.to_vec()).unwrap();
                         // get some info from the fwd_path segments (0th is empty as res_name starts with '/')
                         let mut split_it = fwd_path.splitn(5, '/');
                         let remote_uuid = split_it.nth(2).unwrap();
