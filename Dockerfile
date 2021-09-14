@@ -14,7 +14,7 @@
 ###
 ### Build part
 ###
-FROM rust:slim as builder
+FROM rust:slim-buster as builder
 
 WORKDIR /usr/src/zenoh-plugin-dds
 
