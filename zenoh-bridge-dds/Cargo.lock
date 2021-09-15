@@ -471,6 +471,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "byteorder"
+version = "1.4.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "14c189c53d098945499cdfa7ecc63567cf3886b3332b312a5b4585d8d3a6a610"
+
+[[package]]
 name = "bytes"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -487,6 +493,16 @@ name = "cc"
 version = "1.0.69"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e70cc2f62c6ce1868963827bd677764c62d07c3d9a3e1fb1177ee1a9ab199eb2"
+
+[[package]]
+name = "cdr"
+version = "0.2.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9617422bf43fde9280707a7e90f8f7494389c182f5c70b0f67592d0f06d41dfa"
+dependencies = [
+ "byteorder",
+ "serde",
+]
 
 [[package]]
 name = "cexpr"
@@ -2844,6 +2860,7 @@ dependencies = [
  "async-std",
  "async-trait",
  "bincode",
+ "cdr",
  "clap",
  "cyclors",
  "derivative",
@@ -2862,4 +2879,5 @@ dependencies = [
  "zenoh",
  "zenoh-ext",
  "zenoh-plugin-trait",
+ "zenoh-util",
 ]

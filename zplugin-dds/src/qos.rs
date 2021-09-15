@@ -294,6 +294,15 @@ impl Qos {
     }
 }
 
+impl Default for Qos {
+    fn default() -> Self {
+        unsafe {
+            let qos = dds_qos_create();
+            Qos::from_reader_qos_native(qos)
+        }
+    }
+}
+
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Derivative)]
 #[derivative(Default)]
 pub struct Durability {

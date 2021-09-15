@@ -271,3 +271,15 @@ pub fn delete_dds_entity(entity: dds_entity_t) -> Result<(), String> {
         }
     }
 }
+
+pub fn get_guid(entity: &dds_entity_t) -> Result<String, String> {
+    unsafe {
+        let mut guid = dds_guid_t { v: [0; 16] };
+        let r = dds_get_guid(*entity, &mut guid);
+        if r == 0 {
+            Ok(hex::encode(guid.v))
+        } else {
+            Err(format!("Error getting GUID of DDS entity - retcode={}", r))
+        }
+    }
+}
