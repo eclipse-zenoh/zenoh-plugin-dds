@@ -1211,6 +1211,46 @@ impl<'a> DdsPlugin<'a> {
                             }
                         }
                     }
+
+                    // a reader or writer was deleted; remove the corresponding route
+                    else {
+                        // get some info from the fwd_path segments (0th is empty as res_name starts with '/')
+                        let mut split_it = fwd_path.splitn(5, '/');
+                        let remote_uuid = split_it.nth(2).unwrap();
+                        let is_writer = split_it.next().unwrap() == "writer";
+                        let admin_path = split_it.next().unwrap();
+                        // reconstruct full admin path for this entity (i.e. with it's remote plugin's uuid)
+                        let full_admin_path = format!("/@/service/{}/dds/{}", remote_uuid, admin_path);
+
+                        // remove the route initiated by this reader or writer
+                        if is_writer {
+                            let opt = self
+                                .routes_to_dds
+                                .iter()
+                                .find(|(_, route)| route.initiated_by == full_admin_path)
+                                .map(|(zkey, _)| zkey.clone());
+                            if let Some(zkey) = opt {
+                                // remove the route
+                                self.routes_to_dds.remove(&zkey);
+                                // remove its reference from admin_space
+                                let path = format!("route/to_dds/{}", zkey);
+                                self.admin_space.remove(&path);
+                            }
+                        } else {
+                            let opt = self
+                                .routes_from_dds
+                                .iter()
+                                .find(|(_, route)| route.initiated_by == full_admin_path)
+                                .map(|(zkey, _)| zkey.clone());
+                            if let Some(zkey) = opt {
+                                // remove the route
+                                self.routes_from_dds.remove(&zkey);
+                                // remove its reference from admin_space
+                                let path = format!("route/to_dds/{}", zkey);
+                                self.admin_space.remove(&path);
+                            }
+                        }
+                    }
                 },
 
                 group_event = group_stream.next().fuse() => {
