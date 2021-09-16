@@ -18,6 +18,7 @@ use cyclors::*;
 use log::warn;
 use serde::ser::SerializeSeq;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use std::convert::TryInto;
 use std::{
     collections::HashMap,
     ffi::{CStr, CString},
@@ -241,7 +242,10 @@ where
     let mut buf = hex::decode(gid).unwrap();
     // Gid size in ROS messages in 24 bytes (The DDS gid is usually 16 bytes). Resize the buffer
     buf.resize(24, 0);
-    serializer.serialize_bytes(&buf)
+    serde::Serialize::serialize(
+        TryInto::<&[u8; 24]>::try_into(&buf[..24]).unwrap(),
+        serializer,
+    )
 }
 
 fn deserialize_gid<'de, D>(deserializer: D) -> Result<String, D::Error>
@@ -262,7 +266,7 @@ where
         let mut buf = hex::decode(s).unwrap();
         // Gid size in ROS messages in 24 bytes (The DDS gid is usually 16 bytes). Resize the buffer
         buf.resize(24, 0);
-        seq.serialize_element(buf.as_slice())?;
+        seq.serialize_element(TryInto::<&[u8; 24]>::try_into(&buf[..24]).unwrap())?;
     }
     seq.end()
 }

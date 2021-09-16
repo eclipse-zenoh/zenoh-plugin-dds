@@ -20,7 +20,7 @@ use flume::r#async::RecvStream;
 use futures::prelude::*;
 use futures::select;
 use git_version::git_version;
-use log::{debug, error, info, warn};
+use log::{debug, error, info, trace, warn};
 use regex::Regex;
 use serde::ser::SerializeStruct;
 use serde::{Serialize, Serializer};
@@ -442,6 +442,15 @@ impl<'a> DdsPlugin<'a> {
         self.routes_from_dds.insert(zkey.to_string(), r);
     }
 
+    fn find_route_from_dds_initiated_by(
+        &self,
+        initiated_by_subpart: &str,
+    ) -> Option<&FromDDSRoute<'a>> {
+        self.routes_from_dds
+            .values()
+            .find(|route| route.initiated_by.contains(initiated_by_subpart))
+    }
+
     fn insert_route_to_dds(&mut self, zkey: &str, r: ToDDSRoute<'a>) {
         // insert reference in admin_space
         let path = format!("route/to_dds/{}", zkey);
@@ -450,6 +459,15 @@ impl<'a> DdsPlugin<'a> {
 
         // insert route in routes_from_dds map
         self.routes_to_dds.insert(zkey.to_string(), r);
+    }
+
+    fn find_route_to_dds_initiated_by(
+        &self,
+        initiated_by_subpart: &str,
+    ) -> Option<&ToDDSRoute<'a>> {
+        self.routes_to_dds
+            .values()
+            .find(|route| route.initiated_by.contains(initiated_by_subpart))
     }
 
     async fn try_add_route_from_dds(
@@ -1100,9 +1118,8 @@ impl<'a> DdsPlugin<'a> {
                         ) {
                             Ok(mut info) => {
                                 // remap all original gids with the gids of the routes
-                                debug!("Received ros_discovery_info: {:?}", info);
+                                debug!("Received ros_discovery_info from zenoh, remap and forward to DDS: {:?}", info);
                                 self.remap_ros_discovery_info(&mut info);
-                                debug!("Forwards ros_discovery_info: {:?}", info);
                                 if let Err(e) = ros_disco_mgr.write(&info) {
                                     error!("Error forwarding ros_discovery_info: {}", e);
                                 }
@@ -1193,7 +1210,6 @@ impl<'a> DdsPlugin<'a> {
                                 }
                             }
                         }
-
                     }
                 },
 
@@ -1224,6 +1240,7 @@ impl<'a> DdsPlugin<'a> {
                 _ = ros_disco_timer_rcv.next().fuse() => {
                     let infos = ros_disco_mgr.read();
                     for buf in infos {
+                        trace!("Received ros_discovery_info from DDS, forward via zenoh: {}", hex::encode(buf.to_vec().as_slice()));
                         // forward the payload on zenoh
                         if let Err(e) = self.zsession.write(&fwd_ros_discovery_info_key, buf).await {
                             error!("Forward ROS discovery info failed: {}", e);
@@ -1242,18 +1259,24 @@ impl<'a> DdsPlugin<'a> {
             let mut i = 0;
             while i < node.reader_gid_seq.len() {
                 // find a FromDdsRoute initiated by the reader with this gid
-                match self
-                    .routes_from_dds
-                    .values()
-                    .find(|route| route.initiated_by.contains(&node.reader_gid_seq[i]))
-                {
+                match self.find_route_from_dds_initiated_by(&node.reader_gid_seq[i]) {
                     Some(route) => {
                         // replace the gid with route's reader's gid
-                        node.reader_gid_seq[i] = get_guid(&route.dds_reader).unwrap();
+                        let gid = get_guid(&route.dds_reader).unwrap();
+                        warn!(
+                            "ros_discovery_info remap reader {} -> {}",
+                            node.reader_gid_seq[i], gid
+                        );
+                        node.reader_gid_seq[i] = gid;
                         i += 1;
                     }
                     None => {
-                        // remove the gid (not route found since probably not allowed to be routed)
+                        // remove the gid (not route found because either not allowed to be routed,
+                        // either route already initiated by another reader)
+                        warn!(
+                            "ros_discovery_info remap reader {} -> NONE",
+                            node.reader_gid_seq[i]
+                        );
                         node.reader_gid_seq.remove(i);
                     }
                 }
@@ -1261,18 +1284,24 @@ impl<'a> DdsPlugin<'a> {
             let mut i = 0;
             while i < node.writer_gid_seq.len() {
                 // find a ToDdsRoute initiated by the writer with this gid
-                match self
-                    .routes_to_dds
-                    .values()
-                    .find(|route| route.initiated_by.contains(&node.writer_gid_seq[i]))
-                {
+                match self.find_route_to_dds_initiated_by(&node.writer_gid_seq[i]) {
                     Some(route) => {
                         // replace the gid with route's writer's gid
-                        node.writer_gid_seq[i] = get_guid(&route.dds_writer).unwrap();
+                        let gid = get_guid(&route.dds_writer).unwrap();
+                        warn!(
+                            "ros_discovery_info remap writer {} -> {}",
+                            node.writer_gid_seq[i], gid
+                        );
+                        node.writer_gid_seq[i] = gid;
                         i += 1;
                     }
                     None => {
-                        // remove the gid (not route found since probably not allowed to be routed)
+                        // remove the gid (not route found because either not allowed to be routed,
+                        // either route already initiated by another writer)
+                        warn!(
+                            "ros_discovery_info remap writer {} -> NONE",
+                            node.writer_gid_seq[i]
+                        );
                         node.writer_gid_seq.remove(i);
                     }
                 }
