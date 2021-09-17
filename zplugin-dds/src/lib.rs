@@ -165,7 +165,7 @@ pub async fn run(runtime: Runtime, args: ArgMatches<'_>) {
         None
     };
 
-    let join_subscriptions: Vec<String> = args
+    let mut join_subscriptions: Vec<String> = args
         .values_of("dds-generalise-sub")
         .unwrap_or_default()
         .map(|s| s.to_string())
@@ -176,19 +176,24 @@ pub async fn run(runtime: Runtime, args: ArgMatches<'_>) {
         .map(|s| s.to_string())
         .collect::<Vec<String>>();
 
+    let zid = runtime.get_pid_str();
+    let fwd_discovery_mode = args.is_present("dds-fwd-discovery");
+
+    if fwd_discovery_mode {
+        // add join_subscription on path used for discovery forwarding
+        join_subscriptions.push(format!("/@dds/{}/**", zid));
+    }
+
     // open zenoh-net Session (with local routing disabled to avoid loops)
     let zsession =
         Arc::new(Session::init(runtime, false, join_subscriptions, join_publications).await);
 
     // create group member
-    let zid = zsession.id().await;
     let member_id = args.value_of("dds-group-member-id").unwrap_or(&zid);
     let member = Member::new(member_id).lease(group_lease);
 
     // create DDS Participant
     let dp = unsafe { dds_create_participant(domain_id, std::ptr::null(), std::ptr::null()) };
-
-    let fwd_discovery_mode = args.is_present("dds-fwd-discovery");
 
     let mut dds_plugin = DdsPlugin {
         scope,
@@ -555,7 +560,7 @@ impl<'a> DdsPlugin<'a> {
                 );
 
                 self.insert_route_from_dds(
-                    &zkey,
+                    zkey,
                     FromDDSRoute {
                         dds_reader: dr,
                         _zenoh_publisher: zenoh_publisher,
@@ -689,7 +694,7 @@ impl<'a> DdsPlugin<'a> {
                 });
 
                 self.insert_route_to_dds(
-                    &zkey,
+                    zkey,
                     ToDDSRoute {
                         dds_writer: dw,
                         zenoh_subscriber,
@@ -1007,12 +1012,7 @@ impl<'a> DdsPlugin<'a> {
         let uuid = self.zsession.id().await;
         let fwd_writers_path_prefix = format!("/@dds/{}/writer/", uuid);
         let fwd_readers_path_prefix = format!("/@dds/{}/reader/", uuid);
-        let fwd_ros_discovery_info_key = ResKey::RId(
-            self.zsession
-                .declare_resource(&ResKey::from(format!("/@dds/{}/@ros_discovery_info", uuid)))
-                .await
-                .unwrap(),
-        );
+        let fwd_ros_discovery_prefix = format!("/@dds/{}/ros_disco/", uuid);
 
         // Cache the publications on admin space for late joiners DDS plugins
         let _fwd_disco_pub_cache = self
@@ -1110,145 +1110,148 @@ impl<'a> DdsPlugin<'a> {
                         None => false
                     };
 
-                    // if it's a ros_discovery_info message
-                    if fwd_path.ends_with("/@ros_discovery_info") {
-                        match cdr::deserialize_from::<_, ParticipantEntitiesInfo, _>(
-                            sample.payload,
-                            cdr::size::Infinite,
-                        ) {
-                            Ok(mut info) => {
-                                // remap all original gids with the gids of the routes
-                                debug!("Received ros_discovery_info from zenoh, remap and forward to DDS: {:?}", info);
-                                self.remap_ros_discovery_info(&mut info);
-                                if let Err(e) = ros_disco_mgr.write(&info) {
-                                    error!("Error forwarding ros_discovery_info: {}", e);
-                                }
-                            }
-                            Err(e) => error!(
-                                "Error receiving ParticipantEntitiesInfo on {}: {}",
-                                fwd_path, e
-                            ),
-                        }
-                    }
+                    // decode the beginning part of fwd_path segments (0th is empty as res_name starts with '/')
+                    let mut split_it = fwd_path.splitn(5, '/');
+                    let remote_uuid = split_it.nth(2).unwrap();
+                    let disco_kind = split_it.next().unwrap();
+                    let remaining_path = split_it.next().unwrap();
 
-                    // it's a reader or writer discovery message
-                    else if !is_delete {
-                        // deserialize payload
-                        let (entity, scope) = bincode::deserialize::<(DdsEntity, String)>(&sample.payload.to_vec()).unwrap();
-                        // get some info from the fwd_path segments (0th is empty as res_name starts with '/')
-                        let mut split_it = fwd_path.splitn(5, '/');
-                        let remote_uuid = split_it.nth(2).unwrap();
-                        let is_writer = split_it.next().unwrap() == "writer";
-                        let admin_path = split_it.next().unwrap();
-                        // reconstruct full admin path for this entity (i.e. with it's remote plugin's uuid)
-                        let full_admin_path = format!("/@/service/{}/dds/{}", remote_uuid, admin_path);
+                    match disco_kind {
+                        // it's a writer discovery message
+                        "writer" => {
+                            // reconstruct full admin path for this entity (i.e. with it's remote plugin's uuid)
+                            let full_admin_path = format!("/@/service/{}/dds/{}", remote_uuid, remaining_path);
+                            if !is_delete {
+                                // deserialize payload
+                                let (entity, scope) = bincode::deserialize::<(DdsEntity, String)>(&sample.payload.to_vec()).unwrap();
+                                // copy and adapt Writer's QoS for creation of a proxy Writer
+                                let mut qos = entity.qos.clone();
+                                qos.ignore_local_participant = true;
 
-                        if is_writer {
-                            // copy and adapt Writer's QoS for creation of a proxy Writer
-                            let mut qos = entity.qos.clone();
-                            qos.ignore_local_participant = true;
-
-                            // create 1 "to_dds" route per partition, or just 1 if no partition
-                            if entity.qos.partitions.is_empty() {
-                                let zkey = format!("{}/{}", scope, entity.topic_name);
-                                let route_status = self.try_add_route_to_dds(&zkey, &full_admin_path, &entity.topic_name, &entity.type_name, entity.keyless, qos).await;
-                                if let RouteStatus::Routed(ref route_key) = route_status {
-                                    // check amongst local Readers is some are matching (only wrt. topic_name and partition. TODO: consider qos match also)
-                                    for reader in self.discovered_readers.values_mut() {
-                                        if reader.topic_name == entity.topic_name && reader.qos.partitions.is_empty() {
-                                            if let Some(r) = self.routes_to_dds.get_mut(route_key) { r.routed_readers.push(entity.key.clone()) }
-                                            reader.routes.insert("*".to_string(), route_status.clone());
-                                        }
-                                    }
-                                }
-                            } else {
-                                for p in &entity.qos.partitions {
-                                    let zkey = format!("{}/{}/{}", scope, p, entity.topic_name);
-                                    let route_status = self.try_add_route_to_dds(&zkey, &full_admin_path, &entity.topic_name, &entity.type_name, entity.keyless, qos.clone()).await;
+                                // create 1 "to_dds" route per partition, or just 1 if no partition
+                                if entity.qos.partitions.is_empty() {
+                                    let zkey = format!("{}/{}", scope, entity.topic_name);
+                                    let route_status = self.try_add_route_to_dds(&zkey, &full_admin_path, &entity.topic_name, &entity.type_name, entity.keyless, qos).await;
                                     if let RouteStatus::Routed(ref route_key) = route_status {
                                         // check amongst local Readers is some are matching (only wrt. topic_name and partition. TODO: consider qos match also)
                                         for reader in self.discovered_readers.values_mut() {
-                                            if reader.topic_name == entity.topic_name && reader.qos.partitions.contains(p) {
+                                            if reader.topic_name == entity.topic_name && reader.qos.partitions.is_empty() {
                                                 if let Some(r) = self.routes_to_dds.get_mut(route_key) { r.routed_readers.push(entity.key.clone()) }
-                                                reader.routes.insert(p.clone(), route_status.clone());
+                                                reader.routes.insert("*".to_string(), route_status.clone());
                                             }
                                         }
                                     }
-                                }
-                            }
-                        } else {
-                            // copy and adapt Reader's QoS for creation of a proxy Reader
-                            let mut qos = entity.qos.clone();
-                            qos.ignore_local_participant = true;
-
-                            // create 1 'from_dds" route per partition, or just 1 if no partition
-                            if entity.qos.partitions.is_empty() {
-                                let zkey = format!("{}/{}", scope, entity.topic_name);
-                                let route_status = self.try_add_route_from_dds(&zkey, &full_admin_path, &entity.topic_name, &entity.type_name, entity.keyless, qos).await;
-                                if let RouteStatus::Routed(ref route_key) = route_status {
-                                    // check amongst local Writers is some are matching (only wrt. topic_name and partition. TODO: consider qos match also)
-                                    for writer in self.discovered_writers.values_mut() {
-                                        if writer.topic_name == entity.topic_name && writer.qos.partitions.is_empty() {
-                                            if let Some(r) = self.routes_from_dds.get_mut(route_key) { r.routed_writers.push(entity.key.clone()) }
-                                            writer.routes.insert("*".to_string(), route_status.clone());
+                                } else {
+                                    for p in &entity.qos.partitions {
+                                        let zkey = format!("{}/{}/{}", scope, p, entity.topic_name);
+                                        let route_status = self.try_add_route_to_dds(&zkey, &full_admin_path, &entity.topic_name, &entity.type_name, entity.keyless, qos.clone()).await;
+                                        if let RouteStatus::Routed(ref route_key) = route_status {
+                                            // check amongst local Readers is some are matching (only wrt. topic_name and partition. TODO: consider qos match also)
+                                            for reader in self.discovered_readers.values_mut() {
+                                                if reader.topic_name == entity.topic_name && reader.qos.partitions.contains(p) {
+                                                    if let Some(r) = self.routes_to_dds.get_mut(route_key) { r.routed_readers.push(entity.key.clone()) }
+                                                    reader.routes.insert(p.clone(), route_status.clone());
+                                                }
+                                            }
                                         }
                                     }
                                 }
                             } else {
-                                for p in &entity.qos.partitions {
-                                    let zkey = format!("{}/{}/{}", scope, p, entity.topic_name);
-                                    let route_status = self.try_add_route_from_dds(&zkey, &full_admin_path, &entity.topic_name, &entity.type_name, entity.keyless, qos.clone()).await;
+                                // writer was deleted; remove the corresponding route
+                                let opt = self
+                                    .routes_to_dds
+                                    .iter()
+                                    .find(|(_, route)| route.initiated_by == full_admin_path)
+                                    .map(|(zkey, _)| zkey.clone());
+                                if let Some(zkey) = opt {
+                                    // remove the route
+                                    self.routes_to_dds.remove(&zkey);
+                                    // remove its reference from admin_space
+                                    let path = format!("route/to_dds/{}", zkey);
+                                    self.admin_space.remove(&path);
+                                }
+                            }
+                        }
+
+                        // it's a reader discovery message
+                        "reader" => {
+                            // reconstruct full admin path for this entity (i.e. with it's remote plugin's uuid)
+                            let full_admin_path = format!("/@/service/{}/dds/{}", remote_uuid, remaining_path);
+                            if !is_delete {
+                                // deserialize payload
+                                let (entity, scope) = bincode::deserialize::<(DdsEntity, String)>(&sample.payload.to_vec()).unwrap();
+                                // copy and adapt Reader's QoS for creation of a proxy Reader
+                                let mut qos = entity.qos.clone();
+                                qos.ignore_local_participant = true;
+
+                                // create 1 'from_dds" route per partition, or just 1 if no partition
+                                if entity.qos.partitions.is_empty() {
+                                    let zkey = format!("{}/{}", scope, entity.topic_name);
+                                    let route_status = self.try_add_route_from_dds(&zkey, &full_admin_path, &entity.topic_name, &entity.type_name, entity.keyless, qos).await;
                                     if let RouteStatus::Routed(ref route_key) = route_status {
                                         // check amongst local Writers is some are matching (only wrt. topic_name and partition. TODO: consider qos match also)
                                         for writer in self.discovered_writers.values_mut() {
-                                            if writer.topic_name == entity.topic_name && writer.qos.partitions.contains(p) {
+                                            if writer.topic_name == entity.topic_name && writer.qos.partitions.is_empty() {
                                                 if let Some(r) = self.routes_from_dds.get_mut(route_key) { r.routed_writers.push(entity.key.clone()) }
-                                                writer.routes.insert(p.clone(), route_status.clone());
+                                                writer.routes.insert("*".to_string(), route_status.clone());
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    for p in &entity.qos.partitions {
+                                        let zkey = format!("{}/{}/{}", scope, p, entity.topic_name);
+                                        let route_status = self.try_add_route_from_dds(&zkey, &full_admin_path, &entity.topic_name, &entity.type_name, entity.keyless, qos.clone()).await;
+                                        if let RouteStatus::Routed(ref route_key) = route_status {
+                                            // check amongst local Writers is some are matching (only wrt. topic_name and partition. TODO: consider qos match also)
+                                            for writer in self.discovered_writers.values_mut() {
+                                                if writer.topic_name == entity.topic_name && writer.qos.partitions.contains(p) {
+                                                    if let Some(r) = self.routes_from_dds.get_mut(route_key) { r.routed_writers.push(entity.key.clone()) }
+                                                    writer.routes.insert(p.clone(), route_status.clone());
+                                                }
                                             }
                                         }
                                     }
                                 }
+                            } else {
+                                // a reader was deleted; remove the corresponding route
+                                let opt = self
+                                    .routes_from_dds
+                                    .iter()
+                                    .find(|(_, route)| route.initiated_by == full_admin_path)
+                                    .map(|(zkey, _)| zkey.clone());
+                                if let Some(zkey) = opt {
+                                    // remove the route
+                                    self.routes_from_dds.remove(&zkey);
+                                    // remove its reference from admin_space
+                                    let path = format!("route/to_dds/{}", zkey);
+                                    self.admin_space.remove(&path);
+                                }
                             }
                         }
-                    }
 
-                    // a reader or writer was deleted; remove the corresponding route
-                    else {
-                        // get some info from the fwd_path segments (0th is empty as res_name starts with '/')
-                        let mut split_it = fwd_path.splitn(5, '/');
-                        let remote_uuid = split_it.nth(2).unwrap();
-                        let is_writer = split_it.next().unwrap() == "writer";
-                        let admin_path = split_it.next().unwrap();
-                        // reconstruct full admin path for this entity (i.e. with it's remote plugin's uuid)
-                        let full_admin_path = format!("/@/service/{}/dds/{}", remote_uuid, admin_path);
+                        // it's a ros_discovery_info message
+                        "ros_disco" => {
+                            match cdr::deserialize_from::<_, ParticipantEntitiesInfo, _>(
+                                sample.payload,
+                                cdr::size::Infinite,
+                            ) {
+                                Ok(mut info) => {
+                                    // remap all original gids with the gids of the routes
+                                    async_std::task::sleep(std::time::Duration::from_millis(2000)).await;
+                                    self.remap_ros_discovery_info(&mut info);
+                                    if let Err(e) = ros_disco_mgr.write(&info) {
+                                        error!("Error forwarding ros_discovery_info: {}", e);
+                                    }
+                                }
+                                Err(e) => error!(
+                                    "Error receiving ParticipantEntitiesInfo on {}: {}",
+                                    fwd_path, e
+                                ),
+                            }
+                        }
 
-                        // remove the route initiated by this reader or writer
-                        if is_writer {
-                            let opt = self
-                                .routes_to_dds
-                                .iter()
-                                .find(|(_, route)| route.initiated_by == full_admin_path)
-                                .map(|(zkey, _)| zkey.clone());
-                            if let Some(zkey) = opt {
-                                // remove the route
-                                self.routes_to_dds.remove(&zkey);
-                                // remove its reference from admin_space
-                                let path = format!("route/to_dds/{}", zkey);
-                                self.admin_space.remove(&path);
-                            }
-                        } else {
-                            let opt = self
-                                .routes_from_dds
-                                .iter()
-                                .find(|(_, route)| route.initiated_by == full_admin_path)
-                                .map(|(zkey, _)| zkey.clone());
-                            if let Some(zkey) = opt {
-                                // remove the route
-                                self.routes_from_dds.remove(&zkey);
-                                // remove its reference from admin_space
-                                let path = format!("route/to_dds/{}", zkey);
-                                self.admin_space.remove(&path);
-                            }
+                        _ => {
+                            error!("Unexpected forwarded discovery message received on {}", fwd_path);
                         }
                     }
                 },
@@ -1279,10 +1282,10 @@ impl<'a> DdsPlugin<'a> {
 
                 _ = ros_disco_timer_rcv.next().fuse() => {
                     let infos = ros_disco_mgr.read();
-                    for buf in infos {
-                        trace!("Received ros_discovery_info from DDS, forward via zenoh: {}", hex::encode(buf.to_vec().as_slice()));
+                    for (gid, buf) in infos {
+                        trace!("Received ros_discovery_info from DDS for {}, forward via zenoh: {}", gid, hex::encode(buf.to_vec().as_slice()));
                         // forward the payload on zenoh
-                        if let Err(e) = self.zsession.write(&fwd_ros_discovery_info_key, buf).await {
+                        if let Err(e) = self.zsession.write(&ResKey::from(format!("{}{}", fwd_ros_discovery_prefix, gid)), buf).await {
                             error!("Forward ROS discovery info failed: {}", e);
                         }
                     }
@@ -1303,9 +1306,10 @@ impl<'a> DdsPlugin<'a> {
                     Some(route) => {
                         // replace the gid with route's reader's gid
                         let gid = get_guid(&route.dds_reader).unwrap();
-                        warn!(
+                        trace!(
                             "ros_discovery_info remap reader {} -> {}",
-                            node.reader_gid_seq[i], gid
+                            node.reader_gid_seq[i],
+                            gid
                         );
                         node.reader_gid_seq[i] = gid;
                         i += 1;
@@ -1313,7 +1317,7 @@ impl<'a> DdsPlugin<'a> {
                     None => {
                         // remove the gid (not route found because either not allowed to be routed,
                         // either route already initiated by another reader)
-                        warn!(
+                        trace!(
                             "ros_discovery_info remap reader {} -> NONE",
                             node.reader_gid_seq[i]
                         );
@@ -1328,9 +1332,10 @@ impl<'a> DdsPlugin<'a> {
                     Some(route) => {
                         // replace the gid with route's writer's gid
                         let gid = get_guid(&route.dds_writer).unwrap();
-                        warn!(
+                        trace!(
                             "ros_discovery_info remap writer {} -> {}",
-                            node.writer_gid_seq[i], gid
+                            node.writer_gid_seq[i],
+                            gid
                         );
                         node.writer_gid_seq[i] = gid;
                         i += 1;
@@ -1338,7 +1343,7 @@ impl<'a> DdsPlugin<'a> {
                     None => {
                         // remove the gid (not route found because either not allowed to be routed,
                         // either route already initiated by another writer)
-                        warn!(
+                        trace!(
                             "ros_discovery_info remap writer {} -> NONE",
                             node.writer_gid_seq[i]
                         );

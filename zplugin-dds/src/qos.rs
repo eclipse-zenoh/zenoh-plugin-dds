@@ -311,7 +311,7 @@ pub struct Durability {
 }
 
 #[derive(Debug, Copy, Clone, Deserialize, Serialize, PartialEq)]
-#[allow(non_camel_case_types)]
+#[allow(non_camel_case_types, clippy::upper_case_acronyms)]
 pub enum DurabilityKind {
     VOLATILE = dds_durability_kind_DDS_DURABILITY_VOLATILE as isize,
     TRANSIENT_LOCAL = dds_durability_kind_DDS_DURABILITY_TRANSIENT_LOCAL as isize,
@@ -356,7 +356,7 @@ pub struct Reliability {
 }
 
 #[derive(Debug, Copy, Clone, Deserialize, Serialize, PartialEq)]
-#[allow(non_camel_case_types)]
+#[allow(non_camel_case_types, clippy::upper_case_acronyms)]
 pub enum ReliabilityKind {
     BEST_EFFORT = dds_reliability_kind_DDS_RELIABILITY_BEST_EFFORT as isize,
     RELIABLE = dds_reliability_kind_DDS_RELIABILITY_RELIABLE as isize,
@@ -395,7 +395,7 @@ pub struct DestinationOrder {
 }
 
 #[derive(Debug, Copy, Clone, Deserialize, Serialize, PartialEq)]
-#[allow(non_camel_case_types)]
+#[allow(non_camel_case_types, clippy::upper_case_acronyms)]
 pub enum DestinationOrderKind {
     BY_RECEPTION_TIMESTAMP =
         dds_destination_order_kind_DDS_DESTINATIONORDER_BY_RECEPTION_TIMESTAMP as isize,
@@ -428,7 +428,7 @@ pub struct Liveliness {
 }
 
 #[derive(Debug, Copy, Clone, Deserialize, Serialize, PartialEq)]
-#[allow(non_camel_case_types)]
+#[allow(non_camel_case_types, clippy::upper_case_acronyms)]
 pub enum LivelinessKind {
     AUTOMATIC = dds_liveliness_kind_DDS_LIVELINESS_AUTOMATIC as isize,
     MANUAL_BY_PARTICIPANT = dds_liveliness_kind_DDS_LIVELINESS_MANUAL_BY_PARTICIPANT as isize,
@@ -457,6 +457,7 @@ pub struct Ownership {
 }
 
 #[derive(Debug, Copy, Clone, Deserialize, Serialize, PartialEq)]
+#[allow(non_camel_case_types, clippy::upper_case_acronyms)]
 pub enum OwnershipKind {
     SHARED = dds_ownership_kind_DDS_OWNERSHIP_SHARED as isize,
     EXCLUSIVE = dds_ownership_kind_DDS_OWNERSHIP_EXCLUSIVE as isize,

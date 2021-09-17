@@ -127,7 +127,7 @@ impl RosDiscoveryInfoMgr {
         }
     }
 
-    pub(crate) fn read(&self) -> Vec<ZBuf> {
+    pub(crate) fn read(&self) -> HashMap<String, ZBuf> {
         unsafe {
             let mut zp: *mut cdds_ddsi_payload = std::ptr::null_mut();
             #[allow(clippy::uninit_assumed_init)]
@@ -150,7 +150,7 @@ impl RosDiscoveryInfoMgr {
                 }
                 cdds_serdata_unref(zp as *mut ddsi_serdata);
             }
-            result.into_values().collect()
+            result
         }
     }
 
@@ -187,7 +187,7 @@ impl RosDiscoveryInfoMgr {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub(crate) struct NodesEntitieInfo {
     pub node_namespace: String,
     pub node_name: String,
@@ -217,7 +217,7 @@ impl std::fmt::Display for NodesEntitieInfo {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub(crate) struct ParticipantEntitiesInfo {
     #[serde(serialize_with = "serialize_gid", deserialize_with = "deserialize_gid")]
     pub gid: String,
@@ -235,7 +235,7 @@ impl std::fmt::Display for ParticipantEntitiesInfo {
     }
 }
 
-fn serialize_gid<S>(gid: &String, serializer: S) -> Result<S::Ok, S::Error>
+fn serialize_gid<S>(gid: &str, serializer: S) -> Result<S::Ok, S::Error>
 where
     S: Serializer,
 {
@@ -257,7 +257,7 @@ where
     Ok(hex::encode(&gid[..16]))
 }
 
-fn serialize_gids<S>(gids: &Vec<String>, serializer: S) -> Result<S::Ok, S::Error>
+fn serialize_gids<S>(gids: &[String], serializer: S) -> Result<S::Ok, S::Error>
 where
     S: Serializer,
 {
