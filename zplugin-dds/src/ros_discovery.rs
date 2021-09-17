@@ -188,7 +188,7 @@ impl RosDiscoveryInfoMgr {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub(crate) struct NodesEntitieInfo {
+pub(crate) struct NodeEntitiesInfo {
     pub node_namespace: String,
     pub node_name: String,
     #[serde(
@@ -203,7 +203,7 @@ pub(crate) struct NodesEntitieInfo {
     pub writer_gid_seq: Vec<String>,
 }
 
-impl std::fmt::Display for NodesEntitieInfo {
+impl std::fmt::Display for NodeEntitiesInfo {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
@@ -221,13 +221,26 @@ impl std::fmt::Display for NodesEntitieInfo {
 pub(crate) struct ParticipantEntitiesInfo {
     #[serde(serialize_with = "serialize_gid", deserialize_with = "deserialize_gid")]
     pub gid: String,
-    pub node_entities_info_seq: Vec<NodesEntitieInfo>,
+    #[serde(
+        serialize_with = "serialize_node_entities_info_seq",
+        deserialize_with = "deserialize_node_entities_info_seq"
+    )]
+    pub node_entities_info_seq: HashMap<String, NodeEntitiesInfo>,
+}
+
+impl ParticipantEntitiesInfo {
+    pub(crate) fn new(gid: String) -> Self {
+        ParticipantEntitiesInfo {
+            gid,
+            node_entities_info_seq: HashMap::new(),
+        }
+    }
 }
 
 impl std::fmt::Display for ParticipantEntitiesInfo {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "participant {} : [", self.gid)?;
-        for i in &self.node_entities_info_seq {
+        for i in self.node_entities_info_seq.values() {
             write!(f, "({}), ", i)?;
         }
         write!(f, "]")?;
@@ -278,4 +291,33 @@ where
     let gids: Vec<[u8; 24]> = Deserialize::deserialize(deserializer)?;
     // NOTE: a DDS gid is 16 bytes only. ignore the last 8 bytes
     Ok(gids.iter().map(|gid| hex::encode(&gid[..16])).collect())
+}
+
+fn serialize_node_entities_info_seq<S>(
+    entities: &HashMap<String, NodeEntitiesInfo>,
+    serializer: S,
+) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    let mut seq = serializer.serialize_seq(Some(entities.len()))?;
+    for entity in entities.values() {
+        seq.serialize_element(entity)?;
+    }
+    seq.end()
+}
+
+fn deserialize_node_entities_info_seq<'de, D>(
+    deserializer: D,
+) -> Result<HashMap<String, NodeEntitiesInfo>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let mut entities: Vec<NodeEntitiesInfo> = Deserialize::deserialize(deserializer)?;
+    let mut map: HashMap<String, NodeEntitiesInfo> = HashMap::with_capacity(entities.len());
+    for entity in entities.drain(..) {
+        let key = format!("{}{}", entity.node_namespace, entity.node_name);
+        map.insert(key, entity);
+    }
+    Ok(map)
 }

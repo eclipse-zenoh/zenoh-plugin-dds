@@ -50,7 +50,7 @@ use dds_mgt::*;
 use qos::*;
 
 use crate::ros_discovery::{
-    ParticipantEntitiesInfo, RosDiscoveryInfoMgr, ROS_DISCOVERY_INFO_TOPIC_NAME,
+    NodeEntitiesInfo, ParticipantEntitiesInfo, RosDiscoveryInfoMgr, ROS_DISCOVERY_INFO_TOPIC_NAME,
 };
 
 pub const GIT_VERSION: &str = git_version!(prefix = "v", cargo_prefix = "v");
@@ -1028,7 +1028,7 @@ impl<'a> DdsPlugin<'a> {
             .wait()
             .unwrap();
 
-        // manage ros_discovery_info topic, reading it periodically
+        // Manage ros_discovery_info topic, reading it periodically
         let ros_disco_mgr = RosDiscoveryInfoMgr::create(self.dp).unwrap();
         let timer = Timer::new();
         let (tx, mut ros_disco_timer_rcv): (Sender<()>, Receiver<()>) = unbounded();
@@ -1037,6 +1037,9 @@ impl<'a> DdsPlugin<'a> {
             ChannelEvent { tx },
         );
         let _ = timer.add(ros_disco_timer_event).await;
+
+        // The ParticipantEntitiesInfo to re-publish on ros_discovery_info (with this bridge's participant gid)
+        let mut participant_info = ParticipantEntitiesInfo::new(get_guid(&self.dp).unwrap());
 
         let scope = self.scope.clone();
         loop {
@@ -1237,9 +1240,11 @@ impl<'a> DdsPlugin<'a> {
                             ) {
                                 Ok(mut info) => {
                                     // remap all original gids with the gids of the routes
-                                    async_std::task::sleep(std::time::Duration::from_millis(2000)).await;
-                                    self.remap_ros_discovery_info(&mut info);
-                                    if let Err(e) = ros_disco_mgr.write(&info) {
+                                    self.remap_entities_info(&mut info.node_entities_info_seq);
+                                    // update the ParticipantEntitiesInfo for this bridge and re-publish it on DDS
+                                    participant_info.node_entities_info_seq.extend(info.node_entities_info_seq);
+                                    debug!("Publish updated ros_discovery_info: {:?}", participant_info);
+                                    if let Err(e) = ros_disco_mgr.write(&participant_info) {
                                         error!("Error forwarding ros_discovery_info: {}", e);
                                     }
                                 }
@@ -1294,10 +1299,8 @@ impl<'a> DdsPlugin<'a> {
         }
     }
 
-    fn remap_ros_discovery_info(&self, info: &mut ParticipantEntitiesInfo) {
-        // the participant gid is this plugin's participant's gid
-        info.gid = get_guid(&self.dp).unwrap();
-        for node in &mut info.node_entities_info_seq {
+    fn remap_entities_info(&self, entities_info: &mut HashMap<String, NodeEntitiesInfo>) {
+        for node in entities_info.values_mut() {
             // TODO: replace with drain_filter when stable (https://github.com/rust-lang/rust/issues/43244)
             let mut i = 0;
             while i < node.reader_gid_seq.len() {
