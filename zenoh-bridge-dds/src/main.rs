@@ -52,6 +52,12 @@ fn parse_args() -> (Properties, bool, ArgMatches<'static>) {
             "-l, --listener=[LOCATOR]...   'Locators to listen on.'",
         ))
         .arg(Arg::from_usage(
+                "-i, --id=[hex_string] \
+            'The identifier (as an hexadecimal string - e.g.: 0A0B23...) that the zenoh bridge must use. \
+            WARNING: this identifier must be unique in the system! \
+            If not set, a random UUIDv4 will be used.'",
+        ))
+        .arg(Arg::from_usage(
             "-c, --config=[FILE]      'A configuration file.'",
         ))
         .arg(
@@ -118,7 +124,7 @@ async fn main() {
     let (config, rest_plugin, args) = parse_args();
 
     // create a zenoh Runtime (to share with plugins)
-    let runtime = zenoh::net::runtime::Runtime::new(0, config.into(), None)
+    let runtime = zenoh::net::runtime::Runtime::new(0, config.into(), args.value_of("id"))
         .await
         .unwrap();
 
