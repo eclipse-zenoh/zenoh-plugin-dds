@@ -22,6 +22,7 @@ use std::ffi::{CStr, CString};
 use std::mem::MaybeUninit;
 use std::os::raw;
 use std::sync::Arc;
+use std::time::Duration;
 use zenoh::net::{ResKey, Session, ZBuf};
 
 const MAX_SAMPLES: usize = 32;
@@ -215,19 +216,61 @@ pub fn create_forwarding_dds_reader(
     topic_name: String,
     type_name: String,
     keyless: bool,
-    qos: QosHolder,
+    mut qos: QosHolder,
     z_key: ResKey,
     z: Arc<Session>,
+    read_period: Option<Duration>,
 ) -> dds_entity_t {
     let cton = CString::new(topic_name).unwrap().into_raw();
     let ctyn = CString::new(type_name).unwrap().into_raw();
 
     unsafe {
         let t = cdds_create_blob_topic(dp, cton, ctyn, keyless);
-        let arg = Box::new((z_key, z));
-        let sub_listener = dds_create_listener(Box::into_raw(arg) as *mut std::os::raw::c_void);
-        dds_lset_data_available(sub_listener, Some(data_forwarder_listener));
-        dds_create_reader(dp, t, qos.0, sub_listener)
+
+        match read_period {
+            None => {
+                // Use a Listener to route data as soon as it arraives
+                let arg = Box::new((z_key, z));
+                let sub_listener =
+                    dds_create_listener(Box::into_raw(arg) as *mut std::os::raw::c_void);
+                dds_lset_data_available(sub_listener, Some(data_forwarder_listener));
+                dds_create_reader(dp, t, qos.0, sub_listener)
+            }
+            Some(period) => {
+                // Use a periodic task that takes data to route from a Reader with KEEP_LAST 1
+                qos.set_history(dds_history_kind_DDS_HISTORY_KEEP_LAST, 1);
+                let reader = dds_create_reader(dp, t, qos.0, std::ptr::null());
+                task::spawn(async move {
+                    // loop while we can get reader's instance handle
+                    loop {
+                        async_std::task::sleep(period).await;
+                        let mut zp: *mut cdds_ddsi_payload = std::ptr::null_mut();
+                        #[allow(clippy::uninit_assumed_init)]
+                        let mut si: [dds_sample_info_t; 1] =
+                            { MaybeUninit::uninit().assume_init() };
+                        while cdds_take_blob(reader, &mut zp, si.as_mut_ptr()) > 0 {
+                            if si[0].valid_data {
+                                log::trace!(
+                                    "Route (periodic) data to zenoh resource with rid={}",
+                                    z_key
+                                );
+                                let bs = Vec::from_raw_parts(
+                                    (*zp).payload,
+                                    (*zp).size as usize,
+                                    (*zp).size as usize,
+                                );
+                                let rbuf = ZBuf::from(bs);
+                                let _ = task::block_on(async { z.write(&z_key, rbuf).await });
+                                (*zp).payload = std::ptr::null_mut();
+                            }
+                            cdds_serdata_unref(zp as *mut ddsi_serdata);
+                        }
+                    }
+                });
+
+                reader
+            }
+        }
     }
 }
 

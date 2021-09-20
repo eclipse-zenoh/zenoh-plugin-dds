@@ -55,6 +55,7 @@ lazy_static::lazy_static!(
     static ref DDS_DOMAIN_DEFAULT_STR: String = DDS_DOMAIN_DEFAULT.to_string();
 );
 const PUB_CACHE_QUERY_PREFIX: &str = "/zenoh_dds_plugin/pub_cache";
+const DEFAULT_PERIOD_INTERVAL: &str = "100";
 
 pub struct DDSPlugin;
 
@@ -111,6 +112,13 @@ pub fn get_expected_args<'a, 'b>() -> Vec<Arg<'a, 'b>> {
         Arg::from_usage(
             "--dds-group-lease=[Duration]   'The lease duration (in seconds) used in group management for all DDS plugins.'"
         ).default_value(GROUP_DEFAULT_LEASE),
+        Arg::from_usage(
+            "--dds-periodic-topics=[String]   'A regular expression matching the set of 'partition/topic-name' for which the routing must be done \
+            at a specified frequency (downsampling if publication frequency is higher). The syntax is the same than for --dds-allow option."
+        ),
+        Arg::from_usage(
+            "--dds-periodic-interval=[Duration]    'The minimal period at which the topics specified for a periodic routing will be routed.'"
+        ).default_value(DEFAULT_PERIOD_INTERVAL),
     ]
 }
 
@@ -149,6 +157,26 @@ pub async fn run(runtime: Runtime, args: ArgMatches<'_>) {
         None
     };
 
+    let periodic_re = if let Some(res) = args.value_of("dds-periodic-topics") {
+        match Regex::new(res) {
+            Ok(re) => Some(re),
+            Err(e) => {
+                panic!("Unable to compile allow regular expression, please see error details below:\n {:?}\n", e)
+            }
+        }
+    } else {
+        None
+    };
+
+    let period_str = args.value_of("dds-periodic-interval").unwrap();
+    let period = match period_str.parse::<u64>() {
+        Ok(period) => Duration::from_millis(period),
+        Err(_) => panic!(
+            "ERROR: {} is not a valid periodic interval in milliseconds ",
+            period_str
+        ),
+    };
+
     let join_subscriptions: Vec<String> = args
         .values_of("dds-generalise-sub")
         .unwrap_or_default()
@@ -176,6 +204,8 @@ pub async fn run(runtime: Runtime, args: ArgMatches<'_>) {
         scope,
         domain_id,
         allow_re,
+        periodic_re,
+        period,
         zsession: &zsession,
         member,
         dp,
@@ -255,6 +285,8 @@ struct DdsPlugin<'a> {
     scope: String,
     domain_id: u32,
     allow_re: Option<Regex>,
+    periodic_re: Option<Regex>,
+    period: Duration,
     // Note: &'a Arc<Session> here to keep the ownership of Session outside this struct
     // and be able to store the publishers/subscribers it creates in this same struct.
     zsession: &'a Arc<Session>,
@@ -298,6 +330,13 @@ lazy_static::lazy_static! {
 impl<'a> DdsPlugin<'a> {
     fn is_allowed(&self, zkey: &str) -> bool {
         match &self.allow_re {
+            Some(re) => re.is_match(zkey),
+            _ => true,
+        }
+    }
+
+    fn is_periodic_read(&self, zkey: &str) -> bool {
+        match &self.periodic_re {
             Some(re) => re.is_match(zkey),
             _ => true,
         }
@@ -468,6 +507,12 @@ impl<'a> DdsPlugin<'a> {
         // set history to KEEP_LAST 0 (no need to keep history since all is transfered to zenoh)
         qos.set_history(dds_history_kind_DDS_HISTORY_KEEP_ALL, 0);
 
+        let read_period = if self.is_periodic_read(&zkey) {
+            Some(self.period.clone())
+        } else {
+            None
+        };
+
         // create matching DDS Writer that forwards data coming from zenoh
         let dr: dds_entity_t = create_forwarding_dds_reader(
             self.dp,
@@ -477,6 +522,7 @@ impl<'a> DdsPlugin<'a> {
             qos,
             rid,
             self.zsession.clone(),
+            read_period,
         );
 
         self.insert_route_from_dds(
