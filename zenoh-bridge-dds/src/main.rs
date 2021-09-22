@@ -35,7 +35,7 @@ fn customize_dds_args<'a, 'b>(mut args: Vec<Arg<'a, 'b>>) -> Vec<Arg<'a, 'b>> {
     args.push(arg);
     let arg = args.remove(0).visible_alias("group-lease");
     args.push(arg);
-    let arg = args.remove(0).visible_alias("fwd-discovery");
+    let arg = args.remove(0).short("f").visible_alias("fwd-discovery");
     args.push(arg);
 
     args
