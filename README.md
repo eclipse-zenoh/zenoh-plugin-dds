@@ -121,13 +121,23 @@ Here are the commands to test this configuration with turtlesim:
 Notice that there is no need to use distinct ROS domain here, since the 2 hosts are not supposed to directly communicate with each other.
 
 ## More advanced usage for ROS2
+### _Full support of ROS graph and topic lists via the forward discovery mode_
+By default the bridge doesn't route throught zenoh the DDS discovery traffic to the remote bridges.  
+Meaning that, in case you use 2 **`zenoh-bridge-dds`** to interconnect 2 DDS domains, the DDS entities discovered in one domain won't be advertised in the other domain. Thus, the DDS data will be routed between the 2 domains only if matching readers and writers are declared in the 2 domains independently.
+
+This default behaviour has an impact on ROS2 behaviour: on one side of the bridge the ROS graph might not reflect all the nodes from the other side of the bridge. The `ros2 topic list` command might not list all the topics declared on the other side. And the **ROS graph** is limited to the nodes in each domain.
+
+But using the **`--fwd-discovery`** (or `-f`) option for all bridges make them behave differently:
+ - each bridge will forward via zenoh the local DDS discovery data to the remote bridges (in a more compact way than the original DDS discovery traffic)
+ - each bridge receiving DDS discovery data via zenoh will create a replica of the DDS reader or writer, with similar QoS. Those replicas will serve the route to/from zenoh, and will be discovered by the ROS2 nodes.
+ - each bridge will forward the `ros_discovery_info` data (in a less intensive way than the original publications) to the remote bridges. On reception, the remote bridges will convert the original entities' GIDs into the GIDs of the corresponding replicas, and re-publish on DDS the `ros_discovery_info`. The full ROS graph can then be discovered by the ROS2 nodes on each host.
 ### _Limiting the ROS2 topics, services, parameters or actions to be routed_
 By default 2 zenoh bridges will route all ROS2 topics and services for which they detect a Writer on one side and a Reader on the other side. But you might want to avoid some topics and services to be routed by the bridge.
 
-Starting `zenoh-bridge-dds` you can use the `--dds-allow` argument to specify the subset of topics and services that will be routed by the bridge. This argument accepts a string wich is a regular expression that must match a substring of an allowed zenoh resource (see details of [mapping of ROS2 names to zenoh resources](#mapping-ros2-names-to-zenoh-resources)).
+Starting `zenoh-bridge-dds` you can use the `--allow` argument to specify the subset of topics and services that will be routed by the bridge. This argument accepts a string wich is a regular expression that must match a substring of an allowed zenoh resource (see details of [mapping of ROS2 names to zenoh resources](#mapping-ros2-names-to-zenoh-resources)).
 
 Here are some examples of usage:
-| `--dds-allow` value | allowed ROS2 communication |
+| `--allow` value | allowed ROS2 communication |
 | :-- | :-- |
 | `/rosout` | `/rosout`|
 | `/rosout\|/turtle1/cmd_vel\|/turtle1/rotate_absolute` | `/rosout`<br>`/turtle1/cmd_vel`<br>`/turtle1/rotate_absolute` |
@@ -143,10 +153,10 @@ Here are some examples of usage:
 If you run similar robots in the same network, they will by default all us the same DDS topics, leading to interferences in their operations.  
 A simple way to address this issue using the zenoh bridge is to:
  - deploy 1 zenoh bridge per robot
- - have each bridge started with the `--dds-scope "/<id>"` argument, each robot having its own id.
+ - have each bridge started with the `--scope "/<id>"` argument, each robot having its own id.
  - make sure each robot cannot directly communicate via DDS with another robot by setting a distinct domain per robot, or configuring its network interface to not route UDP multicast outside the host.
 
-Using the `--dds-scope` option, a prefix is added to each zenoh resource published/subscribed by the bridge (more details in [mapping of ROS2 names to zenoh resources](#mapping-ros2-names-to-zenoh-resources)). To interact with a robot, a remote ROS2 application must use a zenoh bridge configured with the same scope than the robot.  
+Using the `--scope` option, a prefix is added to each zenoh resource published/subscribed by the bridge (more details in [mapping of ROS2 names to zenoh resources](#mapping-ros2-names-to-zenoh-resources)). To interact with a robot, a remote ROS2 application must use a zenoh bridge configured with the same scope than the robot.  
 
 ### _Closer integration of ROS2 with zenoh_
 As you understood, using the zenoh bridge, each ROS2 publications and subscriptions are mapped to a zenoh resource. Therefore, its relatively easy to develop an application using one of the [zenoh APIs](https://zenoh.io/docs/apis/apis/) to interact with one or more robot at the same time.
@@ -162,21 +172,25 @@ See in details how to achieve that in [this blog](https://zenoh.io/blog/2021-04-
    - `-l, --listener <LOCATOR>` : The locators the bridge will listen on for zenoh protocol. Can be specified multiple times. Example of locator: `tcp/localhost:7447`.
    - `-e, --peer <LOCATOR>` : zenoh peers locators the bridge will try to connect to (typically another bridge or a zenoh router). Example of locator: `tcp/<ip-address>:7447`.
    - `--no-multicast-scouting` : disable the zenoh scouting protocol that allows automatic discovery of zenoh peers and routers.
+   - `-i, --id <hex_string>` : The identifier (as an hexadecimal string - e.g.: 0A0B23...) that the zenoh bridge must use. **WARNING: this identifier must be unique in the system!** If not set, a random UUIDv4 will be used.
+   - `--group-member-id <ID>` : The bridges are supervising each other via a group membership algorithm implemented over zenoh. This option allows to set a custom identifier for the bridge, that will be used in group membership algorithm (if not specified, the zenoh UUID is used).
+   - `--group-lease <Duration>` : The lease duration (in seconds) used in group membership algorithm (default: 3 seconds)
    - `--rest-plugin` : activate the [zenoh REST API](https://zenoh.io/docs/apis/apis/#rest-api), available by default on port 8000.
    - `--rest-http-port <rest-http-port>` : set the REST API http port (default: 8000)
  * DDS-related arguments:
-   - `-d, --dds-domain <ID>` : The DDS Domain ID (if using with ROS this should be the same as `ROS_DOMAIN_ID`)
-   - `-s, --dds-scope <String>` : A string used as prefix to scope DDS traffic when mapped to zenoh resources.
-   - `-a, --dds-allow <String>`:  A regular expression matching the set of 'partition/topic-name' that must
+   - `-d, --domain <ID>` : The DDS Domain ID (if using with ROS this should be the same as `ROS_DOMAIN_ID`)
+   - `-f, --fwd-discovery`: When set, rather than creating a local route when discovering a local DDS entity, this discovery info is forwarded to the remote plugins/bridges. Those will create the routes, including a replica of the discovered entity. More details [here](#full-support-of-ros-graph-and-topic-lists-via-the-forward-discovery-mode)
+   - `-s, --scope <String>` : A string used as prefix to scope DDS traffic when mapped to zenoh resources.
+   - `-a, --allow <String>`:  A regular expression matching the set of 'partition/topic-name' that must
      be routed. By default, all partitions and topic are allowed.  
      Examples of expressions: 
         - `.*/TopicA` will allow only the `TopicA` to be routed, whatever the partition.
         - `PartitionX/.*` will allow all the topics to be routed, but only on `PartitionX`.
         - `cmd_vel|rosout` will allow only the topics containing `cmd_vel` or `rosout` in their name or partition name to be routed.
-   - `-w, --dds-generalise-pub <String>` :  A list of key expressions to use for generalising the declaration of
+   - `-w, --generalise-pub <String>` :  A list of key expressions to use for generalising the declaration of
      the zenoh publications, and thus minimizing the discovery traffic (usable multiple times).
      See [this blog](https://zenoh.io/blog/2021-03-23-discovery/#leveraging-resource-generalisation) for more details.
-   - `-r, --dds-generalise-sub <String>` :  A list of key expressions to use for generalising the declaration of
+   - `-r, --generalise-sub <String>` :  A list of key expressions to use for generalising the declaration of
      the zenoh subscriptions, and thus minimizing the discovery traffic (usable multiple times).
      See [this blog](https://zenoh.io/blog/2021-03-23-discovery/#leveraging-resource-generalisation) for more details.
 
@@ -212,17 +226,15 @@ Example of queries on administration space using the REST API with the `curl` co
 ## Architecture details
 
 Whether it's built as a library or as a standalone executable, the **zenoh bridge for DDS** do the same things:
-- it discovers the DDS readers and writers declared by any DDS application, via the standard DDS discovery protocol (that uses UDP multicast)
-- it creates a mirror DDS writer or reader for each discovered reader or writer (using the same QoS)
-- if maps the discovered DDS topics and partitions to zenoh resources (see mapping details below)
-- it forwards user's data from a DDS topic to the corresponding zenoh resource, and vice versa
-### _Routing of DDS discovery information_
-:warning: **Important notice** :warning: :  
-The DDS discovery protocol is not routed through zenoh.  
-Meaning that, in case you use 2 **`zenoh-bridge-dds`** to interconnect 2 DDS domains, the DDS entities discovered in one domain won't be advertised in the other domain. Thus, the DDS data will be routed between the 2 domains only if matching readers and writers are declared in the 2 domains independently.
+- in default mode:
+  - it discovers the DDS readers and writers declared by any DDS application, via the standard DDS discovery protocol (that uses UDP multicast)
+  - it creates a mirror DDS writer or reader for each discovered reader or writer (using the same QoS)
+  - if maps the discovered DDS topics and partitions to zenoh resources (see mapping details below)
+  - it forwards user's data from a DDS topic to the corresponding zenoh resource, and vice versa
+  - it does not forward to the remote bridge any DDS discovery information
 
-This has an impact on ROS2 behaviour: on one side of the bridge the ROS graph might not reflect all the nodes from the other side of the bridge. And the `ros2 topic list` command might not list all the topics declared on the other side.
-
+- in "forward discovery" mode
+  - it behaves as described [here](#full-support-of-ros-graph-and-topic-lists-via-the-forward-discovery-mode)
 ### _Mapping of DDS topics to zenoh resources_
 The mapping between DDS and zenoh is rather straightforward. Given a DDS Reader/Writer for topic **`A`** in a given partition **`P`**, then the equivalent zenoh resource will be named as **`/P/A`**. If no partition is defined, the equivalent zenoh resource will be named as **`/A`**.
 

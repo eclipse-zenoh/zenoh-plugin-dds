@@ -18,9 +18,9 @@ use zenoh_plugin_trait::Plugin;
 // customize the DDS plugin args for retro-compatibility with previous versions of the standalone bridge
 fn customize_dds_args<'a, 'b>(mut args: Vec<Arg<'a, 'b>>) -> Vec<Arg<'a, 'b>> {
     // NOTE: no way to check what's each Arg is in the Vec!
-    // We need to assume that there are 7, and that they are in correct order...
+    // We need to assume that there are 8, and that they are in correct order...
     // as specifed in src/lib.rs in get_expected_args()
-    assert_eq!(7, args.len());
+    assert_eq!(8, args.len());
     let arg = args.remove(0).short("s").visible_alias("scope");
     args.push(arg);
     let arg = args.remove(0).short("w").visible_alias("generalise-pub");
@@ -35,6 +35,8 @@ fn customize_dds_args<'a, 'b>(mut args: Vec<Arg<'a, 'b>>) -> Vec<Arg<'a, 'b>> {
     args.push(arg);
     let arg = args.remove(0).visible_alias("group-lease");
     args.push(arg);
+    let arg = args.remove(0).short("f").visible_alias("fwd-discovery");
+    args.push(arg);
 
     args
 }
@@ -48,6 +50,12 @@ fn parse_args() -> (Properties, bool, ArgMatches<'static>) {
         ))
         .arg(Arg::from_usage(
             "-l, --listener=[LOCATOR]...   'Locators to listen on.'",
+        ))
+        .arg(Arg::from_usage(
+                "-i, --id=[hex_string] \
+            'The identifier (as an hexadecimal string - e.g.: 0A0B23...) that the zenoh bridge must use. \
+            WARNING: this identifier must be unique in the system! \
+            If not set, a random UUIDv4 will be used.'",
         ))
         .arg(Arg::from_usage(
             "-c, --config=[FILE]      'A configuration file.'",
@@ -116,7 +124,7 @@ async fn main() {
     let (config, rest_plugin, args) = parse_args();
 
     // create a zenoh Runtime (to share with plugins)
-    let runtime = zenoh::net::runtime::Runtime::new(0, config.into(), None)
+    let runtime = zenoh::net::runtime::Runtime::new(0, config.into(), args.value_of("id"))
         .await
         .unwrap();
 

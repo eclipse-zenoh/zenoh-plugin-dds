@@ -1,6 +1,7 @@
 target
 *~
 *.log
+.vscode
 
 # ROS2 packaging
 build

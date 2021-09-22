@@ -11,12 +11,12 @@
 // Contributors:
 //   ADLINK zenoh team, <zenoh@adlink-labs.tech>
 //
-use crate::qos::*;
+use crate::qos::Qos;
 use async_std::channel::Sender;
 use async_std::task;
 use cyclors::*;
 use log::debug;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::ffi::{CStr, CString};
 use std::mem::MaybeUninit;
@@ -26,22 +26,22 @@ use zenoh::net::{ResKey, Session, ZBuf};
 
 const MAX_SAMPLES: usize = 32;
 
-#[derive(PartialEq, Debug, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub(crate) enum RouteStatus {
     Routed(String), // Routing is active, String is the zenoh zenoh resource key used for the route
     NotAllowed,     // Routing was not allowed per configuration
+    CreationFailure(String), // The route creation failed
     _QoSConflict,   // A route was already established but with conflicting QoS
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct DdsEntity {
     pub(crate) key: String,
     pub(crate) participant_key: String,
     pub(crate) topic_name: String,
     pub(crate) type_name: String,
-    pub(crate) partitions: Vec<String>,
     pub(crate) keyless: bool,
-    pub(crate) qos: QosHolder,
+    pub(crate) qos: Qos,
     pub(crate) routes: HashMap<String, RouteStatus>, // map of routes statuses indexed by partition ("*" only if no partition)
 }
 
@@ -112,22 +112,11 @@ unsafe extern "C" fn on_data(dr: dds_entity_t, arg: *mut std::os::raw::c_void) {
 
             // send a DiscoveryEvent
             if si[i as usize].instance_state == dds_instance_state_DDS_IST_ALIVE {
-                let qos = dds_create_qos();
-                dds_copy_qos(qos, (*sample).qos);
-
-                // get partitions list if any
-                let mut n = 0u32;
-                let mut ps: *mut *mut ::std::os::raw::c_char = std::ptr::null_mut();
-                let _ = dds_qget_partition(
-                    (*sample).qos,
-                    &mut n as *mut u32,
-                    &mut ps as *mut *mut *mut ::std::os::raw::c_char,
-                );
-                let mut partitions: Vec<String> = Vec::with_capacity(n as usize);
-                for k in 0..n {
-                    let p = CStr::from_ptr(*(ps.offset(k as isize))).to_str().unwrap();
-                    partitions.push(String::from(p));
-                }
+                let qos = if pub_discovery {
+                    Qos::from_writer_qos_native((*sample).qos)
+                } else {
+                    Qos::from_reader_qos_native((*sample).qos)
+                };
 
                 let entity = DdsEntity {
                     key: key.clone(),
@@ -135,8 +124,7 @@ unsafe extern "C" fn on_data(dr: dds_entity_t, arg: *mut std::os::raw::c_void) {
                     topic_name: String::from(topic_name),
                     type_name: String::from(type_name),
                     keyless,
-                    partitions,
-                    qos: QosHolder(qos),
+                    qos,
                     routes: HashMap::<String, RouteStatus>::new(),
                 };
 
@@ -194,16 +182,16 @@ pub(crate) fn run_discovery(dp: dds_entity_t, tx: Sender<DiscoveryEvent>) {
 }
 
 unsafe extern "C" fn data_forwarder_listener(dr: dds_entity_t, arg: *mut std::os::raw::c_void) {
-    let pa = arg as *mut (ResKey, Arc<Session>);
+    let pa = arg as *mut (String, ResKey, Arc<Session>);
     let mut zp: *mut cdds_ddsi_payload = std::ptr::null_mut();
     #[allow(clippy::uninit_assumed_init)]
     let mut si: [dds_sample_info_t; 1] = { MaybeUninit::uninit().assume_init() };
     while cdds_take_blob(dr, &mut zp, si.as_mut_ptr()) > 0 {
         if si[0].valid_data {
-            log::trace!("Route data to zenoh resource with rid={}", &(*pa).0);
+            log::trace!("Route data from DDS {} to zenoh key={}", &(*pa).0, &(*pa).1);
             let bs = Vec::from_raw_parts((*zp).payload, (*zp).size as usize, (*zp).size as usize);
             let rbuf = ZBuf::from(bs);
-            let _ = task::block_on(async { (*pa).1.write(&(*pa).0, rbuf).await });
+            let _ = task::block_on(async { (*pa).2.write(&(*pa).1, rbuf).await });
             (*zp).payload = std::ptr::null_mut();
         }
         cdds_serdata_unref(zp as *mut ddsi_serdata);
@@ -215,19 +203,36 @@ pub fn create_forwarding_dds_reader(
     topic_name: String,
     type_name: String,
     keyless: bool,
-    qos: QosHolder,
+    qos: Qos,
     z_key: ResKey,
     z: Arc<Session>,
-) -> dds_entity_t {
-    let cton = CString::new(topic_name).unwrap().into_raw();
+) -> Result<dds_entity_t, String> {
+    let cton = CString::new(topic_name.clone()).unwrap().into_raw();
     let ctyn = CString::new(type_name).unwrap().into_raw();
 
     unsafe {
         let t = cdds_create_blob_topic(dp, cton, ctyn, keyless);
-        let arg = Box::new((z_key, z));
+        let arg = Box::new((topic_name, z_key, z));
         let sub_listener = dds_create_listener(Box::into_raw(arg) as *mut std::os::raw::c_void);
         dds_lset_data_available(sub_listener, Some(data_forwarder_listener));
-        dds_create_reader(dp, t, qos.0, sub_listener)
+        let qos_native = qos.to_qos_native();
+        let reader = dds_create_reader(dp, t, qos_native, sub_listener);
+        Qos::delete_qos_native(qos_native);
+        if reader >= 0 {
+            let res = dds_reader_wait_for_historical_data(reader, crate::qos::DDS_100MS_DURATION);
+            if res < 0 {
+                log::error!(
+                    "Error caling dds_reader_wait_for_historical_data(): {}",
+                    CStr::from_ptr(dds_strretcode(-res)).to_str().unwrap()
+                );
+            }
+            Ok(reader)
+        } else {
+            Err(format!(
+                "Error creating DDS Reader: {}",
+                CStr::from_ptr(dds_strretcode(-reader)).to_str().unwrap()
+            ))
+        }
     }
 }
 
@@ -236,14 +241,24 @@ pub fn create_forwarding_dds_writer(
     topic_name: String,
     type_name: String,
     keyless: bool,
-    qos: QosHolder,
-) -> dds_entity_t {
+    qos: Qos,
+) -> Result<dds_entity_t, String> {
     let cton = CString::new(topic_name).unwrap().into_raw();
     let ctyn = CString::new(type_name).unwrap().into_raw();
 
     unsafe {
         let t = cdds_create_blob_topic(dp, cton, ctyn, keyless);
-        dds_create_writer(dp, t, qos.0, std::ptr::null_mut())
+        let qos_native = qos.to_qos_native();
+        let writer = dds_create_writer(dp, t, qos_native, std::ptr::null_mut());
+        Qos::delete_qos_native(qos_native);
+        if writer >= 0 {
+            Ok(writer)
+        } else {
+            Err(format!(
+                "Error creating DDS Writer: {}",
+                CStr::from_ptr(dds_strretcode(-writer)).to_str().unwrap()
+            ))
+        }
     }
 }
 
@@ -253,6 +268,18 @@ pub fn delete_dds_entity(entity: dds_entity_t) -> Result<(), String> {
         match r {
             0 | DDS_RETCODE_ALREADY_DELETED => Ok(()),
             e => Err(format!("Error deleting DDS entity - retcode={}", e)),
+        }
+    }
+}
+
+pub fn get_guid(entity: &dds_entity_t) -> Result<String, String> {
+    unsafe {
+        let mut guid = dds_guid_t { v: [0; 16] };
+        let r = dds_get_guid(*entity, &mut guid);
+        if r == 0 {
+            Ok(hex::encode(guid.v))
+        } else {
+            Err(format!("Error getting GUID of DDS entity - retcode={}", r))
         }
     }
 }
