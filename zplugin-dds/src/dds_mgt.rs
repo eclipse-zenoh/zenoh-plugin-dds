@@ -182,16 +182,16 @@ pub(crate) fn run_discovery(dp: dds_entity_t, tx: Sender<DiscoveryEvent>) {
 }
 
 unsafe extern "C" fn data_forwarder_listener(dr: dds_entity_t, arg: *mut std::os::raw::c_void) {
-    let pa = arg as *mut (ResKey, Arc<Session>);
+    let pa = arg as *mut (String, ResKey, Arc<Session>);
     let mut zp: *mut cdds_ddsi_payload = std::ptr::null_mut();
     #[allow(clippy::uninit_assumed_init)]
     let mut si: [dds_sample_info_t; 1] = { MaybeUninit::uninit().assume_init() };
     while cdds_take_blob(dr, &mut zp, si.as_mut_ptr()) > 0 {
         if si[0].valid_data {
-            log::trace!("Route data to zenoh resource with rid={}", &(*pa).0);
+            log::trace!("Route data from DDS {} to zenoh key={}", &(*pa).0, &(*pa).1);
             let bs = Vec::from_raw_parts((*zp).payload, (*zp).size as usize, (*zp).size as usize);
             let rbuf = ZBuf::from(bs);
-            let _ = task::block_on(async { (*pa).1.write(&(*pa).0, rbuf).await });
+            let _ = task::block_on(async { (*pa).2.write(&(*pa).1, rbuf).await });
             (*zp).payload = std::ptr::null_mut();
         }
         cdds_serdata_unref(zp as *mut ddsi_serdata);
@@ -207,12 +207,12 @@ pub fn create_forwarding_dds_reader(
     z_key: ResKey,
     z: Arc<Session>,
 ) -> Result<dds_entity_t, String> {
-    let cton = CString::new(topic_name).unwrap().into_raw();
+    let cton = CString::new(topic_name.clone()).unwrap().into_raw();
     let ctyn = CString::new(type_name).unwrap().into_raw();
 
     unsafe {
         let t = cdds_create_blob_topic(dp, cton, ctyn, keyless);
-        let arg = Box::new((z_key, z));
+        let arg = Box::new((topic_name, z_key, z));
         let sub_listener = dds_create_listener(Box::into_raw(arg) as *mut std::os::raw::c_void);
         dds_lset_data_available(sub_listener, Some(data_forwarder_listener));
         let qos_native = qos.to_qos_native();

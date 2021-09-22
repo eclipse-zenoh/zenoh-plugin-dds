@@ -248,6 +248,32 @@ impl std::fmt::Display for ParticipantEntitiesInfo {
     }
 }
 
+impl ParticipantEntitiesInfo {
+    // Update with a new map of NodeEntitiesInfo, and cleanup the possibly NodeEntitiesInfo (no readers, no writers)
+    pub(crate) fn update_with(&mut self, nodes_entities: HashMap<String, NodeEntitiesInfo>) {
+        self.node_entities_info_seq.extend(nodes_entities);
+        self.cleanup();
+    }
+
+    pub(crate) fn remove_reader_gid(&mut self, reader_gid: &str) {
+        for node in self.node_entities_info_seq.values_mut() {
+            node.reader_gid_seq.retain(|gid| gid != reader_gid);
+        }
+    }
+
+    pub(crate) fn remove_writer_gid(&mut self, writer_gid: &str) {
+        for node in self.node_entities_info_seq.values_mut() {
+            node.writer_gid_seq.retain(|gid| gid != writer_gid);
+        }
+    }
+
+    // remove the empty NodeEntitiesInfo (no readers, no writers)
+    pub(crate) fn cleanup(&mut self) {
+        self.node_entities_info_seq
+            .retain(|_, node| !node.reader_gid_seq.is_empty() && !node.writer_gid_seq.is_empty());
+    }
+}
+
 fn serialize_gid<S>(gid: &str, serializer: S) -> Result<S::Ok, S::Error>
 where
     S: Serializer,
