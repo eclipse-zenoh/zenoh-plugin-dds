@@ -124,6 +124,16 @@ pub fn get_expected_args<'a, 'b>() -> Vec<Arg<'a, 'b>> {
             "--dds-group-lease=[Duration]   'The lease duration (in seconds) used in group management for all DDS plugins.'"
         ).default_value(GROUP_DEFAULT_LEASE),
         Arg::from_usage(
+r#"--dds-max-frequency=[String]...   'Specifies a maximum frequency of data routing over zenoh for a set of topics. The string must have the format "<regex>=<float>":
+  . "regex" is a regular expression matching the set of
+    'partition/topic-name' for which the data (per DDS instance) must
+     be routed at no higher rate than associated max frequency
+     (same syntax than --dds-allow option).
+  . "float" is the maximum frequency in Hertz; if publication rate is
+    higher, downsampling will occur when routing.
+(usable multiple times)'"#
+        ),
+        Arg::from_usage(
             "--dds-fwd-discovery   'When set, rather than creating a local route when discovering a local DDS entity, \
             this discovery info is forwarded to the remote plugins/bridges. Those will create the routes, including a replica of the discovered entity.'"
         ),
@@ -165,6 +175,29 @@ pub async fn run(runtime: Runtime, args: ArgMatches<'_>) {
         None
     };
 
+    let routing_max_periods: Vec<(Regex, Duration)> = args
+    .values_of("dds-max-frequency")
+    .unwrap_or_default()
+    .map(|s| {
+        match s.split_once('=') {
+            Some((res, i)) => {
+                let regex=  match Regex::new(res) {
+                    Ok(re) => re,
+                    Err(e) => {
+                        panic!("Unable to compile allow regular expression, please see error details below:\n {:?}\n", e)
+                    }
+                };
+                let freq = i.parse::<f32>().unwrap_or_else(|_|
+                    panic!("ERROR: {} is not a valid option for --dds-periodic-topics. The 'int' part is not a valid period in milliseconds", s));
+                let period = Duration::from_secs_f64(1f64/freq as f64);
+                log::error!("FREQ={} => PERIOD={:?}us", freq, period.as_micros());
+                (regex, period)
+            }
+            None => panic!("ERROR: {} is not a valid option for --dds-periodic-topics. The syntax must be 'regex=int'", s),
+        }
+    })
+    .collect::<Vec<(Regex, Duration)>>();
+
     let mut join_subscriptions: Vec<String> = args
         .values_of("dds-generalise-sub")
         .unwrap_or_default()
@@ -199,6 +232,7 @@ pub async fn run(runtime: Runtime, args: ArgMatches<'_>) {
         scope,
         domain_id,
         allow_re,
+        routing_max_periods,
         fwd_discovery_mode,
         zsession: &zsession,
         member,
@@ -294,6 +328,7 @@ struct DdsPlugin<'a> {
     scope: String,
     domain_id: u32,
     allow_re: Option<Regex>,
+    routing_max_periods: Vec<(Regex, Duration)>,
     fwd_discovery_mode: bool,
     // Note: &'a Arc<Session> here to keep the ownership of Session outside this struct
     // and be able to store the publishers/subscribers it creates in this same struct.
@@ -327,6 +362,14 @@ impl Serialize for DdsPlugin<'_> {
                 .as_ref()
                 .map_or_else(|| "**".to_string(), |re| re.to_string()),
         )?;
+        s.serialize_field(
+            "max-frequencies",
+            &self
+                .routing_max_periods
+                .iter()
+                .map(|(re, period)| format!("{}={}", re.to_string(), (1f64 / period.as_secs_f64())))
+                .collect::<Vec<String>>(),
+        )?;
         s.serialize_field("fwd-discovery", &self.fwd_discovery_mode)?;
         s.end()
     }
@@ -346,6 +389,16 @@ impl<'a> DdsPlugin<'a> {
             Some(re) => re.is_match(zkey),
             _ => true,
         }
+    }
+
+    // Return the read period if zkey matches one of the --dds-periodic-topics option
+    fn get_read_period(&self, zkey: &str) -> Option<Duration> {
+        for (re, period) in &self.routing_max_periods {
+            if re.is_match(zkey) {
+                return Some(*period);
+            }
+        }
+        None
     }
 
     fn get_admin_path(e: &DdsEntity, is_writer: bool) -> String {
@@ -491,6 +544,8 @@ impl<'a> DdsPlugin<'a> {
             ZPublisher::Publisher(self.zsession.declare_publisher(&rid).await.unwrap())
         };
 
+        let read_period = self.get_read_period(zkey);
+
         // create matching DDS Writer that forwards data coming from zenoh
         match create_forwarding_dds_reader(
             self.dp,
@@ -500,6 +555,7 @@ impl<'a> DdsPlugin<'a> {
             reader_qos,
             rid,
             self.zsession.clone(),
+            read_period,
         ) {
             Ok(dr) => {
                 info!(

@@ -167,30 +167,35 @@ See in details how to achieve that in [this blog](https://zenoh.io/blog/2021-04-
 
 `zenoh-bridge-dds` accepts the following arguments:
  * zenoh-related arguments:
-   - `-m, --mode <MODE>` : The zenoh session mode. Default: `peer` Possible values: `peer` or `client`.  
+   - **`-m, --mode <MODE>`** : The zenoh session mode. Default: `peer` Possible values: `peer` or `client`.  
       See [zenoh documentation](https://zenoh.io/docs/getting-started/key-concepts/#deployment-units) for more details.
-   - `-l, --listener <LOCATOR>` : The locators the bridge will listen on for zenoh protocol. Can be specified multiple times. Example of locator: `tcp/localhost:7447`.
-   - `-e, --peer <LOCATOR>` : zenoh peers locators the bridge will try to connect to (typically another bridge or a zenoh router). Example of locator: `tcp/<ip-address>:7447`.
-   - `--no-multicast-scouting` : disable the zenoh scouting protocol that allows automatic discovery of zenoh peers and routers.
-   - `-i, --id <hex_string>` : The identifier (as an hexadecimal string - e.g.: 0A0B23...) that the zenoh bridge must use. **WARNING: this identifier must be unique in the system!** If not set, a random UUIDv4 will be used.
-   - `--group-member-id <ID>` : The bridges are supervising each other via a group membership algorithm implemented over zenoh. This option allows to set a custom identifier for the bridge, that will be used in group membership algorithm (if not specified, the zenoh UUID is used).
-   - `--group-lease <Duration>` : The lease duration (in seconds) used in group membership algorithm (default: 3 seconds)
-   - `--rest-plugin` : activate the [zenoh REST API](https://zenoh.io/docs/apis/apis/#rest-api), available by default on port 8000.
-   - `--rest-http-port <rest-http-port>` : set the REST API http port (default: 8000)
+   - **`-l, --listener <LOCATOR>`** : The locators the bridge will listen on for zenoh protocol. Can be specified multiple times. Example of locator: `tcp/localhost:7447`.
+   - **`-e, --peer <LOCATOR>`** : zenoh peers locators the bridge will try to connect to (typically another bridge or a zenoh router). Example of locator: `tcp/<ip-address>:7447`.
+   - **`--no-multicast-scouting`** : disable the zenoh scouting protocol that allows automatic discovery of zenoh peers and routers.
+   - **`-i, --id <hex_string>`** : The identifier (as an hexadecimal string - e.g.: 0A0B23...) that the zenoh bridge must use. **WARNING: this identifier must be unique in the system!** If not set, a random UUIDv4 will be used.
+   - **`--group-member-id <ID>`** : The bridges are supervising each other via a group membership algorithm implemented over zenoh. This option allows to set a custom identifier for the bridge, that will be used in group membership algorithm (if not specified, the zenoh UUID is used).
+   - **`--group-lease <Duration>`** : The lease duration (in seconds) used in group membership algorithm (default: 3 seconds)
+   - **`--rest-plugin`** : activate the [zenoh REST API](https://zenoh.io/docs/apis/apis/#rest-api), available by default on port 8000.
+   - **`--rest-http-port <rest-http-port>`** : set the REST API http port (default: 8000)
  * DDS-related arguments:
-   - `-d, --domain <ID>` : The DDS Domain ID (if using with ROS this should be the same as `ROS_DOMAIN_ID`)
-   - `-f, --fwd-discovery`: When set, rather than creating a local route when discovering a local DDS entity, this discovery info is forwarded to the remote plugins/bridges. Those will create the routes, including a replica of the discovered entity. More details [here](#full-support-of-ros-graph-and-topic-lists-via-the-forward-discovery-mode)
-   - `-s, --scope <String>` : A string used as prefix to scope DDS traffic when mapped to zenoh resources.
-   - `-a, --allow <String>`:  A regular expression matching the set of 'partition/topic-name' that must
+   - **`-d, --domain <ID>`** : The DDS Domain ID (if using with ROS this should be the same as `ROS_DOMAIN_ID`)
+   - **`-f, --fwd-discovery`** : When set, rather than creating a local route when discovering a local DDS entity, this discovery info is forwarded to the remote plugins/bridges. Those will create the routes, including a replica of the discovered entity. More details [here](#full-support-of-ros-graph-and-topic-lists-via-the-forward-discovery-mode)
+   - **`-s, --scope <String>`** : A string used as prefix to scope DDS traffic when mapped to zenoh resources.
+   - **`-a, --allow <String>`** :  A regular expression matching the set of 'partition/topic-name' that must
      be routed. By default, all partitions and topic are allowed.  
      Examples of expressions: 
         - `.*/TopicA` will allow only the `TopicA` to be routed, whatever the partition.
         - `PartitionX/.*` will allow all the topics to be routed, but only on `PartitionX`.
         - `cmd_vel|rosout` will allow only the topics containing `cmd_vel` or `rosout` in their name or partition name to be routed.
-   - `-w, --generalise-pub <String>` :  A list of key expressions to use for generalising the declaration of
+   - **`--dds-max-frequency <String>...`** : specifies a maximum frequency of data routing over zenoh per-topic. The string must have the format `"regex=float"` where:
+       - `"regex"` is a regular expression matching the set of 'partition/topic-name' for which the data (per DDS instance) must be routedat no higher rate than associated max frequency (same syntax than --allow option).
+       - `"float"` is the maximum frequency in Hertz; if publication rate is higher, downsampling will occur when routing.
+
+       (usable multiple times)
+   - **`-w, --generalise-pub <String>`** :  A list of key expressions to use for generalising the declaration of
      the zenoh publications, and thus minimizing the discovery traffic (usable multiple times).
      See [this blog](https://zenoh.io/blog/2021-03-23-discovery/#leveraging-resource-generalisation) for more details.
-   - `-r, --generalise-sub <String>` :  A list of key expressions to use for generalising the declaration of
+   - **`-r, --generalise-sub <String>`** :  A list of key expressions to use for generalising the declaration of
      the zenoh subscriptions, and thus minimizing the discovery traffic (usable multiple times).
      See [this blog](https://zenoh.io/blog/2021-03-23-discovery/#leveraging-resource-generalisation) for more details.
 

@@ -11,7 +11,7 @@
 // Contributors:
 //   ADLINK zenoh team, <zenoh@adlink-labs.tech>
 //
-use crate::qos::Qos;
+use crate::qos::{HistoryKind, Qos};
 use async_std::channel::Sender;
 use async_std::task;
 use cyclors::*;
@@ -22,6 +22,7 @@ use std::ffi::{CStr, CString};
 use std::mem::MaybeUninit;
 use std::os::raw;
 use std::sync::Arc;
+use std::time::Duration;
 use zenoh::net::{ResKey, Session, ZBuf};
 
 const MAX_SAMPLES: usize = 32;
@@ -198,40 +199,95 @@ unsafe extern "C" fn data_forwarder_listener(dr: dds_entity_t, arg: *mut std::os
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn create_forwarding_dds_reader(
     dp: dds_entity_t,
     topic_name: String,
     type_name: String,
     keyless: bool,
-    qos: Qos,
+    mut qos: Qos,
     z_key: ResKey,
     z: Arc<Session>,
+    read_period: Option<Duration>,
 ) -> Result<dds_entity_t, String> {
     let cton = CString::new(topic_name.clone()).unwrap().into_raw();
     let ctyn = CString::new(type_name).unwrap().into_raw();
 
     unsafe {
         let t = cdds_create_blob_topic(dp, cton, ctyn, keyless);
-        let arg = Box::new((topic_name, z_key, z));
-        let sub_listener = dds_create_listener(Box::into_raw(arg) as *mut std::os::raw::c_void);
-        dds_lset_data_available(sub_listener, Some(data_forwarder_listener));
-        let qos_native = qos.to_qos_native();
-        let reader = dds_create_reader(dp, t, qos_native, sub_listener);
-        Qos::delete_qos_native(qos_native);
-        if reader >= 0 {
-            let res = dds_reader_wait_for_historical_data(reader, crate::qos::DDS_100MS_DURATION);
-            if res < 0 {
-                log::error!(
-                    "Error caling dds_reader_wait_for_historical_data(): {}",
-                    CStr::from_ptr(dds_strretcode(-res)).to_str().unwrap()
-                );
+
+        match read_period {
+            None => {
+                // Use a Listener to route data as soon as it arraives
+                let arg = Box::new((topic_name, z_key, z));
+                let sub_listener =
+                    dds_create_listener(Box::into_raw(arg) as *mut std::os::raw::c_void);
+                dds_lset_data_available(sub_listener, Some(data_forwarder_listener));
+                let qos_native = qos.to_qos_native();
+                let reader = dds_create_reader(dp, t, qos_native, sub_listener);
+                Qos::delete_qos_native(qos_native);
+                if reader >= 0 {
+                    let res =
+                        dds_reader_wait_for_historical_data(reader, crate::qos::DDS_100MS_DURATION);
+                    if res < 0 {
+                        log::error!(
+                            "Error caling dds_reader_wait_for_historical_data(): {}",
+                            CStr::from_ptr(dds_strretcode(-res)).to_str().unwrap()
+                        );
+                    }
+                    Ok(reader)
+                } else {
+                    Err(format!(
+                        "Error creating DDS Reader: {}",
+                        CStr::from_ptr(dds_strretcode(-reader)).to_str().unwrap()
+                    ))
+                }
             }
-            Ok(reader)
-        } else {
-            Err(format!(
-                "Error creating DDS Reader: {}",
-                CStr::from_ptr(dds_strretcode(-reader)).to_str().unwrap()
-            ))
+            Some(period) => {
+                // Use a periodic task that takes data to route from a Reader with KEEP_LAST 1
+                qos.history.kind = HistoryKind::KEEP_LAST;
+                qos.history.depth = 1;
+                let qos_native = qos.to_qos_native();
+                let reader = dds_create_reader(dp, t, qos_native, std::ptr::null());
+                task::spawn(async move {
+                    // loop while reader's instance handle remain the same
+                    // (if reader was deleted, its dds_entity_t value might have been
+                    // reused by a new entity... don't trust it! Only trust instance handle)
+                    let mut original_handle: dds_instance_handle_t = 0;
+                    dds_get_instance_handle(reader, &mut original_handle);
+                    let mut handle: dds_instance_handle_t = 0;
+                    while dds_get_instance_handle(reader, &mut handle) == DDS_RETCODE_OK as i32 {
+                        if handle != original_handle {
+                            break;
+                        }
+
+                        async_std::task::sleep(period).await;
+                        let mut zp: *mut cdds_ddsi_payload = std::ptr::null_mut();
+                        #[allow(clippy::uninit_assumed_init)]
+                        let mut si: [dds_sample_info_t; 1] =
+                            { MaybeUninit::uninit().assume_init() };
+                        while cdds_take_blob(reader, &mut zp, si.as_mut_ptr()) > 0 {
+                            if si[0].valid_data {
+                                log::trace!(
+                                    "Route (periodic) data to zenoh resource with rid={}",
+                                    z_key
+                                );
+                                let bs = Vec::from_raw_parts(
+                                    (*zp).payload,
+                                    (*zp).size as usize,
+                                    (*zp).size as usize,
+                                );
+                                let rbuf = ZBuf::from(bs);
+                                let _ = task::block_on(async { z.write(&z_key, rbuf).await });
+                                (*zp).payload = std::ptr::null_mut();
+                            }
+                            cdds_serdata_unref(zp as *mut ddsi_serdata);
+                        }
+                    }
+                    log::error!("**** END OF PERIODIC READER LOOP");
+                });
+                Ok(reader)
+            }
         }
     }
 }
