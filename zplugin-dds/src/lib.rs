@@ -179,15 +179,15 @@ pub async fn run(runtime: Runtime, args: ArgMatches<'_>) {
     .values_of("dds-max-frequency")
     .unwrap_or_default()
     .map(|s| {
-        match s.split_once('=') {
-            Some((res, i)) => {
-                let regex=  match Regex::new(res) {
+        match s.find('=') {
+            Some(i) => {
+                let regex=  match Regex::new(&s[..i]) {
                     Ok(re) => re,
                     Err(e) => {
                         panic!("Unable to compile allow regular expression, please see error details below:\n {:?}\n", e)
                     }
                 };
-                let freq = i.parse::<f32>().unwrap_or_else(|_|
+                let freq = s[i+1..].parse::<f32>().unwrap_or_else(|_|
                     panic!("ERROR: {} is not a valid option for --dds-periodic-topics. The 'int' part is not a valid period in milliseconds", s));
                 let period = Duration::from_secs_f64(1f64/freq as f64);
                 log::error!("FREQ={} => PERIOD={:?}us", freq, period.as_micros());
