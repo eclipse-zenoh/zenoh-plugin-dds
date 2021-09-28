@@ -57,6 +57,7 @@ pub const GIT_VERSION: &str = git_version!(prefix = "v", cargo_prefix = "v");
 
 lazy_static::lazy_static!(
     pub static ref LONG_VERSION: String = format!("{} built with {}", GIT_VERSION, env!("RUSTC_VERSION"));
+    static ref LOG_PAYLOAD: bool = std::env::var("Z_LOG_PAYLOAD").is_ok();
 );
 
 const GROUP_NAME: &str = "zenoh-plugin-dds";
@@ -663,7 +664,16 @@ impl<'a> DdsPlugin<'a> {
                 let dp = self.dp;
                 task::spawn(async move {
                     while let Some(d) = receiver.next().await {
-                        log::trace!("Route data from zenoh {} to DDS '{}'", d.res_name, &ton);
+                        if *LOG_PAYLOAD {
+                            log::trace!(
+                                "Route data from zenoh {} to DDS '{}' - payload: {:?}",
+                                d.res_name,
+                                &ton,
+                                d.payload
+                            );
+                        } else {
+                            log::trace!("Route data from zenoh {} to DDS '{}'", d.res_name, &ton);
+                        }
                         unsafe {
                             let bs = d.payload.to_vec();
                             // As per the Vec documentation (see https://doc.rust-lang.org/std/vec/struct.Vec.html#method.into_raw_parts)

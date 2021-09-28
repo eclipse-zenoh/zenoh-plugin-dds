@@ -189,9 +189,18 @@ unsafe extern "C" fn data_forwarder_listener(dr: dds_entity_t, arg: *mut std::os
     let mut si: [dds_sample_info_t; 1] = { MaybeUninit::uninit().assume_init() };
     while cdds_take_blob(dr, &mut zp, si.as_mut_ptr()) > 0 {
         if si[0].valid_data {
-            log::trace!("Route data from DDS {} to zenoh key={}", &(*pa).0, &(*pa).1);
             let bs = Vec::from_raw_parts((*zp).payload, (*zp).size as usize, (*zp).size as usize);
             let rbuf = ZBuf::from(bs);
+            if *crate::LOG_PAYLOAD {
+                log::trace!(
+                    "Route data from DDS {} to zenoh key={} - payload: {:?}",
+                    &(*pa).0,
+                    &(*pa).1,
+                    rbuf
+                );
+            } else {
+                log::trace!("Route data from DDS {} to zenoh key={}", &(*pa).0, &(*pa).1);
+            }
             let _ = task::block_on(async { (*pa).2.write(&(*pa).1, rbuf).await });
             (*zp).payload = std::ptr::null_mut();
         }
