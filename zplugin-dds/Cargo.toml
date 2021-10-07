@@ -35,10 +35,10 @@ no_mangle = ["zenoh-plugin-trait/no_mangle"]
 default = ["no_mangle"]
 
 [dependencies]
-zenoh = { git = "https://github.com/eclipse-zenoh/zenoh" }
-zenoh-ext = { git = "https://github.com/eclipse-zenoh/zenoh" }
-zenoh-util = { git = "https://github.com/eclipse-zenoh/zenoh" }
-zenoh-plugin-trait = { git = "https://github.com/eclipse-zenoh/zenoh", default-features = false }
+zenoh = { git = "https://github.com/eclipse-zenoh/zenoh", branch = "apis-merge" }
+zenoh-ext = { git = "https://github.com/eclipse-zenoh/zenoh", branch = "apis-merge" }
+zenoh-util = { git = "https://github.com/eclipse-zenoh/zenoh", branch = "apis-merge" }
+zenoh-plugin-trait = { git = "https://github.com/eclipse-zenoh/zenoh", branch = "apis-merge", default-features = false }
 cyclors = "0.1.1"
 log = "0.4.14"
 async-trait = "0.1.42"
@@ -46,7 +46,7 @@ futures = "0.3.12"
 flume = "0.10.8"
 libc = "0.2.85"
 clap = "2.33"
-env_logger = "0.8.2"
+env_logger = "0.9.0"
 git-version = "0.3.4"
 regex = "1.4.3"
 hex = "0.4.3"

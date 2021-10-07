@@ -12,7 +12,9 @@
 //   ADLINK zenoh team, <zenoh@adlink-labs.tech>
 //
 use clap::{App, Arg, ArgMatches};
-use zenoh::Properties;
+use std::convert::TryInto;
+use zenoh::config::{Config, ConfigProperties};
+use zenoh::properties::Properties;
 use zenoh_plugin_trait::Plugin;
 
 // customize the DDS plugin args for retro-compatibility with previous versions of the standalone bridge
@@ -126,7 +128,8 @@ async fn main() {
     let (config, rest_plugin, args) = parse_args();
 
     // create a zenoh Runtime (to share with plugins)
-    let runtime = zenoh::net::runtime::Runtime::new(0, config.into(), args.value_of("id"))
+    let cp: Config = ConfigProperties::from(config).try_into().unwrap();
+    let runtime = zenoh::net::runtime::Runtime::new(0, cp, args.value_of("id"))
         .await
         .unwrap();
 

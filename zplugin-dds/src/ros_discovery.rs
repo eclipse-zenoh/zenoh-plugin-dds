@@ -24,7 +24,7 @@ use std::{
     ffi::{CStr, CString},
     mem::MaybeUninit,
 };
-use zenoh::net::ZBuf;
+use zenoh::buf::ZBuf;
 
 pub(crate) const ROS_DISCOVERY_INFO_TOPIC_NAME: &str = "ros_discovery_info";
 const ROS_DISCOVERY_INFO_TOPIC_TYPE: &str = "rmw_dds_common::msg::dds_::ParticipantEntitiesInfo_";
