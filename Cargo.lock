@@ -2727,7 +2727,7 @@ dependencies = [
 [[package]]
 name = "zenoh"
 version = "0.5.0-dev"
-source = "git+https://github.com/eclipse-zenoh/zenoh#e30fed7afafab9ed7e46e98e4a03fc511e309851"
+source = "git+https://github.com/eclipse-zenoh/zenoh#18475dac36ea7e128df32e3b3e0fa58f75aba141"
 dependencies = [
  "async-global-executor",
  "async-rustls",
@@ -2782,7 +2782,7 @@ dependencies = [
 [[package]]
 name = "zenoh-ext"
 version = "0.5.0-dev"
-source = "git+https://github.com/eclipse-zenoh/zenoh#e30fed7afafab9ed7e46e98e4a03fc511e309851"
+source = "git+https://github.com/eclipse-zenoh/zenoh#18475dac36ea7e128df32e3b3e0fa58f75aba141"
 dependencies = [
  "async-std",
  "bincode",
@@ -2799,7 +2799,7 @@ dependencies = [
 [[package]]
 name = "zenoh-plugin-rest"
 version = "0.5.0-dev"
-source = "git+https://github.com/eclipse-zenoh/zenoh#e30fed7afafab9ed7e46e98e4a03fc511e309851"
+source = "git+https://github.com/eclipse-zenoh/zenoh#18475dac36ea7e128df32e3b3e0fa58f75aba141"
 dependencies = [
  "async-std",
  "base64 0.13.0",
@@ -2818,7 +2818,7 @@ dependencies = [
 [[package]]
 name = "zenoh-plugin-trait"
 version = "0.1.0-dev"
-source = "git+https://github.com/eclipse-zenoh/zenoh#e30fed7afafab9ed7e46e98e4a03fc511e309851"
+source = "git+https://github.com/eclipse-zenoh/zenoh#18475dac36ea7e128df32e3b3e0fa58f75aba141"
 dependencies = [
  "clap",
  "libloading",
@@ -2829,7 +2829,7 @@ dependencies = [
 [[package]]
 name = "zenoh-util"
 version = "0.5.0-dev"
-source = "git+https://github.com/eclipse-zenoh/zenoh#e30fed7afafab9ed7e46e98e4a03fc511e309851"
+source = "git+https://github.com/eclipse-zenoh/zenoh#18475dac36ea7e128df32e3b3e0fa58f75aba141"
 dependencies = [
  "aes 0.7.5",
  "async-std",
