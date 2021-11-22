@@ -69,6 +69,7 @@ const PUB_CACHE_QUERY_PREFIX: &str = "/@dds_pub_cache";
 
 const ROS_DISCOVERY_INFO_POLL_INTERVAL_MS: u64 = 500;
 
+#[allow(clippy::upper_case_acronyms)]
 pub struct DDSPlugin;
 
 impl Plugin for DDSPlugin {
@@ -265,6 +266,7 @@ enum ZPublisher<'a> {
 }
 
 // a route from DDS
+#[allow(clippy::upper_case_acronyms)]
 #[derive(Serialize)]
 struct FromDDSRoute<'a> {
     // the local DDS Reader created to serve the route (i.e. re-publish to zenoh data coming from DDS)
@@ -293,6 +295,7 @@ enum ZSubscriber<'a> {
 }
 
 // a route to DDS
+#[allow(clippy::upper_case_acronyms)]
 #[derive(Serialize)]
 struct ToDDSRoute<'a> {
     // the local DDS Writer created to serve the route (i.e. re-publish to DDS data coming from zenoh)
