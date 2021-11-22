@@ -25,7 +25,7 @@ use regex::Regex;
 use serde::ser::SerializeStruct;
 use serde::{Serialize, Serializer};
 use std::collections::HashMap;
-use std::convert::TryFrom;
+use std::convert::{TryFrom, TryInto};
 use std::ffi::CString;
 use std::mem::ManuallyDrop;
 use std::pin::Pin;
@@ -697,7 +697,7 @@ impl<'a> DdsPlugin<'a> {
                                 st,
                                 ddsi_serdata_kind_SDK_DATA,
                                 ptr,
-                                len as u64,
+                                len.try_into().unwrap(),
                             );
                             dds_writecdr(dw, fwdp as *mut ddsi_serdata);
                             drop(Vec::from_raw_parts(ptr, len, capacity));

@@ -177,8 +177,12 @@ impl RosDiscoveryInfoMgr {
             // that is not necessarily safe or guaranteed to be leak free.
             // TODO replace when stable https://github.com/rust-lang/rust/issues/65816
             let (ptr, len, capacity) = crate::vec_into_raw_parts(buf);
-            let fwdp =
-                cdds_ddsi_payload_create(sertopic, ddsi_serdata_kind_SDK_DATA, ptr, len as u64);
+            let fwdp = cdds_ddsi_payload_create(
+                sertopic,
+                ddsi_serdata_kind_SDK_DATA,
+                ptr,
+                len.try_into().unwrap(),
+            );
             dds_writecdr(self.writer, fwdp as *mut ddsi_serdata);
             drop(Vec::from_raw_parts(ptr, len, capacity));
             cdds_sertopic_unref(sertopic);

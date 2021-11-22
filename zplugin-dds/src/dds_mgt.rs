@@ -25,7 +25,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use zenoh::net::{ResKey, Session, ZBuf};
 
-const MAX_SAMPLES: usize = 32;
+const MAX_SAMPLES: u32 = 32;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub(crate) enum RouteStatus {
@@ -62,8 +62,8 @@ unsafe extern "C" fn on_data(dr: dds_entity_t, arg: *mut std::os::raw::c_void) {
     let _ = dds_get_instance_handle(dp, &mut dpih);
 
     #[allow(clippy::uninit_assumed_init)]
-    let mut si: [dds_sample_info_t; MAX_SAMPLES] = { MaybeUninit::uninit().assume_init() };
-    let mut samples: [*mut ::std::os::raw::c_void; MAX_SAMPLES] =
+    let mut si: [dds_sample_info_t; MAX_SAMPLES as usize] = { MaybeUninit::uninit().assume_init() };
+    let mut samples: [*mut ::std::os::raw::c_void; MAX_SAMPLES as usize] =
         [std::ptr::null_mut(); MAX_SAMPLES as usize];
     samples[0] = std::ptr::null_mut();
 
@@ -71,8 +71,8 @@ unsafe extern "C" fn on_data(dr: dds_entity_t, arg: *mut std::os::raw::c_void) {
         dr,
         samples.as_mut_ptr() as *mut *mut raw::c_void,
         si.as_mut_ptr() as *mut dds_sample_info_t,
-        MAX_SAMPLES as u64,
-        MAX_SAMPLES as u32,
+        MAX_SAMPLES.into(),
+        MAX_SAMPLES,
     );
     for i in 0..n {
         if si[i as usize].valid_data {
