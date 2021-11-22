@@ -40,15 +40,13 @@ $ cd zenoh-plugin-dds
 You can then choose between building the zenoh bridge for DDS:
 - as a dynamically loaded plugin:
 ```bash
-$ cd zplugin-dds
-$ cargo build --release
+$ cargo build --release -p zplugin-dds
 ```
 The plugin shared library (`*.so` on Linux, `*.dylib` on Mac OS, `*.dll` on Windows) will be generated in the `target/release` subdirectory.
 
 - or as a standalone executable binary:
 ```bash
-$ cd zenoh-bridge-dds
-$ cargo build --release
+$ cargo build --release -p zenoh-bridge-dds
 ```
 The **`zenoh-bridge-dds`** binary will be generated in the `target/release` sub-directory.
 

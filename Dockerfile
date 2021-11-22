@@ -28,7 +28,10 @@ WORKDIR /usr/src/zenoh-plugin-dds
 RUN apt-get update && apt-get -y install g++ cmake git clang
 
 COPY . .
-RUN cd zenoh-bridge-dds && cargo install --locked --path .
+# if exists, copy .git directory to be used by git-version crate to determine the version
+COPY .gi? .git/
+
+RUN cargo install --locked --path zenoh-bridge-dds
 
 
 ###
