@@ -12,9 +12,7 @@
 //   ADLINK zenoh team, <zenoh@adlink-labs.tech>
 //
 use clap::{App, Arg, ArgMatches};
-use std::convert::TryInto;
-use zenoh::config::{Config, ConfigProperties};
-use zenoh::properties::Properties;
+use zenoh::config::Config;
 use zenoh_plugin_trait::Plugin;
 
 // customize the DDS plugin args for retro-compatibility with previous versions of the standalone bridge
@@ -44,8 +42,23 @@ fn customize_dds_args<'a, 'b>(mut args: Vec<Arg<'a, 'b>>) -> Vec<Arg<'a, 'b>> {
 
     args
 }
+macro_rules! insert_json {
+    ($config: expr, $args: expr, $key: expr, if $name: expr, $($t: tt)*) => {
+        if let Some(value) = $args.value_of($name) {
+            $config.insert_json($key, &serde_json::to_string(&value$($t)*).unwrap()).unwrap();
+        }
+    };
+    ($config: expr, $args: expr, $key: expr, for $name: expr, $($t: tt)*) => {
+        if let Some(value) = $args.values_of($name) {
+            $config.insert_json($key, &serde_json::to_string(&value$($t)*).unwrap()).unwrap();
+        }
+    };
+    ($config: expr, $args: expr, $key: expr, $name: expr, $($t: tt)*) => {
+        $config.insert_json($key, &serde_json::to_string(&$args.value_of($name)$($t)*).unwrap()).unwrap();
+    };
+}
 
-fn parse_args() -> (Properties, bool, ArgMatches<'static>) {
+fn parse_args() -> (Config, ArgMatches<'static>) {
     let app = App::new("zenoh bridge for DDS")
         .version(zplugin_dds::GIT_VERSION)
         .long_version(zplugin_dds::LONG_VERSION.as_str())
@@ -75,38 +88,57 @@ fn parse_args() -> (Properties, bool, ArgMatches<'static>) {
                 'By default the zenoh bridge listens and replies to UDP multicast scouting messages for being discovered by peers and routers. \
                 This option disables this feature.'")
         )
-        .arg(
-            Arg::from_usage(
-                "--rest-plugin   'Enable the zenoh REST plugin (disabled by default)'")
-        )
-        .args(&zplugin_rest::RestPlugin::get_requirements()) // add REST plugin expected args
-        .args(&customize_dds_args(zplugin_dds::DDSPlugin::get_requirements()));
+        .arg(Arg::with_name("rest-port")
+        .long("port")
+        .required(false)
+        .takes_value(true)
+        .value_name("PORT")
+        .help("Maps to `--cfg=/plugins/rest/port:PORT`. Disabled by default"))
+        .args(&customize_dds_args(dds_args()));
 
     let args = app.get_matches();
 
-    let mut config: Properties = if let Some(conf_file) = args.value_of("config") {
-        Properties::from(std::fs::read_to_string(conf_file).unwrap())
-    } else {
-        Properties::default()
+    let mut config = match args.value_of("config") {
+        Some(conf_file) => Config::from_file(conf_file).unwrap(),
+        None => Config::default(),
     };
-    config.insert("mode".into(), args.value_of("mode").unwrap().into());
-
-    if let Some(value) = args.values_of("peer") {
-        config.insert("peer".into(), value.collect::<Vec<&str>>().join(","));
+    config
+        .set_mode(Some(args.value_of("mode").unwrap().parse().unwrap()))
+        .unwrap();
+    if let Some(peers) = args.values_of("peer") {
+        config.peers.extend(peers.map(|p| p.parse().unwrap()))
     }
-
-    if let Some(value) = args.values_of("listener") {
-        config.insert("listener".into(), value.collect::<Vec<&str>>().join(","));
+    if let Some(listeners) = args.values_of("listener") {
+        config
+            .listeners
+            .extend(listeners.map(|p| p.parse().unwrap()))
     }
-
     if args.is_present("no-multicast-scouting") {
-        config.insert("multicast_scouting".into(), "false".into());
+        config.scouting.multicast.set_enabled(Some(false)).unwrap();
+    }
+    config.set_add_timestamp(Some(true)).unwrap();
+    if let Some(port) = args.value_of("rest-post") {
+        config.insert_json("plugins/rest/port", port).unwrap();
     }
 
-    // Add timestamps to publications (required for PublicationCache usage)
-    config.insert("add_timestamp".into(), "true".into());
-
-    (config, args.is_present("rest-plugin"), args)
+    insert_json!(config, args, "plugins/dds/scope", "dds-scope", .unwrap());
+    insert_json!(config, args, "plugins/dds/generalise-pub", for "dds-generalise-pub", .collect::<Vec<_>>());
+    insert_json!(config, args, "plugins/dds/generalise-sub", for "dds-generalise-sub", .collect::<Vec<_>>());
+    insert_json!(config, args, "plugins/dds/domain", "dds-domain", .unwrap().parse::<u64>().unwrap());
+    insert_json!(config, args, "plugins/dds/allow", if "dds-allow", );
+    insert_json!(config, args, "plugins/dds/group-member-id", if "dds-group-member-id", );
+    insert_json!(config, args, "plugins/dds/group-lease", if "dds-group-lease", .parse::<u64>().unwrap());
+    insert_json!(config, args, "plugins/dds/max-frequencies", for "dds-max-frequency", .map(|s| {
+        let at = s.rfind('=').expect("--dds-max-frequency values must be of the form <regex>=<float>");
+        let (re, f) = s.split_at(at);
+        (re, f[1..].parse().unwrap())
+    }).collect::<std::collections::HashMap<&str, f64>>());
+    if args.is_present("dds-fwd-discovery") {
+        config
+            .insert_json("plugins/dds/fwd-discovery", "true")
+            .unwrap();
+    }
+    (config, args)
 }
 
 #[async_std::main]
@@ -125,21 +157,62 @@ async fn main() {
     }
 
     env_logger::init();
-    let (config, rest_plugin, args) = parse_args();
-
+    let (config, args) = parse_args();
+    let rest_plugin = config.plugin("rest").is_some();
     // create a zenoh Runtime (to share with plugins)
-    let cp: Config = ConfigProperties::from(config).try_into().unwrap();
-    let runtime = zenoh::net::runtime::Runtime::new(0, cp, args.value_of("id"))
+    let runtime = zenoh::net::runtime::Runtime::new(0, config, args.value_of("id"))
         .await
         .unwrap();
 
-    let runtime_args = (runtime, args);
     // start REST plugin
     if rest_plugin {
-        zplugin_rest::RestPlugin::start(&runtime_args).unwrap();
+        zplugin_rest::RestPlugin::start("rest", &runtime).unwrap();
     }
 
     // start DDS plugin
-    zplugin_dds::DDSPlugin::start(&runtime_args).unwrap();
+    zplugin_dds::DDSPlugin::start("dds", &runtime).unwrap();
     async_std::task::block_on(async_std::future::pending::<()>());
+}
+
+const GROUP_DEFAULT_LEASE: &str = "3";
+fn dds_args() -> Vec<Arg<'static, 'static>> {
+    vec![
+            Arg::from_usage(
+                "--dds-scope=[String]   'A string used as prefix to scope DDS traffic.'"
+            ).default_value(""),
+            Arg::from_usage(
+                "--dds-generalise-pub=[String]...   'A list of key expression to use for generalising publications (usable multiple times).'"
+            ),
+            Arg::from_usage(
+                "--dds-generalise-sub=[String]...   'A list of key expression to use for generalising subscriptions (usable multiple times).'"
+            ),
+            Arg::from_usage(
+                "--dds-domain=[ID]   'The DDS Domain ID (if using with ROS this should be the same as ROS_DOMAIN_ID).'"
+            ).default_value(&*zplugin_dds::DDS_DOMAIN_DEFAULT_STR),
+            Arg::from_usage(
+                "--dds-allow=[String]   'A regular expression matching the set of 'partition/topic-name' that should be bridged. \
+                By default, all partitions and topic are allowed. \
+                Examples of expressions: '.*/TopicA', 'Partition-?/.*', 'cmd_vel|rosout'...'"
+            ),
+            Arg::from_usage(
+                "--dds-group-member-id=[ID]   'A custom identifier for the bridge, that will be used in group management (if not specified, the zenoh UUID is used).'"
+            ),
+            Arg::from_usage(
+                "--dds-group-lease=[Duration]   'The lease duration (in seconds) used in group management for all DDS plugins.'"
+            ).default_value(GROUP_DEFAULT_LEASE),
+            Arg::from_usage(
+r#"--dds-max-frequency=[String]...   'Specifies a maximum frequency of data routing over zenoh for a set of topics. The string must have the format "<regex>=<float>":
+    . "regex" is a regular expression matching the set of
+    'partition/topic-name' for which the data (per DDS instance) must
+        be routed at no higher rate than associated max frequency
+        (same syntax than --dds-allow option).
+    . "float" is the maximum frequency in Hertz; if publication rate is
+    higher, downsampling will occur when routing.
+(usable multiple times)'"#
+            ),
+            Arg::from_usage(
+                "--dds-fwd-discovery   'When set, rather than creating a local route when discovering a local DDS entity, \
+                this discovery info is forwarded to the remote plugins/bridges. Those will create the routes, including a replica of the discovered entity.'"
+            ),
+        ]
 }
