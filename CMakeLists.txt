@@ -30,9 +30,8 @@ set(RUST_TARGET_DIR ${CMAKE_BINARY_DIR}/target)
 
 FILE(GLOB RUST_SRC_FILES
   ${CMAKE_SOURCE_DIR}/zenoh-bridge-dds/src/*.rs
-  ${CMAKE_SOURCE_DIR}/zenoh-bridge-dds/Cargo.lock
   ${CMAKE_SOURCE_DIR}/zplugin-dds/src/*.rs
-  ${CMAKE_SOURCE_DIR}/zplugin-dds/Cargo.lock)
+  ${CMAKE_SOURCE_DIR}/Cargo.lock)
 
 add_custom_command(
     OUTPUT
