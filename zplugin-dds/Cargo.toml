@@ -13,7 +13,7 @@
 #
 [package]
 name = "zplugin-dds"
-version = "0.5.0-dev"
+version = "0.5.0-beta.9"
 authors = [
 	"kydos <angelo@icorsaro.net>",
 	"Esteve Fernandez <esteve.fernandez@gmail.com>",
@@ -35,10 +35,10 @@ no_mangle = ["zenoh-plugin-trait/no_mangle"]
 default = ["no_mangle"]
 
 [dependencies]
-zenoh = { git = "https://github.com/eclipse-zenoh/zenoh" }
-zenoh-ext = { git = "https://github.com/eclipse-zenoh/zenoh" }
-zenoh-util = { git = "https://github.com/eclipse-zenoh/zenoh" }
-zenoh-plugin-trait = { git = "https://github.com/eclipse-zenoh/zenoh", default-features = false }
+zenoh = "0.5.0-beta.9"
+zenoh-ext = "0.5.0-beta.9"
+zenoh-util = "0.5.0-beta.9"
+zenoh-plugin-trait = { version = "0.5.0-beta.9", default-features = false }
 cyclors = "0.1.2"
 log = "0.4.14"
 async-trait = "0.1.42"
