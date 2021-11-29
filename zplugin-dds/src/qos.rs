@@ -484,7 +484,7 @@ pub struct History {
 }
 
 #[derive(Debug, Copy, Clone, Deserialize, Serialize, PartialEq)]
-#[allow(non_camel_case_types)]
+#[allow(non_camel_case_types, clippy::upper_case_acronyms)]
 pub enum HistoryKind {
     KEEP_LAST = dds_history_kind_DDS_HISTORY_KEEP_LAST as isize,
     KEEP_ALL = dds_history_kind_DDS_HISTORY_KEEP_ALL as isize,

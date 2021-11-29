@@ -184,7 +184,7 @@ pub(crate) fn run_discovery(dp: dds_entity_t, tx: Sender<DiscoveryEvent>) {
 }
 
 unsafe extern "C" fn data_forwarder_listener(dr: dds_entity_t, arg: *mut std::os::raw::c_void) {
-    let pa = arg as *mut (String, ResKey, Arc<Session>);
+    let pa = arg as *mut (String, KeyExpr, Arc<Session>);
     let mut zp: *mut cdds_ddsi_payload = std::ptr::null_mut();
     #[allow(clippy::uninit_assumed_init)]
     let mut si: [dds_sample_info_t; 1] = { MaybeUninit::uninit().assume_init() };
@@ -216,7 +216,7 @@ pub fn create_forwarding_dds_reader(
     type_name: String,
     keyless: bool,
     mut qos: Qos,
-    z_key: ResKey,
+    z_key: KeyExpr,
     z: Arc<Session>,
     read_period: Option<Duration>,
 ) -> Result<dds_entity_t, String> {
