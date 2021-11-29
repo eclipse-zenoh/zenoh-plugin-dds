@@ -88,9 +88,9 @@ dependencies = [
 
 [[package]]
 name = "anyhow"
-version = "1.0.47"
+version = "1.0.50"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "38d9ff5d688f1c13395289f67db01d4826b46dd694e7580accdc3e8430f2d98e"
+checksum = "ecc78c299ae753905840c5d3ba036c51f61ce5a98a83f98d9c9d29dffd427f71"
 
 [[package]]
 name = "async-attributes"
@@ -2816,7 +2816,7 @@ dependencies = [
 [[package]]
 name = "zenoh"
 version = "0.5.0-dev"
-source = "git+https://github.com/eclipse-zenoh/zenoh?branch=apis-merge#5de8519ec810bb9ad5aaa588084c0182b0629306"
+source = "git+https://github.com/eclipse-zenoh/zenoh?branch=apis-merge#18309380037d28d7ad6425a42dbd846774f36a60"
 dependencies = [
  "async-global-executor",
  "async-rustls",
@@ -2864,7 +2864,7 @@ dependencies = [
 [[package]]
 name = "zenoh-ext"
 version = "0.5.0-dev"
-source = "git+https://github.com/eclipse-zenoh/zenoh?branch=apis-merge#5de8519ec810bb9ad5aaa588084c0182b0629306"
+source = "git+https://github.com/eclipse-zenoh/zenoh?branch=apis-merge#18309380037d28d7ad6425a42dbd846774f36a60"
 dependencies = [
  "async-std",
  "bincode",
@@ -2881,7 +2881,7 @@ dependencies = [
 [[package]]
 name = "zenoh-macros"
 version = "0.5.0-dev"
-source = "git+https://github.com/eclipse-zenoh/zenoh?branch=apis-merge#5de8519ec810bb9ad5aaa588084c0182b0629306"
+source = "git+https://github.com/eclipse-zenoh/zenoh?branch=apis-merge#18309380037d28d7ad6425a42dbd846774f36a60"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2892,7 +2892,7 @@ dependencies = [
 [[package]]
 name = "zenoh-plugin-trait"
 version = "0.1.0-dev"
-source = "git+https://github.com/eclipse-zenoh/zenoh?branch=apis-merge#5de8519ec810bb9ad5aaa588084c0182b0629306"
+source = "git+https://github.com/eclipse-zenoh/zenoh?branch=apis-merge#18309380037d28d7ad6425a42dbd846774f36a60"
 dependencies = [
  "libloading",
  "log",
@@ -2903,9 +2903,10 @@ dependencies = [
 [[package]]
 name = "zenoh-util"
 version = "0.5.0-dev"
-source = "git+https://github.com/eclipse-zenoh/zenoh?branch=apis-merge#5de8519ec810bb9ad5aaa588084c0182b0629306"
+source = "git+https://github.com/eclipse-zenoh/zenoh?branch=apis-merge#18309380037d28d7ad6425a42dbd846774f36a60"
 dependencies = [
  "aes 0.7.5",
+ "anyhow",
  "async-std",
  "async-trait",
  "clap",

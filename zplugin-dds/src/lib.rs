@@ -43,6 +43,7 @@ use zenoh_ext::group::{Group, GroupEvent, JoinEvent, LeaseExpiredEvent, LeaveEve
 use zenoh_ext::{PublicationCache, QueryingSubscriber, SessionExt};
 use zenoh_plugin_trait::{PluginId, RunningPluginTrait, prelude::*};
 use zenoh_util::collections::{Timed, TimedEvent, Timer};
+use zenoh::Result as ZResult;
 
 mod dds_mgt;
 mod qos;
@@ -86,7 +87,7 @@ impl Plugin for DDSPlugin {
     fn start(
         name: &str,
         runtime: &Self::StartArgs,
-    ) -> Result<zenoh_plugin_trait::RunningPlugin, Box<dyn std::error::Error>> {
+    ) -> ZResult<zenoh_plugin_trait::RunningPlugin> {
         let config = DdsConf::try_from((name, runtime))?;
         async_std::task::spawn(run(runtime.clone(), config));
         Ok(Box::new(DDSPlugin))
