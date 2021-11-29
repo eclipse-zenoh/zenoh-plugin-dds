@@ -38,12 +38,12 @@ use zenoh::query::{QueryConsolidation, QueryTarget, Target};
 use zenoh::queryable::{Query, Queryable};
 use zenoh::subscriber::Subscriber;
 use zenoh::utils::key_expr;
+use zenoh::Result as ZResult;
 use zenoh::{prelude::*, Session};
 use zenoh_ext::group::{Group, GroupEvent, JoinEvent, LeaseExpiredEvent, LeaveEvent, Member};
 use zenoh_ext::{PublicationCache, QueryingSubscriber, SessionExt};
-use zenoh_plugin_trait::{PluginId, RunningPluginTrait, prelude::*};
+use zenoh_plugin_trait::{prelude::*, PluginId, RunningPluginTrait};
 use zenoh_util::collections::{Timed, TimedEvent, Timer};
-use zenoh::Result as ZResult;
 
 mod dds_mgt;
 mod qos;
@@ -71,6 +71,7 @@ const PUB_CACHE_QUERY_PREFIX: &str = "/@dds_pub_cache";
 const ROS_DISCOVERY_INFO_POLL_INTERVAL_MS: u64 = 500;
 
 zenoh_plugin_trait::declare_plugin!(DDSPlugin);
+#[allow(clippy::upper_case_acronyms)]
 pub struct DDSPlugin;
 
 impl Plugin for DDSPlugin {
@@ -84,10 +85,7 @@ impl Plugin for DDSPlugin {
         }
     }
 
-    fn start(
-        name: &str,
-        runtime: &Self::StartArgs,
-    ) -> ZResult<zenoh_plugin_trait::RunningPlugin> {
+    fn start(name: &str, runtime: &Self::StartArgs) -> ZResult<zenoh_plugin_trait::RunningPlugin> {
         let config = DdsConf::try_from((name, runtime))?;
         async_std::task::spawn(run(runtime.clone(), config));
         Ok(Box::new(DDSPlugin))
@@ -95,7 +93,9 @@ impl Plugin for DDSPlugin {
 }
 impl RunningPluginTrait for DDSPlugin {
     fn config_checker(&self) -> zenoh_plugin_trait::ValidationFunction {
-        Arc::new(|_,_,_| Err(anyhow::anyhow!("DDSPlugin does not support hot configuration changes.").into()))
+        Arc::new(|_, _, _| {
+            Err(anyhow::anyhow!("DDSPlugin does not support hot configuration changes.").into())
+        })
     }
 }
 
@@ -107,8 +107,15 @@ pub async fn run(runtime: Runtime, config: DdsConf) {
     debug!("DDS plugin {}", LONG_VERSION.as_str());
 
     // open zenoh-net Session (with local routing disabled to avoid loops)
-    let zsession =
-        Arc::new(Session::init(runtime, false, config.join_subscriptions, config.join_publications).await);
+    let zsession = Arc::new(
+        Session::init(
+            runtime,
+            false,
+            config.join_subscriptions,
+            config.join_publications,
+        )
+        .await,
+    );
 
     // create group member
     let member_id = config.member_id;
@@ -118,7 +125,7 @@ pub async fn run(runtime: Runtime, config: DdsConf) {
     // create DDS Participant
     let dp = unsafe { dds_create_participant(domain_id, std::ptr::null(), std::ptr::null()) };
 
-    let mut dds_plugin = DdsPlugin {
+    let mut dds_plugin = DdsPluginConfig {
         scope: config.scope,
         domain_id,
         allow_re: config.allow,
@@ -129,14 +136,13 @@ pub async fn run(runtime: Runtime, config: DdsConf) {
         dp,
         discovered_writers: HashMap::<String, DdsEntity>::new(),
         discovered_readers: HashMap::<String, DdsEntity>::new(),
-        routes_from_dds: HashMap::<String, FromDDSRoute>::new(),
-        routes_to_dds: HashMap::<String, ToDDSRoute>::new(),
+        routes_from_dds: HashMap::<String, FromDdsRoute>::new(),
+        routes_to_dds: HashMap::<String, ToDdsRoute>::new(),
         admin_space: HashMap::<String, AdminRef>::new(),
     };
 
     dds_plugin.run().await;
 }
-
 
 pub struct DdsConf {
     scope: String,
@@ -147,17 +153,15 @@ pub struct DdsConf {
     join_subscriptions: Vec<String>,
     join_publications: Vec<String>,
     forward_discovery: bool,
-    member_id: String
+    member_id: String,
 }
 impl<'a, I: Into<String>> TryFrom<(I, &'a Runtime)> for DdsConf {
     type Error = anyhow::Error;
 
-    fn try_from(
-        (name, runtime): (I, &'a Runtime),
-    ) -> Result<Self, Self::Error> {
+    fn try_from((name, runtime): (I, &'a Runtime)) -> Result<Self, Self::Error> {
         let name: String = name.into();
         let guard = runtime.config.lock();
-        let config = match guard.plugin(&name).map(|f|f.as_object()).flatten() {
+        let config = match guard.plugin(&name).map(|f| f.as_object()).flatten() {
             Some(value) => value,
             None => bail!("Plugin {} has no configuration", &name),
         };
@@ -189,7 +193,7 @@ impl<'a, I: Into<String>> TryFrom<(I, &'a Runtime)> for DdsConf {
                 match (Regex::new(key), value.as_f64()) {
                     (Ok(re), Some(f)) => {
                         let period = Duration::from_secs_f64(1f64/f);
-                        acc.push((re, period)); 
+                        acc.push((re, period));
                         Ok(acc)
                     }
                     _ => bail!("Each key-value pair of the `max-frequencies` parameter of the DDS bridge plugin must be a pair of a valid regular expression and associated float"),
@@ -197,12 +201,16 @@ impl<'a, I: Into<String>> TryFrom<(I, &'a Runtime)> for DdsConf {
             })?,
             _ => bail!("DDS bridge plugin requires optional parameter `max-frequencies` to be an object, where all keys are valid regular expressions, associated with floats"),
         };
-        let forward_discovery =  match config.get("fwd-discovery") {
+        let forward_discovery = match config.get("fwd-discovery") {
             Some(Value::Bool(b)) => *b,
             None => false,
             _ => bail!("DDS bridge plugin optional parameter `fwd-discovery` must be a boolean"),
         };
-        let mut join_subscriptions = if forward_discovery {vec![format!("/@dds/{}/**", runtime.pid)]} else {Vec::new()};
+        let mut join_subscriptions = if forward_discovery {
+            vec![format!("/@dds/{}/**", runtime.pid)]
+        } else {
+            Vec::new()
+        };
         match config.get("generalise-sub") {
             Some(Value::Array(a)) => a.iter().try_for_each(|s| if let Some(s) = s.as_str() {join_subscriptions.push(s.into()); Ok(())} else {bail!("elements of the `generalise-sub` parameter of DDS bridge plugin must be strings")})?,
             None => {}
@@ -218,10 +226,22 @@ impl<'a, I: Into<String>> TryFrom<(I, &'a Runtime)> for DdsConf {
         let member_id = match config.get("group-member-id") {
             None => runtime.get_pid_str(),
             Some(Value::String(id)) => id.into(),
-            _ => bail!("DDS bridge plugin requires optional parameter `group-member-id` to be a string"),
+            _ => bail!(
+                "DDS bridge plugin requires optional parameter `group-member-id` to be a string"
+            ),
         };
 
-        Ok(DdsConf { scope, domain, group_lease, allow, max_frequencies, join_subscriptions, join_publications, forward_discovery, member_id })
+        Ok(DdsConf {
+            scope,
+            domain,
+            group_lease,
+            allow,
+            max_frequencies,
+            join_subscriptions,
+            join_publications,
+            forward_discovery,
+            member_id,
+        })
     }
 }
 
@@ -243,7 +263,7 @@ enum ZPublisher<'a> {
 
 // a route from DDS
 #[derive(Serialize)]
-struct FromDDSRoute<'a> {
+struct FromDdsRoute<'a> {
     // the local DDS Reader created to serve the route (i.e. re-publish to zenoh data coming from DDS)
     #[serde(serialize_with = "serialize_entity_guid")]
     serving_reader: dds_entity_t,
@@ -256,7 +276,7 @@ struct FromDDSRoute<'a> {
     local_routed_writers: Vec<String>,
 }
 
-impl Drop for FromDDSRoute<'_> {
+impl Drop for FromDdsRoute<'_> {
     fn drop(&mut self) {
         if let Err(e) = delete_dds_entity(self.serving_reader) {
             warn!("Error dropping a route from DDS: {}", e);
@@ -271,7 +291,7 @@ enum ZSubscriber<'a> {
 
 // a route to DDS
 #[derive(Serialize)]
-struct ToDDSRoute<'a> {
+struct ToDdsRoute<'a> {
     // the local DDS Writer created to serve the route (i.e. re-publish to DDS data coming from zenoh)
     #[serde(serialize_with = "serialize_entity_guid")]
     serving_writer: dds_entity_t,
@@ -284,7 +304,7 @@ struct ToDDSRoute<'a> {
     local_routed_readers: Vec<String>,
 }
 
-impl Drop for ToDDSRoute<'_> {
+impl Drop for ToDdsRoute<'_> {
     fn drop(&mut self) {
         if let Err(e) = delete_dds_entity(self.serving_writer) {
             warn!("Error dropping a route from DDS: {}", e);
@@ -302,7 +322,7 @@ where
     }
 }
 
-struct DdsPlugin<'a> {
+struct DdsPluginConfig<'a> {
     scope: String,
     domain_id: u32,
     allow_re: Option<Regex>,
@@ -317,14 +337,14 @@ struct DdsPlugin<'a> {
     discovered_writers: HashMap<String, DdsEntity>,
     discovered_readers: HashMap<String, DdsEntity>,
     // maps of established routes from/to DDS (indexed by zenoh resource key)
-    routes_from_dds: HashMap<String, FromDDSRoute<'a>>,
-    routes_to_dds: HashMap<String, ToDDSRoute<'a>>,
+    routes_from_dds: HashMap<String, FromDdsRoute<'a>>,
+    routes_to_dds: HashMap<String, ToDdsRoute<'a>>,
     // admin space: index is the admin_path (relative to admin_prefix)
     // value is the JSon string to return to queries.
     admin_space: HashMap<String, AdminRef>,
 }
 
-impl Serialize for DdsPlugin<'_> {
+impl Serialize for DdsPluginConfig<'_> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
@@ -357,7 +377,7 @@ lazy_static::lazy_static! {
     static ref JSON_NULL_VALUE: Value = serde_json::json!(null);
 }
 
-impl<'a> DdsPlugin<'a> {
+impl<'a> DdsPluginConfig<'a> {
     fn is_allowed(&self, zkey: &str) -> bool {
         if self.fwd_discovery_mode && zkey.ends_with(ROS_DISCOVERY_INFO_TOPIC_NAME) {
             // If fwd-discovery mode is enabled, don't route /ros_discovery_info
@@ -406,7 +426,7 @@ impl<'a> DdsPlugin<'a> {
         // remove from dds_writer map
         if let Some(e) = self.discovered_writers.remove(key) {
             // remove from admin_space
-            let admin_path = DdsPlugin::get_admin_path(&e, true);
+            let admin_path = DdsPluginConfig::get_admin_path(&e, true);
             self.admin_space.remove(&admin_path);
             Some((admin_path, e))
         } else {
@@ -427,7 +447,7 @@ impl<'a> DdsPlugin<'a> {
         // remove from dds_reader map
         if let Some(e) = self.discovered_readers.remove(key) {
             // remove from admin space
-            let admin_path = DdsPlugin::get_admin_path(&e, false);
+            let admin_path = DdsPluginConfig::get_admin_path(&e, false);
             self.admin_space.remove(&admin_path);
             Some((admin_path, e))
         } else {
@@ -435,7 +455,7 @@ impl<'a> DdsPlugin<'a> {
         }
     }
 
-    fn insert_route_from_dds(&mut self, zkey: &str, r: FromDDSRoute<'a>) {
+    fn insert_route_from_dds(&mut self, zkey: &str, r: FromDdsRoute<'a>) {
         // insert reference in admin_space
         let path = format!("route/from_dds/{}", zkey);
         self.admin_space
@@ -445,7 +465,7 @@ impl<'a> DdsPlugin<'a> {
         self.routes_from_dds.insert(zkey.to_string(), r);
     }
 
-    fn insert_route_to_dds(&mut self, zkey: &str, r: ToDDSRoute<'a>) {
+    fn insert_route_to_dds(&mut self, zkey: &str, r: ToDdsRoute<'a>) {
         // insert reference in admin_space
         let path = format!("route/to_dds/{}", zkey);
         self.admin_space
@@ -542,7 +562,7 @@ impl<'a> DdsPlugin<'a> {
 
                 self.insert_route_from_dds(
                     zkey,
-                    FromDDSRoute {
+                    FromDdsRoute {
                         serving_reader: dr,
                         _zenoh_publisher: zenoh_publisher,
                         remote_routed_readers: vec![],
@@ -675,7 +695,7 @@ impl<'a> DdsPlugin<'a> {
 
                 self.insert_route_to_dds(
                     zkey,
-                    ToDDSRoute {
+                    ToDdsRoute {
                         serving_writer: dw,
                         zenoh_subscriber,
                         remote_routed_writers: vec![],
@@ -723,7 +743,8 @@ impl<'a> DdsPlugin<'a> {
 
         // get the list of sub-path expressions that will match the same stored keys than
         // the selector, if those keys had the path_prefix.
-        let sub_selectors = Self::get_sub_key_selectors(selector.key_selector.as_str(), admin_path_prefix);
+        let sub_selectors =
+            Self::get_sub_key_selectors(selector.key_selector.as_str(), admin_path_prefix);
 
         // Get all matching keys/values
         let mut kvs: Vec<(&str, Value)> = Vec::with_capacity(sub_selectors.len());
@@ -859,7 +880,7 @@ impl<'a> DdsPlugin<'a> {
                         } => {
                             debug!("Discovered DDS Writer on {}: {}", entity.topic_name, entity.key);
                             // get its admin_path
-                            let admin_path = DdsPlugin::get_admin_path(&entity, true);
+                            let admin_path = DdsPluginConfig::get_admin_path(&entity, true);
 
                             // copy and adapt Writer's QoS for creation of a matching Reader
                             let mut qos = entity.qos.clone();
@@ -923,7 +944,7 @@ impl<'a> DdsPlugin<'a> {
                             mut entity
                         } => {
                             debug!("Discovered DDS Reader on {}: {}", entity.topic_name, entity.key);
-                            let admin_path = DdsPlugin::get_admin_path(&entity, false);
+                            let admin_path = DdsPluginConfig::get_admin_path(&entity, false);
 
                             // copy and adapt Reader's QoS for creation of a matching Writer
                             let mut qos = entity.qos.clone();
@@ -1080,7 +1101,7 @@ impl<'a> DdsPlugin<'a> {
                         } => {
                             debug!("Discovered DDS Writer on {}: {} => advertise it", entity.topic_name, entity.key);
                             // advertise the entity and its scope within admin space (bincode format)
-                            let admin_path = DdsPlugin::get_admin_path(&entity, true);
+                            let admin_path = DdsPluginConfig::get_admin_path(&entity, true);
                             let fwd_path = format!("{}{}", fwd_writers_path_prefix, admin_path);
                             let msg = (&entity, &scope);
                             self.zsession.put(&fwd_path, bincode::serialize(&msg).unwrap()).congestion_control(CongestionControl::Block).await.unwrap();
@@ -1105,7 +1126,7 @@ impl<'a> DdsPlugin<'a> {
                         } => {
                             debug!("Discovered DDS Reader on {}: {} => advertise it", entity.topic_name, entity.key);
                             // advertise the entity and its scope within admin space (bincode format)
-                            let admin_path = DdsPlugin::get_admin_path(&entity, false);
+                            let admin_path = DdsPluginConfig::get_admin_path(&entity, false);
                             let fwd_path = format!("{}{}", fwd_readers_path_prefix, admin_path);
                             let msg = (&entity, &scope);
                             self.zsession.put(&fwd_path, bincode::serialize(&msg).unwrap()).congestion_control(CongestionControl::Block).await.unwrap();
