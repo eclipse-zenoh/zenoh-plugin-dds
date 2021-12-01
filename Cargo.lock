@@ -2729,9 +2729,9 @@ checksum = "56dee185309b50d1f11bfedef0fe6d036842e3fb77413abef29f8f8d1c5d4c1c"
 
 [[package]]
 name = "uhlc"
-version = "0.3.1"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4b39f15111ae3c55bd24b28e2f71e86343ef1d5d16aac8e3faaba8c7a438c881"
+checksum = "9c6ffa964429c2be159461572c467aa1c30ba4f58c776e250032914f0a1a7f3e"
 dependencies = [
  "hex",
  "humantime",
@@ -3040,8 +3040,8 @@ dependencies = [
 
 [[package]]
 name = "zenoh"
-version = "0.5.0-dev"
-source = "git+https://github.com/eclipse-zenoh/zenoh?branch=apis-merge#18309380037d28d7ad6425a42dbd846774f36a60"
+version = "0.6.0-dev"
+source = "git+https://github.com/eclipse-zenoh/zenoh#734eb89856e45d06bea72153f381096b7da71798"
 dependencies = [
  "async-global-executor",
  "async-rustls",
@@ -3102,8 +3102,8 @@ dependencies = [
 
 [[package]]
 name = "zenoh-ext"
-version = "0.5.0-dev"
-source = "git+https://github.com/eclipse-zenoh/zenoh?branch=apis-merge#18309380037d28d7ad6425a42dbd846774f36a60"
+version = "0.6.0-dev"
+source = "git+https://github.com/eclipse-zenoh/zenoh#734eb89856e45d06bea72153f381096b7da71798"
 dependencies = [
  "async-std",
  "bincode",
@@ -3119,8 +3119,8 @@ dependencies = [
 
 [[package]]
 name = "zenoh-macros"
-version = "0.5.0-dev"
-source = "git+https://github.com/eclipse-zenoh/zenoh?branch=apis-merge#18309380037d28d7ad6425a42dbd846774f36a60"
+version = "0.6.0-dev"
+source = "git+https://github.com/eclipse-zenoh/zenoh#734eb89856e45d06bea72153f381096b7da71798"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3130,8 +3130,8 @@ dependencies = [
 
 [[package]]
 name = "zenoh-plugin-rest"
-version = "0.5.0-dev"
-source = "git+https://github.com/eclipse-zenoh/zenoh?branch=apis-merge#18309380037d28d7ad6425a42dbd846774f36a60"
+version = "0.6.0-dev"
+source = "git+https://github.com/eclipse-zenoh/zenoh#734eb89856e45d06bea72153f381096b7da71798"
 dependencies = [
  "async-std",
  "base64 0.13.0",
@@ -3150,8 +3150,8 @@ dependencies = [
 
 [[package]]
 name = "zenoh-plugin-trait"
-version = "0.1.0-dev"
-source = "git+https://github.com/eclipse-zenoh/zenoh?branch=apis-merge#18309380037d28d7ad6425a42dbd846774f36a60"
+version = "0.6.0-dev"
+source = "git+https://github.com/eclipse-zenoh/zenoh#734eb89856e45d06bea72153f381096b7da71798"
 dependencies = [
  "libloading",
  "log",
@@ -3161,8 +3161,8 @@ dependencies = [
 
 [[package]]
 name = "zenoh-util"
-version = "0.5.0-dev"
-source = "git+https://github.com/eclipse-zenoh/zenoh?branch=apis-merge#18309380037d28d7ad6425a42dbd846774f36a60"
+version = "0.6.0-dev"
+source = "git+https://github.com/eclipse-zenoh/zenoh#734eb89856e45d06bea72153f381096b7da71798"
 dependencies = [
  "aes 0.7.5",
  "anyhow",
