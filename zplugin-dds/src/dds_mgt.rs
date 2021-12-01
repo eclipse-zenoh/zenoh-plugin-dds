@@ -23,7 +23,8 @@ use std::mem::MaybeUninit;
 use std::os::raw;
 use std::sync::Arc;
 use std::time::Duration;
-use zenoh::net::{ResKey, Session, ZBuf};
+use zenoh::buf::ZBuf;
+use zenoh::{prelude::*, Session};
 
 const MAX_SAMPLES: u32 = 32;
 
@@ -183,7 +184,7 @@ pub(crate) fn run_discovery(dp: dds_entity_t, tx: Sender<DiscoveryEvent>) {
 }
 
 unsafe extern "C" fn data_forwarder_listener(dr: dds_entity_t, arg: *mut std::os::raw::c_void) {
-    let pa = arg as *mut (String, ResKey, Arc<Session>);
+    let pa = arg as *mut (String, KeyExpr, Arc<Session>);
     let mut zp: *mut cdds_ddsi_payload = std::ptr::null_mut();
     #[allow(clippy::uninit_assumed_init)]
     let mut si: [dds_sample_info_t; 1] = { MaybeUninit::uninit().assume_init() };
@@ -201,7 +202,7 @@ unsafe extern "C" fn data_forwarder_listener(dr: dds_entity_t, arg: *mut std::os
             } else {
                 log::trace!("Route data from DDS {} to zenoh key={}", &(*pa).0, &(*pa).1);
             }
-            let _ = task::block_on(async { (*pa).2.write(&(*pa).1, rbuf).await });
+            let _ = task::block_on(async { (*pa).2.put(&(*pa).1, rbuf).await });
             (*zp).payload = std::ptr::null_mut();
         }
         cdds_serdata_unref(zp as *mut ddsi_serdata);
@@ -215,7 +216,7 @@ pub fn create_forwarding_dds_reader(
     type_name: String,
     keyless: bool,
     mut qos: Qos,
-    z_key: ResKey,
+    z_key: KeyExpr,
     z: Arc<Session>,
     read_period: Option<Duration>,
 ) -> Result<dds_entity_t, String> {
@@ -258,6 +259,7 @@ pub fn create_forwarding_dds_reader(
                 qos.history.depth = 1;
                 let qos_native = qos.to_qos_native();
                 let reader = dds_create_reader(dp, t, qos_native, std::ptr::null());
+                let z_key = z_key.to_owned();
                 task::spawn(async move {
                     // loop while reader's instance handle remain the same
                     // (if reader was deleted, its dds_entity_t value might have been
@@ -287,13 +289,12 @@ pub fn create_forwarding_dds_reader(
                                     (*zp).size as usize,
                                 );
                                 let rbuf = ZBuf::from(bs);
-                                let _ = task::block_on(async { z.write(&z_key, rbuf).await });
+                                let _ = task::block_on(async { z.put(&z_key, rbuf).await });
                                 (*zp).payload = std::ptr::null_mut();
                             }
                             cdds_serdata_unref(zp as *mut ddsi_serdata);
                         }
                     }
-                    log::error!("**** END OF PERIODIC READER LOOP");
                 });
                 Ok(reader)
             }
