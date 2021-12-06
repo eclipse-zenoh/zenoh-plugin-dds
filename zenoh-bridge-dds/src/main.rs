@@ -89,11 +89,11 @@ fn parse_args() -> (Config, ArgMatches<'static>) {
                 This option disables this feature.'")
         )
         .arg(Arg::with_name("rest-port")
-        .long("port")
+        .long("rest-http-port")
         .required(false)
         .takes_value(true)
         .value_name("PORT")
-        .help("Maps to `--cfg=/plugins/rest/port:PORT`. Disabled by default"))
+        .help("Maps to `--cfg=/plugins/rest/port:PORT`. Disabled by default."))
         .args(&customize_dds_args(dds_args()));
 
     let args = app.get_matches();
@@ -117,7 +117,10 @@ fn parse_args() -> (Config, ArgMatches<'static>) {
         config.scouting.multicast.set_enabled(Some(false)).unwrap();
     }
     config.set_add_timestamp(Some(true)).unwrap();
-    if let Some(port) = args.value_of("rest-post") {
+    if let Some(port) = args
+        .value_of("rest-port")
+        .filter(|v| v.parse::<u16>().is_ok())
+    {
         config.insert_json("plugins/rest/port", port).unwrap();
     }
 
