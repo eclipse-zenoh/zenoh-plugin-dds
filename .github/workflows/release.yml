@@ -90,7 +90,10 @@ jobs:
     steps:
       - uses: actions/checkout@v2
         with:
-          fetch-depth: 0 # NOTE: get all history for git-version crate to correctly compute a version
+          fetch-depth: 500 # NOTE: get long history for git-version crate to correctly compute a version
+      - name: Fetch Git tags # NOTE: workaround for https://github.com/actions/checkout/issues/290
+        shell: bash
+        run: git fetch --tags --force
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v1
       - name: Set up Docker Buildx
@@ -163,8 +166,10 @@ jobs:
       - name: Checkout source code
         uses: actions/checkout@v2
         with:
-          fetch-depth: 0 # NOTE: get all history for git-version crate to correctly compute a version
-
+          fetch-depth: 500 # NOTE: get long history for git-version crate to correctly compute a version
+      - name: Fetch Git tags # NOTE: workaround for https://github.com/actions/checkout/issues/290
+        shell: bash
+        run: git fetch --tags --force
       - name: Install prerequisites
         shell: bash
         run: |
@@ -210,16 +215,16 @@ jobs:
         shell: bash
         run: |
           TARGET=${{ matrix.job.target }}
-          LIB_PKG_NAME="zplugin-dds-${{ needs.checks.outputs.PKG_VERSION }}-${TARGET}.zip"
-          BIN_PKG_NAME="zenoh-bridge-dds-${{ needs.checks.outputs.PKG_VERSION }}-${TARGET}.zip"
+          LIB_PKG_NAME="${GITHUB_WORKSPACE}/zplugin-dds-${{ needs.checks.outputs.PKG_VERSION }}-${TARGET}.zip"
+          BIN_PKG_NAME="${GITHUB_WORKSPACE}/zenoh-bridge-dds-${{ needs.checks.outputs.PKG_VERSION }}-${TARGET}.zip"
 
           case ${TARGET} in
             *linux*)
               cd "target/${TARGET}/release/"
               echo "Packaging ${LIB_PKG_NAME}:"
-              zip ../../../${LIB_PKG_NAME} libzplugin*.so
+              zip ${LIB_PKG_NAME} libzplugin*.so
               echo "Packaging ${BIN_PKG_NAME}:"
-              zip ../../../${BIN_PKG_NAME} zenoh-bridge-dds
+              zip ${BIN_PKG_NAME} zenoh-bridge-dds
               cd -
               echo ::set-output name=LIB_PKG_NAME::"${LIB_PKG_NAME}"
               echo ::set-output name=BIN_PKG_NAME::"${BIN_PKG_NAME}"
@@ -227,9 +232,9 @@ jobs:
             *apple*)
               cd "target/${TARGET}/release/"
               echo "Packaging ${LIB_PKG_NAME}:"
-              zip ../../../${LIB_PKG_NAME} libzplugin*.dylib
+              zip ${LIB_PKG_NAME} libzplugin*.dylib
               echo "Packaging ${BIN_PKG_NAME}:"
-              zip ../../../${BIN_PKG_NAME} zenoh-bridge-dds
+              zip ${BIN_PKG_NAME} zenoh-bridge-dds
               cd -
               echo ::set-output name=LIB_PKG_NAME::"${LIB_PKG_NAME}"
               echo ::set-output name=BIN_PKG_NAME::"${BIN_PKG_NAME}"
@@ -237,9 +242,9 @@ jobs:
             *windows*)
               cd "target/${TARGET}/release/"
               echo "Packaging ${LIB_PKG_NAME}:"
-              7z -y a "../../../${LIB_PKG_NAME}" zplugin*.dll
+              7z -y a "${LIB_PKG_NAME}" zplugin*.dll
               echo "Packaging ${BIN_PKG_NAME}:"
-              7z -y a "../../../${BIN_PKG_NAME}" zenoh-bridge-dds.exe
+              7z -y a "${BIN_PKG_NAME}" zenoh-bridge-dds.exe
               cd -
               echo ::set-output name=LIB_PKG_NAME::"${LIB_PKG_NAME}"
               echo ::set-output name=BIN_PKG_NAME::"${BIN_PKG_NAME}"
