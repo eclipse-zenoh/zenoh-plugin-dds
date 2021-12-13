@@ -1082,13 +1082,13 @@ impl<'a> DdsPluginConfig<'a> {
 
         // Manage ros_discovery_info topic, reading it periodically
         let ros_disco_mgr = RosDiscoveryInfoMgr::create(self.dp).unwrap();
-        let timer = Timer::new();
+        let timer = Timer::default();
         let (tx, mut ros_disco_timer_rcv): (Sender<()>, Receiver<()>) = unbounded();
         let ros_disco_timer_event = TimedEvent::periodic(
             Duration::from_millis(ROS_DISCOVERY_INFO_POLL_INTERVAL_MS),
             ChannelEvent { tx },
         );
-        let _ = timer.add(ros_disco_timer_event).await;
+        let _ = timer.add_async(ros_disco_timer_event).await;
 
         // The ParticipantEntitiesInfo to be re-published on ros_discovery_info (with this bridge's participant gid)
         let mut participant_info = ParticipantEntitiesInfo::new(get_guid(&self.dp).unwrap());
