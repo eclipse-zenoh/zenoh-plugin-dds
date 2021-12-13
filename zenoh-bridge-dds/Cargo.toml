@@ -13,7 +13,7 @@
 #
 [package]
 name = "zenoh-bridge-dds"
-version = "0.6.0-dev"
+version = "0.6.0-dev.0"
 authors = [
 	"kydos <angelo@icorsaro.net>",
 	"Esteve Fernandez <esteve.fernandez@gmail.com>",
