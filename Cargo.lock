@@ -3042,7 +3042,7 @@ dependencies = [
 [[package]]
 name = "zenoh"
 version = "0.6.0-dev.0"
-source = "git+https://github.com/eclipse-zenoh/zenoh#238063db9ca2e67b2213c72873b2f38981289c1c"
+source = "git+https://github.com/eclipse-zenoh/zenoh#693c1ad78902f21e151968ef251af568583f1e2e"
 dependencies = [
  "async-global-executor",
  "async-rustls",
@@ -3104,7 +3104,7 @@ dependencies = [
 [[package]]
 name = "zenoh-ext"
 version = "0.6.0-dev.0"
-source = "git+https://github.com/eclipse-zenoh/zenoh#238063db9ca2e67b2213c72873b2f38981289c1c"
+source = "git+https://github.com/eclipse-zenoh/zenoh#693c1ad78902f21e151968ef251af568583f1e2e"
 dependencies = [
  "async-std",
  "bincode",
@@ -3121,7 +3121,7 @@ dependencies = [
 [[package]]
 name = "zenoh-macros"
 version = "0.6.0-dev.0"
-source = "git+https://github.com/eclipse-zenoh/zenoh#238063db9ca2e67b2213c72873b2f38981289c1c"
+source = "git+https://github.com/eclipse-zenoh/zenoh#693c1ad78902f21e151968ef251af568583f1e2e"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3132,7 +3132,7 @@ dependencies = [
 [[package]]
 name = "zenoh-plugin-rest"
 version = "0.6.0-dev.0"
-source = "git+https://github.com/eclipse-zenoh/zenoh#238063db9ca2e67b2213c72873b2f38981289c1c"
+source = "git+https://github.com/eclipse-zenoh/zenoh#693c1ad78902f21e151968ef251af568583f1e2e"
 dependencies = [
  "async-std",
  "base64 0.13.0",
@@ -3142,6 +3142,7 @@ dependencies = [
  "futures",
  "http-types",
  "log",
+ "serde",
  "serde_json",
  "tide",
  "zenoh",
@@ -3152,7 +3153,7 @@ dependencies = [
 [[package]]
 name = "zenoh-plugin-trait"
 version = "0.6.0-dev.0"
-source = "git+https://github.com/eclipse-zenoh/zenoh#238063db9ca2e67b2213c72873b2f38981289c1c"
+source = "git+https://github.com/eclipse-zenoh/zenoh#693c1ad78902f21e151968ef251af568583f1e2e"
 dependencies = [
  "libloading",
  "log",
@@ -3163,7 +3164,7 @@ dependencies = [
 [[package]]
 name = "zenoh-util"
 version = "0.6.0-dev.0"
-source = "git+https://github.com/eclipse-zenoh/zenoh#238063db9ca2e67b2213c72873b2f38981289c1c"
+source = "git+https://github.com/eclipse-zenoh/zenoh#693c1ad78902f21e151968ef251af568583f1e2e"
 dependencies = [
  "aes 0.7.5",
  "anyhow",
