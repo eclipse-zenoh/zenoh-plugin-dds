@@ -31,6 +31,7 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::time::Duration;
 use zenoh::net::runtime::Runtime;
+use zenoh::plugins::{Plugin, RunningPluginTrait, ZenohPlugin};
 use zenoh::publication::CongestionControl;
 use zenoh::query::{QueryConsolidation, QueryTarget, Target};
 use zenoh::queryable::{Query, Queryable};
@@ -40,9 +41,8 @@ use zenoh::Result as ZResult;
 use zenoh::{prelude::*, Session};
 use zenoh_ext::group::{Group, GroupEvent, JoinEvent, LeaseExpiredEvent, LeaveEvent, Member};
 use zenoh_ext::{PublicationCache, QueryingSubscriber, SessionExt};
-use zenoh_plugin_trait::{prelude::*, PluginId, RunningPluginTrait};
 use zenoh_util::collections::{Timed, TimedEvent, Timer};
-use zenoh_util::zerror;
+use zenoh_util::{bail, zerror};
 
 mod config;
 mod dds_mgt;
@@ -76,18 +76,14 @@ zenoh_plugin_trait::declare_plugin!(DDSPlugin);
 #[allow(clippy::upper_case_acronyms)]
 pub struct DDSPlugin;
 
+impl ZenohPlugin for DDSPlugin {}
 impl Plugin for DDSPlugin {
     type StartArgs = Runtime;
+    type RunningPlugin = zenoh::plugins::RunningPlugin;
 
     const STATIC_NAME: &'static str = "zenoh-plugin-dds";
 
-    fn compatibility() -> zenoh_plugin_trait::PluginId {
-        PluginId {
-            uid: "zenoh-dds-plugin",
-        }
-    }
-
-    fn start(name: &str, runtime: &Self::StartArgs) -> ZResult<zenoh_plugin_trait::RunningPlugin> {
+    fn start(name: &str, runtime: &Self::StartArgs) -> ZResult<zenoh::plugins::RunningPlugin> {
         // Try to initiate login.
         // Required in case of dynamic lib, otherwise no logs.
         // But cannot be done twice in case of static link.
@@ -104,10 +100,24 @@ impl Plugin for DDSPlugin {
     }
 }
 impl RunningPluginTrait for DDSPlugin {
-    fn config_checker(&self) -> zenoh_plugin_trait::ValidationFunction {
-        Arc::new(|_, _, _| {
-            Err(anyhow::anyhow!("DDSPlugin does not support hot configuration changes.").into())
-        })
+    fn config_checker(&self) -> zenoh::plugins::ValidationFunction {
+        Arc::new(|_, _, _| bail!("DDSPlugin does not support hot configuration changes."))
+    }
+
+    fn adminspace_getter<'a>(
+        &'a self,
+        selector: &'a Selector<'a>,
+        plugin_status_key: &str,
+    ) -> ZResult<Vec<zenoh::plugins::Response>> {
+        let mut responses = Vec::new();
+        let version_key = [plugin_status_key, "/__version__"].concat();
+        if zenoh::utils::key_expr::intersect(selector.key_selector.as_str(), &version_key) {
+            responses.push(zenoh::plugins::Response {
+                key: version_key,
+                value: GIT_VERSION.into(),
+            })
+        }
+        Ok(responses)
     }
 }
 
