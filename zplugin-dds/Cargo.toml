@@ -17,7 +17,7 @@ version = "0.6.0-dev.0"
 authors = [
 	"kydos <angelo@icorsaro.net>",
 	"Esteve Fernandez <esteve.fernandez@gmail.com>",
-    "Julien Enoch <julien@enoch.fr>",
+	"Julien Enoch <julien@enoch.fr>",
 	"Pierre Avital <pierre.avital@adlinktech.com>",
 ]
 edition = "2018"
@@ -36,13 +36,12 @@ no_mangle = ["zenoh-plugin-trait/no_mangle"]
 default = ["no_mangle"]
 
 [dependencies]
-zenoh = { git = "https://github.com/eclipse-zenoh/zenoh" }
-zenoh-ext = { git = "https://github.com/eclipse-zenoh/zenoh" }
-zenoh-util = { git = "https://github.com/eclipse-zenoh/zenoh" }
-zenoh-plugin-trait = { git = "https://github.com/eclipse-zenoh/zenoh", default-features = false }
+zenoh = { git = "https://github.com/p-avital/zenoh", branch = "plugins-refactor" }
+zenoh-ext = { git = "https://github.com/p-avital/zenoh", branch = "plugins-refactor" }
+zenoh-util = { git = "https://github.com/p-avital/zenoh", branch = "plugins-refactor" }
+zenoh-plugin-trait = { git = "https://github.com/p-avital/zenoh", branch = "plugins-refactor", default-features = false }
 cyclors = "0.1.2"
 log = "0.4.14"
-anyhow = "1.0.47"
 async-trait = "0.1.42"
 futures = "0.3.12"
 flume = "0.10.8"

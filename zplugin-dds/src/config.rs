@@ -44,6 +44,9 @@ pub struct Config {
     pub join_publications: Vec<String>,
     #[serde(default = "default_forward_discovery")]
     pub forward_discovery: bool,
+    __required__: bool,
+    #[serde(deserialize_with = "deserialize_paths")]
+    __path__: Vec<String>,
 }
 
 fn default_scope() -> String {
@@ -64,6 +67,40 @@ where
 {
     let secs: f64 = Deserialize::deserialize(deserializer)?;
     Ok(Duration::from_secs_f64(secs))
+}
+
+fn deserialize_paths<'de, D>(deserializer: D) -> Result<Vec<String>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    struct V;
+    impl<'de> serde::de::Visitor<'de> for V {
+        type Value = Vec<String>;
+        fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+            write!(formatter, "a string or vector of strings")
+        }
+        fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+        where
+            E: de::Error,
+        {
+            Ok(vec![v.into()])
+        }
+        fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+        where
+            A: de::SeqAccess<'de>,
+        {
+            let mut v = if let Some(l) = seq.size_hint() {
+                Vec::with_capacity(l)
+            } else {
+                Vec::new()
+            };
+            while let Some(s) = seq.next_element()? {
+                v.push(s);
+            }
+            Ok(v)
+        }
+    }
+    deserializer.deserialize_any(V)
 }
 
 fn deserialize_allow<'de, D>(deserializer: D) -> Result<Option<Regex>, D::Error>
