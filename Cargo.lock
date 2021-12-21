@@ -3070,7 +3070,7 @@ dependencies = [
 [[package]]
 name = "zenoh"
 version = "0.6.0-dev.0"
-source = "git+https://github.com/p-avital/zenoh?branch=plugins-refactor#91e1ad85f14c85aad3ee6620c40e3864808af662"
+source = "git+https://github.com/eclipse-zenoh/zenoh#e3ebd2b8b822691711849b77bcd0f5c8d8e26c2f"
 dependencies = [
  "async-global-executor",
  "async-rustls",
@@ -3133,7 +3133,7 @@ dependencies = [
 [[package]]
 name = "zenoh-ext"
 version = "0.6.0-dev.0"
-source = "git+https://github.com/p-avital/zenoh?branch=plugins-refactor#91e1ad85f14c85aad3ee6620c40e3864808af662"
+source = "git+https://github.com/eclipse-zenoh/zenoh#e3ebd2b8b822691711849b77bcd0f5c8d8e26c2f"
 dependencies = [
  "async-std",
  "bincode",
@@ -3150,7 +3150,7 @@ dependencies = [
 [[package]]
 name = "zenoh-macros"
 version = "0.6.0-dev.0"
-source = "git+https://github.com/p-avital/zenoh?branch=plugins-refactor#91e1ad85f14c85aad3ee6620c40e3864808af662"
+source = "git+https://github.com/eclipse-zenoh/zenoh#e3ebd2b8b822691711849b77bcd0f5c8d8e26c2f"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3162,7 +3162,7 @@ dependencies = [
 [[package]]
 name = "zenoh-plugin-rest"
 version = "0.6.0-dev.0"
-source = "git+https://github.com/p-avital/zenoh?branch=plugins-refactor#91e1ad85f14c85aad3ee6620c40e3864808af662"
+source = "git+https://github.com/eclipse-zenoh/zenoh#e3ebd2b8b822691711849b77bcd0f5c8d8e26c2f"
 dependencies = [
  "async-std",
  "base64 0.13.0",
@@ -3173,6 +3173,7 @@ dependencies = [
  "git-version",
  "http-types",
  "log",
+ "serde",
  "serde_json",
  "tide",
  "zenoh",
@@ -3183,7 +3184,7 @@ dependencies = [
 [[package]]
 name = "zenoh-plugin-trait"
 version = "0.6.0-dev.0"
-source = "git+https://github.com/p-avital/zenoh?branch=plugins-refactor#91e1ad85f14c85aad3ee6620c40e3864808af662"
+source = "git+https://github.com/eclipse-zenoh/zenoh#e3ebd2b8b822691711849b77bcd0f5c8d8e26c2f"
 dependencies = [
  "libloading",
  "log",
@@ -3195,7 +3196,7 @@ dependencies = [
 [[package]]
 name = "zenoh-util"
 version = "0.6.0-dev.0"
-source = "git+https://github.com/p-avital/zenoh?branch=plugins-refactor#91e1ad85f14c85aad3ee6620c40e3864808af662"
+source = "git+https://github.com/eclipse-zenoh/zenoh#e3ebd2b8b822691711849b77bcd0f5c8d8e26c2f"
 dependencies = [
  "aes 0.7.5",
  "anyhow",
