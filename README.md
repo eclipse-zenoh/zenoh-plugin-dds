@@ -9,6 +9,12 @@
 ## Background
 The Data Distribution Service (DDS) is a standard for data-centric publish subscribe. Whilst DDS has been around for quite some time and has a long history of deployments in various industries, it has recently gained quite a bit of attentions thanks to its adoption by the Robotic Operating System (ROS2) -- where it is used for communication between ROS2 nodes.
 
+:point_right: **Download stable versions:** https://download.eclipse.org/zenoh/zenoh-plugin-dds/
+
+:point_right: **Docker image:** see [below](#Docker-image)
+
+:point_right: **Build "master" branch:** see [below](#How-to-build-it)
+
 ## Robot Swarms and Edge Robotics
 As mentioned above, ROS2 has adopted DDS as the mechanism to exchange data between nodes within and potentially across a robot. That said, due to some of the very core assumptions at the foundations of the DDS wire-protocol, beside the fact that it leverages UDP/IP multicast for communication, it is not so straightforward to scale DDS communication over a WAN or across multiple LANs. Zenoh, on the other hand was designed since its inception to operate at Internet Scale.
 

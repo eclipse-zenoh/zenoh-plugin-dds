@@ -88,12 +88,12 @@ fn parse_args() -> (Config, ArgMatches<'static>) {
                 'By default the zenoh bridge listens and replies to UDP multicast scouting messages for being discovered by peers and routers. \
                 This option disables this feature.'")
         )
-        .arg(Arg::with_name("rest-port")
+        .arg(Arg::with_name("rest-http-port")
         .long("rest-http-port")
         .required(false)
         .takes_value(true)
         .value_name("PORT")
-        .help("Maps to `--cfg=/plugins/rest/port:PORT`. Disabled by default."))
+        .help("Maps to `--cfg=/plugins/rest/http_port:PORT`. Disabled by default."))
         .args(&customize_dds_args(dds_args()));
 
     let args = app.get_matches();
@@ -117,28 +117,23 @@ fn parse_args() -> (Config, ArgMatches<'static>) {
         config.scouting.multicast.set_enabled(Some(false)).unwrap();
     }
     config.set_add_timestamp(Some(true)).unwrap();
-    if let Some(port) = args
-        .value_of("rest-port")
-        .filter(|v| v.parse::<u16>().is_ok())
-    {
-        config.insert_json("plugins/rest/port", port).unwrap();
+    if let Some(port) = args.value_of("rest-http-port") {
+        config
+            .insert_json("plugins/rest/http_port", &format!(r#""{}""#, port))
+            .unwrap();
     }
 
     insert_json!(config, args, "plugins/dds/scope", "dds-scope", .unwrap());
-    insert_json!(config, args, "plugins/dds/generalise-pub", for "dds-generalise-pub", .collect::<Vec<_>>());
-    insert_json!(config, args, "plugins/dds/generalise-sub", for "dds-generalise-sub", .collect::<Vec<_>>());
+    insert_json!(config, args, "plugins/dds/join_publications", for "dds-generalise-pub", .collect::<Vec<_>>());
+    insert_json!(config, args, "plugins/dds/join_subscriptions", for "dds-generalise-sub", .collect::<Vec<_>>());
     insert_json!(config, args, "plugins/dds/domain", "dds-domain", .unwrap().parse::<u64>().unwrap());
     insert_json!(config, args, "plugins/dds/allow", if "dds-allow", );
-    insert_json!(config, args, "plugins/dds/group-member-id", if "dds-group-member-id", );
-    insert_json!(config, args, "plugins/dds/group-lease", if "dds-group-lease", .parse::<u64>().unwrap());
-    insert_json!(config, args, "plugins/dds/max-frequencies", for "dds-max-frequency", .map(|s| {
-        let at = s.rfind('=').expect("--dds-max-frequency values must be of the form <regex>=<float>");
-        let (re, f) = s.split_at(at);
-        (re, f[1..].parse().unwrap())
-    }).collect::<std::collections::HashMap<&str, f64>>());
+    insert_json!(config, args, "plugins/dds/group_member_id", if "dds-group-member-id", );
+    insert_json!(config, args, "plugins/dds/group_lease", if "dds-group-lease", .parse::<u64>().unwrap());
+    insert_json!(config, args, "plugins/dds/max_frequencies", for "dds-max-frequency", .collect::<Vec<_>>());
     if args.is_present("dds-fwd-discovery") {
         config
-            .insert_json("plugins/dds/fwd-discovery", "true")
+            .insert_json("plugins/dds/forward_discovery", "true")
             .unwrap();
     }
     (config, args)
