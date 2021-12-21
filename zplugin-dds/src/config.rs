@@ -28,7 +28,7 @@ pub struct Config {
     #[serde(default = "default_domain")]
     pub domain: u32,
     #[serde(default)]
-    pub group_member_id: String,
+    pub group_member_id: Option<String>,
     #[serde(
         default = "default_group_lease",
         deserialize_with = "deserialize_group_lease"
@@ -44,8 +44,9 @@ pub struct Config {
     pub join_publications: Vec<String>,
     #[serde(default = "default_forward_discovery")]
     pub forward_discovery: bool,
+    #[serde(default)]
     __required__: bool,
-    #[serde(deserialize_with = "deserialize_paths")]
+    #[serde(default, deserialize_with = "deserialize_paths")]
     __path__: Vec<String>,
 }
 

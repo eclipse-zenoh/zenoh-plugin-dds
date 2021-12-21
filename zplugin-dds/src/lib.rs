@@ -127,7 +127,12 @@ pub async fn run(runtime: Runtime, config: Config) {
     // But cannot be done twice in case of static link.
     let _ = env_logger::try_init();
     debug!("DDS plugin {}", LONG_VERSION.as_str());
-    debug!("Config {:?}", config);
+    debug!("DDS plugin {:?}", config);
+
+    let group_member_id = match config.group_member_id {
+        Some(ref id) => id.clone(),
+        None => runtime.get_pid_str(),
+    };
 
     // open zenoh-net Session (with local routing disabled to avoid loops)
     let zsession = Arc::new(
@@ -141,7 +146,7 @@ pub async fn run(runtime: Runtime, config: Config) {
     );
 
     // create group member
-    let member = Member::new(&config.group_member_id).lease(config.group_lease);
+    let member = Member::new(&group_member_id).lease(config.group_lease);
 
     // create DDS Participant
     let dp = unsafe { dds_create_participant(config.domain, std::ptr::null(), std::ptr::null()) };
