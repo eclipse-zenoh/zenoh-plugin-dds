@@ -11,41 +11,19 @@
 // Contributors:
 //   ADLINK zenoh team, <zenoh@adlink-labs.tech>
 //
-use clap::{App, Arg, ArgMatches};
+use clap::{App, Arg};
 use zenoh::config::Config;
 use zenoh_plugin_trait::Plugin;
 
-// customize the DDS plugin args for retro-compatibility with previous versions of the standalone bridge
-fn customize_dds_args<'a, 'b>(mut args: Vec<Arg<'a, 'b>>) -> Vec<Arg<'a, 'b>> {
-    // NOTE: no way to check what's each Arg is in the Vec!
-    // We need to assume that there are 9, and that they are in correct order...
-    // as specifed in src/lib.rs in get_expected_args()
-    assert_eq!(9, args.len());
-    let arg = args.remove(0).short("s").visible_alias("scope");
-    args.push(arg);
-    let arg = args.remove(0).short("w").visible_alias("generalise-pub");
-    args.push(arg);
-    let arg = args.remove(0).short("r").visible_alias("generalise-sub");
-    args.push(arg);
-    let arg = args.remove(0).short("d").visible_alias("domain");
-    args.push(arg);
-    let arg = args.remove(0).short("a").visible_alias("allow");
-    args.push(arg);
-    let arg = args.remove(0).visible_alias("group-member-id");
-    args.push(arg);
-    let arg = args.remove(0).visible_alias("group-lease");
-    args.push(arg);
-    let arg = args.remove(0).visible_alias("max-frequency");
-    args.push(arg);
-    let arg = args.remove(0).short("f").visible_alias("fwd-discovery");
-    args.push(arg);
+lazy_static::lazy_static!(
+    pub static ref DEFAULT_DOMAIN_STR: String = zplugin_dds::config::DEFAULT_DOMAIN.to_string();
+    pub static ref DEFAULT_GROUP_LEASE_STR: String = zplugin_dds::config::DEFAULT_GROUP_LEASE_SEC.to_string();
+);
 
-    args
-}
 macro_rules! insert_json {
     ($config: expr, $args: expr, $key: expr, if $name: expr, $($t: tt)*) => {
-        if let Some(value) = $args.value_of($name) {
-            $config.insert_json($key, &serde_json::to_string(&value$($t)*).unwrap()).unwrap();
+        if $args.occurrences_of($name) > 0 {
+            $config.insert_json($key, &serde_json::to_string(&$args.value_of($name).unwrap()$($t)*).unwrap()).unwrap();
         }
     };
     ($config: expr, $args: expr, $key: expr, for $name: expr, $($t: tt)*) => {
@@ -53,58 +31,114 @@ macro_rules! insert_json {
             $config.insert_json($key, &serde_json::to_string(&value$($t)*).unwrap()).unwrap();
         }
     };
-    ($config: expr, $args: expr, $key: expr, $name: expr, $($t: tt)*) => {
-        $config.insert_json($key, &serde_json::to_string(&$args.value_of($name)$($t)*).unwrap()).unwrap();
-    };
 }
 
-fn parse_args() -> (Config, ArgMatches<'static>) {
+fn parse_args() -> Config {
     let app = App::new("zenoh bridge for DDS")
         .version(zplugin_dds::GIT_VERSION)
         .long_version(zplugin_dds::LONG_VERSION.as_str())
+        //
+        // zenoh related arguments:
+        //
         .arg(Arg::from_usage(
-            "-e, --peer=[LOCATOR]...  'Peer locator used to initiate the zenoh session (usable multiple times).'",
-        ))
+r#"-i, --id=[HEX_STRING] \
+'The identifier (as an hexadecimal string, with odd number of chars - e.g.: 0A0B23...) that zenohd must use.
+WARNING: this identifier must be unique in the system and must be 16 bytes maximum (32 chars)!
+If not set, a random UUIDv4 will be used.'"#,
+            ))
         .arg(Arg::from_usage(
-            "-l, --listener=[LOCATOR]...   'Locators to listen on (usable multiple times).'",
-        ))
-        .arg(Arg::from_usage(
-                "-i, --id=[hex_string] \
-            'The identifier (as an hexadecimal string - e.g.: 0A0B23...) that the zenoh bridge must use. \
-            WARNING: this identifier must be unique in the system! \
-            If not set, a random UUIDv4 will be used.'",
-        ))
-        .arg(Arg::from_usage(
-            "-c, --config=[FILE]      'A configuration file.'",
-        ))
-        .arg(
-            Arg::from_usage("-m, --mode=[MODE]  'The zenoh session mode.'")
-                .possible_values(&["peer", "client"])
-                .default_value("peer"),
+r#"-m, --mode=[MODE]  'The zenoh session mode.'"#)
+            .possible_values(&["peer", "client"])
+            .default_value("peer")
         )
-        .arg(
-            Arg::from_usage(
-                "--no-multicast-scouting \
-                'By default the zenoh bridge listens and replies to UDP multicast scouting messages for being discovered by peers and routers. \
-                This option disables this feature.'")
+        .arg(Arg::from_usage(
+r#"-c, --config=[FILE] \
+'The configuration file. Currently, this file must be a valid JSON5 file.'"#,
+            ))
+        .arg(Arg::from_usage(
+r#"-l, --listener=[LOCATOR]... \
+'A locator on which this router will listen for incoming sessions.
+Repeat this option to open several listeners.'"#,
+                ),
+            )
+        .arg(Arg::from_usage(
+r#"-e, --peer=[LOCATOR]... \
+'A peer locator this router will try to connect to.
+Repeat this option to connect to several peers.'"#,
+            ))
+        .arg(Arg::from_usage(
+r#"--no-multicast-scouting \
+'By default the zenoh bridge listens and replies to UDP multicast scouting messages for being discovered by peers and routers.
+This option disables this feature.'"#
+        ))
+        .arg(Arg::from_usage(
+r#"--rest-http-port=[PORT | IP:PORT] \
+'Configures HTTP interface for the REST API (disabled by default, setting this option enables it). Accepted values:'
+  - a port number
+  - a string with format `<local_ip>:<port_number>` (to bind the HTTP server to a specific interface)."#
+        ))
+        //
+        // DDS related arguments:
+        //
+        .arg(Arg::from_usage(
+r#"-s, --scope=[String]   'A string added as prefix to all routed DDS topics when mapped to a zenoh resource. This should be used to avoid conflicts when several distinct DDS systems using the same topics names are routed via zenoh'"#
+        ))
+        .arg(Arg::from_usage(
+r#"-d, --domain=[ID]   'The DDS Domain ID (if using with ROS this should be the same as ROS_DOMAIN_ID).'"#)
+            .default_value(&*DEFAULT_DOMAIN_STR)
         )
-        .arg(Arg::with_name("rest-http-port")
-        .long("rest-http-port")
-        .required(false)
-        .takes_value(true)
-        .value_name("PORT")
-        .help("Maps to `--cfg=/plugins/rest/http_port:PORT`. Disabled by default."))
-        .args(&customize_dds_args(dds_args()));
-
+        .arg(Arg::from_usage(
+r#"--group-member-id=[ID]   'A custom identifier for the bridge, that will be used in group management (if not specified, the zenoh UUID is used).'"#
+        ))
+        .arg(Arg::from_usage(
+r#"--group-lease=[Duration]   'The lease duration (in seconds) used in group management for all DDS plugins.'"#)
+            .default_value(&*DEFAULT_GROUP_LEASE_STR)
+        )
+        .arg(Arg::from_usage(
+r#"-a, --allow=[String]   'A regular expression matching the set of 'partition/topic-name' that should be bridged. By default, all partitions and topic are allowed.
+Examples of expressions: '.*/TopicA', 'Partition-?/.*', 'cmd_vel|rosout'...'"#
+        ))
+        .arg(Arg::from_usage(
+r#"--max-frequency=[String]...   'Specifies a maximum frequency of data routing over zenoh for a set of topics. The string must have the format "<regex>=<float>":
+  - "regex" is a regular expression matching the set of 'partition/topic-name' (same syntax than --allow option)
+    for which the data (per DDS instance) must be routed at no higher rate than the specified max frequency.
+  - "float" is the maximum frequency in Hertz; if publication rate is higher, downsampling will occur when routing.
+Repeat this option to configure several topics expressions with a max frequency.'"#
+        ))
+        .arg(Arg::from_usage(
+r#"-r, --generalise-sub=[String]...   'A list of key expression to use for generalising subscriptions (usable multiple times).'"#
+        ))
+        .arg(Arg::from_usage(
+r#"-w, --generalise-pub=[String]...   'A list of key expression to use for generalising publications (usable multiple times).'"#
+        ))
+        .arg(Arg::from_usage(
+r#"-f, --fwd-discovery   'When set, rather than creating a local route when discovering a local DDS entity, this discovery info is forwarded to the remote plugins/bridges. Those will create the routes, including a replica of the discovered entity.'"#
+            ).alias("forward-discovery")
+        );
     let args = app.get_matches();
 
+    // load config file at first
     let mut config = match args.value_of("config") {
         Some(conf_file) => Config::from_file(conf_file).unwrap(),
         None => Config::default(),
     };
-    config
-        .set_mode(Some(args.value_of("mode").unwrap().parse().unwrap()))
-        .unwrap();
+    // if "dds" plugin conf is not present, add it (empty to use default config)
+    if config.plugin("dds").is_none() {
+        config.insert_json("plugins/dds", "{}").unwrap();
+    }
+
+    // apply zenoh related arguments over config
+    // NOTE: only if args.occurrences_of()>0 to avoid overriding config with the default arg value
+    if args.occurrences_of("id") > 0 {
+        config
+            .set_id(args.value_of("id").map(|s| s.to_string()))
+            .unwrap();
+    }
+    if args.occurrences_of("mode") > 0 {
+        config
+            .set_mode(Some(args.value_of("mode").unwrap().parse().unwrap()))
+            .unwrap();
+    }
     if let Some(peers) = args.values_of("peer") {
         config.peers.extend(peers.map(|p| p.parse().unwrap()))
     }
@@ -116,51 +150,42 @@ fn parse_args() -> (Config, ArgMatches<'static>) {
     if args.is_present("no-multicast-scouting") {
         config.scouting.multicast.set_enabled(Some(false)).unwrap();
     }
-    config.set_add_timestamp(Some(true)).unwrap();
     if let Some(port) = args.value_of("rest-http-port") {
         config
             .insert_json("plugins/rest/http_port", &format!(r#""{}""#, port))
             .unwrap();
     }
 
-    insert_json!(config, args, "plugins/dds/scope", "dds-scope", .unwrap());
-    insert_json!(config, args, "plugins/dds/join_publications", for "dds-generalise-pub", .collect::<Vec<_>>());
-    insert_json!(config, args, "plugins/dds/join_subscriptions", for "dds-generalise-sub", .collect::<Vec<_>>());
-    insert_json!(config, args, "plugins/dds/domain", "dds-domain", .unwrap().parse::<u64>().unwrap());
-    insert_json!(config, args, "plugins/dds/allow", if "dds-allow", );
-    insert_json!(config, args, "plugins/dds/group_member_id", if "dds-group-member-id", );
-    insert_json!(config, args, "plugins/dds/group_lease", if "dds-group-lease", .parse::<u64>().unwrap());
-    insert_json!(config, args, "plugins/dds/max_frequencies", for "dds-max-frequency", .collect::<Vec<_>>());
-    if args.is_present("dds-fwd-discovery") {
+    // Always add timestamps to publications (required for PublicationCache used in case of TRANSIENT_LOCAL topics)
+    config.set_add_timestamp(Some(true)).unwrap();
+
+    // apply DDS related arguments over config
+    insert_json!(config, args, "plugins/dds/scope", if "scope",);
+    insert_json!(config, args, "plugins/dds/domain", if "domain", .parse::<u64>().unwrap());
+    insert_json!(config, args, "plugins/dds/group_member_id", if "group-member-id", );
+    insert_json!(config, args, "plugins/dds/group_lease", if "group-lease", .parse::<f64>().unwrap());
+    insert_json!(config, args, "plugins/dds/allow", if "allow", );
+    insert_json!(config, args, "plugins/dds/max_frequencies", for "max-frequency", .collect::<Vec<_>>());
+    insert_json!(config, args, "plugins/dds/generalise_pubs", for "generalise-pub", .collect::<Vec<_>>());
+    insert_json!(config, args, "plugins/dds/generalise_subs", for "generalise-sub", .collect::<Vec<_>>());
+    if args.is_present("fwd-discovery") {
         config
             .insert_json("plugins/dds/forward_discovery", "true")
             .unwrap();
     }
-    (config, args)
+    config
 }
 
 #[async_std::main]
 async fn main() {
-    // Temporary check, while "dzd" is in deprecation phase
-    if let Ok(path) = std::env::current_exe() {
-        if let Some(exe) = path.file_name() {
-            if exe.to_string_lossy().starts_with("dzd") {
-                println!("****");
-                println!("**** WARNING: dzd has a new name: zenoh-bridge-dds");
-                println!("****          Please use this new binary as 'dzd' is deprecated.");
-                println!("****");
-                println!();
-            }
-        }
-    }
-
     env_logger::init();
-    let (config, args) = parse_args();
+    log::debug!("zenoh-bridge-dds {}", *zplugin_dds::LONG_VERSION);
+
+    let config = parse_args();
     let rest_plugin = config.plugin("rest").is_some();
+
     // create a zenoh Runtime (to share with plugins)
-    let runtime = zenoh::net::runtime::Runtime::new(0, config, args.value_of("id"))
-        .await
-        .unwrap();
+    let runtime = zenoh::net::runtime::Runtime::new(0, config).await.unwrap();
 
     // start REST plugin
     if rest_plugin {
@@ -170,47 +195,4 @@ async fn main() {
     // start DDS plugin
     zplugin_dds::DDSPlugin::start("dds", &runtime).unwrap();
     async_std::task::block_on(async_std::future::pending::<()>());
-}
-
-const GROUP_DEFAULT_LEASE: &str = "3";
-fn dds_args() -> Vec<Arg<'static, 'static>> {
-    vec![
-            Arg::from_usage(
-                "--dds-scope=[String]   'A string used as prefix to scope DDS traffic.'"
-            ).default_value(""),
-            Arg::from_usage(
-                "--dds-generalise-pub=[String]...   'A list of key expression to use for generalising publications (usable multiple times).'"
-            ),
-            Arg::from_usage(
-                "--dds-generalise-sub=[String]...   'A list of key expression to use for generalising subscriptions (usable multiple times).'"
-            ),
-            Arg::from_usage(
-                "--dds-domain=[ID]   'The DDS Domain ID (if using with ROS this should be the same as ROS_DOMAIN_ID).'"
-            ).default_value(&*zplugin_dds::DDS_DOMAIN_DEFAULT_STR),
-            Arg::from_usage(
-                "--dds-allow=[String]   'A regular expression matching the set of 'partition/topic-name' that should be bridged. \
-                By default, all partitions and topic are allowed. \
-                Examples of expressions: '.*/TopicA', 'Partition-?/.*', 'cmd_vel|rosout'...'"
-            ),
-            Arg::from_usage(
-                "--dds-group-member-id=[ID]   'A custom identifier for the bridge, that will be used in group management (if not specified, the zenoh UUID is used).'"
-            ),
-            Arg::from_usage(
-                "--dds-group-lease=[Duration]   'The lease duration (in seconds) used in group management for all DDS plugins.'"
-            ).default_value(GROUP_DEFAULT_LEASE),
-            Arg::from_usage(
-r#"--dds-max-frequency=[String]...   'Specifies a maximum frequency of data routing over zenoh for a set of topics. The string must have the format "<regex>=<float>":
-    . "regex" is a regular expression matching the set of
-    'partition/topic-name' for which the data (per DDS instance) must
-        be routed at no higher rate than associated max frequency
-        (same syntax than --dds-allow option).
-    . "float" is the maximum frequency in Hertz; if publication rate is
-    higher, downsampling will occur when routing.
-(usable multiple times)'"#
-            ),
-            Arg::from_usage(
-                "--dds-fwd-discovery   'When set, rather than creating a local route when discovering a local DDS entity, \
-                this discovery info is forwarded to the remote plugins/bridges. Those will create the routes, including a replica of the discovered entity.'"
-            ),
-        ]
 }
