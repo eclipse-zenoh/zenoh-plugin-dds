@@ -44,7 +44,7 @@ use zenoh_ext::{PublicationCache, QueryingSubscriber, SessionExt};
 use zenoh_util::collections::{Timed, TimedEvent, Timer};
 use zenoh_util::{bail, zerror};
 
-mod config;
+pub mod config;
 mod dds_mgt;
 mod qos;
 mod ros_discovery;
@@ -64,9 +64,6 @@ lazy_static::lazy_static!(
 );
 
 const GROUP_NAME: &str = "zenoh-plugin-dds";
-lazy_static::lazy_static!(
-    pub static ref DDS_DOMAIN_DEFAULT_STR: String = DDS_DOMAIN_DEFAULT.to_string();
-);
 const PUB_CACHE_QUERY_PREFIX: &str = "/@dds_pub_cache";
 
 const ROS_DISCOVERY_INFO_POLL_INTERVAL_MS: u64 = 500;
@@ -139,8 +136,8 @@ pub async fn run(runtime: Runtime, config: Config) {
         Session::init(
             runtime,
             false,
-            config.join_subscriptions.clone(),
-            config.join_publications.clone(),
+            config.generalise_subs.clone(),
+            config.generalise_pubs.clone(),
         )
         .await,
     );

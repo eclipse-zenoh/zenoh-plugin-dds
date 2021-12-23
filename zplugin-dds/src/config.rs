@@ -15,10 +15,10 @@ use regex::Regex;
 use serde::{de, Deserialize, Deserializer};
 use std::time::Duration;
 
-const DEFAULT_SCOPE: &str = "";
-const DEFAULT_DOMAIN: u32 = 0;
-const DEFAULT_GROUP_LEASE_SEC: f64 = 3.0;
-const DEFAULT_FORWARD_DISCOVERY: bool = false;
+pub const DEFAULT_SCOPE: &str = "";
+pub const DEFAULT_DOMAIN: u32 = 0;
+pub const DEFAULT_GROUP_LEASE_SEC: f64 = 3.0;
+pub const DEFAULT_FORWARD_DISCOVERY: bool = false;
 
 #[derive(Deserialize, Debug)]
 #[serde(deny_unknown_fields)]
@@ -39,9 +39,9 @@ pub struct Config {
     #[serde(default, deserialize_with = "deserialize_max_frequencies")]
     pub max_frequencies: Vec<(Regex, f32)>,
     #[serde(default)]
-    pub join_subscriptions: Vec<String>,
+    pub generalise_subs: Vec<String>,
     #[serde(default)]
-    pub join_publications: Vec<String>,
+    pub generalise_pubs: Vec<String>,
     #[serde(default = "default_forward_discovery")]
     pub forward_discovery: bool,
     #[serde(default)]

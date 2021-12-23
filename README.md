@@ -44,7 +44,7 @@ $ cd zenoh-plugin-dds
 ```
 
 You can then choose between building the zenoh bridge for DDS:
-- as a dynamically loaded plugin:
+- as a plugin library that can be dynamically loaded by the zenoh router (`zenohd`):
 ```bash
 $ cargo build --release -p zplugin-dds
 ```
@@ -167,10 +167,15 @@ As you understood, using the zenoh bridge, each ROS2 publications and subscripti
 
 See in details how to achieve that in [this blog](https://zenoh.io/blog/2021-04-28-ros2-integration/).
 
-## All zenoh-bridge-dds command line arguments
+## Configuration
 
-`zenoh-bridge-dds` accepts the following arguments:
+`zenoh-bridge-dds` can be configured via a JSON5 file passed via the `-c`argument. You can see a commented example of such configuration file: [`EXAMPLE_CONFIG.json5`](EXAMPLE_CONFIG.json5).
+
+The `"dds"` part of this configuration file can also be used in the configuration file for the zenoh router (within its `"plugins"` part). The router will automatically try to load the plugin library (`zplugin_dds`) at startup and apply its configuration.
+
+`zenoh-bridge-dds` also accepts the following arguments. If set, each argument will override the similar setting from the configuration file:
  * zenoh-related arguments:
+   - **`-c, --config <FILE>`** : a config file
    - **`-m, --mode <MODE>`** : The zenoh session mode. Default: `peer` Possible values: `peer` or `client`.  
       See [zenoh documentation](https://zenoh.io/docs/getting-started/key-concepts/#deployment-units) for more details.
    - **`-l, --listener <LOCATOR>`** : The locators the bridge will listen on for zenoh protocol. Can be specified multiple times. Example of locator: `tcp/localhost:7447`.

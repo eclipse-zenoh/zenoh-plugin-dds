@@ -1,0 +1,111 @@
+////
+//// This file is an example of configuration for zenoh-bridge-dds.
+//// The "dds" JSON5 object below can be used as such in the "plugins" part
+//// of a config file for the zenoh router (zenohd).
+////
+{
+  plugins: {
+    ////
+    //// DDS related configuration
+    //// All settings are optional - uncomment the ones you want to set
+    ////
+    dds: {
+      ////
+      //// scope: A string added as prefix to all routed DDS topics when mapped to a zenoh resource.
+      ////        This should be used to avoid conflicts when several distinct DDS systems using
+      ////        the same topics names are routed via zenoh.
+      ////
+      // scope: "/robot-1",
+
+      ////
+      //// domain: The DDS Domain ID (if using with ROS this should be the same as ROS_DOMAIN_ID).
+      ////
+      // domain: 1,
+
+      ////
+      //// group_member_id: A custom identifier for the bridge, that will be used in group management
+      ////                  (if not specified, the zenoh UUID is used).
+      ////
+      // group_member_id: "robot-1",
+
+      ////
+      //// group_lease: The lease duration (in seconds) used in group management for all DDS plugins.
+      ////
+      // group_lease: 2.5,
+
+      ////
+      //// allow: A regular expression matching the set of 'partition/topic-name' that should be bridged. 
+      ////        By default, all partitions and topic are allowed.
+      ////        Examples of expressions: ".*/TopicA", "Partition-?/.*", "cmd_vel|rosout"...'"#
+      ////
+      // allow: "cmd_vel|rosout",
+
+      ////
+      //// max_frequencies: Specifies a list of maximum frequency of data routing over zenoh for a set of topics.
+      ////                  The strings must have the format "<regex>=<float>":
+      ////                  - "regex" is a regular expression matching the set of "partition/topic-name"
+      ////                    (same syntax than --allow option) for which the data (per DDS instance) must be
+      ////                    routed at no higher rate than the specified max frequency.
+      ////                  - "float" is the maximum frequency in Hertz; 
+      ////                    if publication rate is higher, downsampling will occur when routing.
+      //max_frequencies: ["diagnostic.*=10", "rosout=5"],
+
+      ////
+      //// generalise_subs: A list of key expression to use for generalising subscriptions.
+      ////
+      // generalise_subs: ["SUB1", "SUB2"],
+
+      ////
+      //// generalise_subs: A list of key expression to use for generalising publications.
+      ////
+      // generalise_subs: ["PUB1", "PUB2"],
+
+
+      ////
+      //// forward_discovery: When true, rather than creating a local route when discovering a local DDS entity,
+      ////                    this discovery info is forwarded to the remote plugins/bridges. 
+      ////                   Those will create the routes, including a replica of the discovered entity.
+      ////
+      // forward_discovery: true,
+    },
+
+    ////
+    //// REST API configuration (active only if this part is defined)
+    ////
+    // rest: {
+    //   ////
+    //   //// The HTTP port number (for all network interfaces).
+    //   //// You can bind on a specific interface setting a "<local_ip>:<port>" string.
+    //   ////
+    //   http_port: 8000,
+    // },
+  },
+
+  ////
+  //// zenoh related configuration (see zenoh documentation for more details)
+  ////
+
+  ////
+  //// id: The identifier (as hex-string) that zenoh-bridge-dds must use. If not set, a random UUIDv4 will be used.
+  //// WARNING: this id must be unique in your zenoh network.
+  // id: "A00001",
+
+  ////
+  //// mode: The bridge's mode (peer or client)
+  ////
+  //mode: "client",
+
+  ////
+  //// peers: Which locators to connect to, proto may be one of tcp|udp|quic|tls|unixsock-stream.
+  ////
+  peers: [
+    // "<proto>/<ip>:<port>"
+  ],
+
+  ////
+  //// listeners: Which locators to listen on. These are typically bound to local IPs or 0.0.0.0
+  ////
+  listeners: [
+    // "<proto>/<ip>:<port>"
+  ],
+}
