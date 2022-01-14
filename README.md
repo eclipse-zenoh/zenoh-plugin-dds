@@ -60,7 +60,7 @@ The **`zenoh-bridge-dds`** binary will be generated in the `target/release` sub-
 If you're a ROS2 user, you can also build `zenoh-bridge-dds` as a ROS package running:
 ```bash
 rosdep install --from-paths . --ignore-src -r -y
-colcon build --packages-select zenoh-bridge-dds
+colcon build --packages-select zenoh-bridge-dds --cmake-args -DCMAKE_BUILD_TYPE=Release
 ```
 The `rosdep` command will automatically install *Rust* and *clang* as build dependencies.
 
