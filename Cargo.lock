@@ -716,6 +716,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "crypto-common"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "683d6b536309245c849479fba3da410962a43ed8e51c26b729208ec0ac2798d0"
+dependencies = [
+ "generic-array 0.14.4",
+]
+
+[[package]]
 name = "crypto-mac"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -830,6 +839,16 @@ version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d3dd60d1080a57a05ab032377049e0591415d2b31afd7028356dbf3cc6dcb066"
 dependencies = [
+ "generic-array 0.14.4",
+]
+
+[[package]]
+name = "digest"
+version = "0.10.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b697d66081d42af4fba142d56918a3cb21dc8eb63372c6b85d14f44fb9c5979b"
+dependencies = [
+ "crypto-common",
  "generic-array 0.14.4",
 ]
 
@@ -2103,11 +2122,10 @@ checksum = "56770675ebc04927ded3e60633437841581c285dc6236109ea25fbf3beb7b59e"
 [[package]]
 name = "rsa"
 version = "0.5.0"
-source = "git+https://github.com/RustCrypto/RSA.git#fd1961dfe256d47a7ec783fdbb63e7ceacbc3265"
+source = "git+https://github.com/RustCrypto/RSA.git#2d68db2e0fddbccb23a9fdcec26f4a23f6d844e4"
 dependencies = [
  "byteorder",
- "digest 0.9.0",
- "lazy_static",
+ "digest 0.10.1",
  "num-bigint-dig",
  "num-integer",
  "num-iter",
@@ -3070,7 +3088,7 @@ dependencies = [
 [[package]]
 name = "zenoh"
 version = "0.6.0-dev.0"
-source = "git+https://github.com/eclipse-zenoh/zenoh#6cd7aab4ca8e41d561efc853fd5dd334b7f7d64e"
+source = "git+https://github.com/eclipse-zenoh/zenoh#1a366fcc471f74661a7120f3a9aa530b25b1c55e"
 dependencies = [
  "async-global-executor",
  "async-rustls",
@@ -3135,7 +3153,7 @@ dependencies = [
 [[package]]
 name = "zenoh-ext"
 version = "0.6.0-dev.0"
-source = "git+https://github.com/eclipse-zenoh/zenoh#6cd7aab4ca8e41d561efc853fd5dd334b7f7d64e"
+source = "git+https://github.com/eclipse-zenoh/zenoh#1a366fcc471f74661a7120f3a9aa530b25b1c55e"
 dependencies = [
  "async-std",
  "bincode",
@@ -3152,7 +3170,7 @@ dependencies = [
 [[package]]
 name = "zenoh-macros"
 version = "0.6.0-dev.0"
-source = "git+https://github.com/eclipse-zenoh/zenoh#6cd7aab4ca8e41d561efc853fd5dd334b7f7d64e"
+source = "git+https://github.com/eclipse-zenoh/zenoh#1a366fcc471f74661a7120f3a9aa530b25b1c55e"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3164,7 +3182,7 @@ dependencies = [
 [[package]]
 name = "zenoh-plugin-rest"
 version = "0.6.0-dev.0"
-source = "git+https://github.com/eclipse-zenoh/zenoh#6cd7aab4ca8e41d561efc853fd5dd334b7f7d64e"
+source = "git+https://github.com/eclipse-zenoh/zenoh#1a366fcc471f74661a7120f3a9aa530b25b1c55e"
 dependencies = [
  "async-std",
  "base64 0.13.0",
@@ -3186,7 +3204,7 @@ dependencies = [
 [[package]]
 name = "zenoh-plugin-trait"
 version = "0.6.0-dev.0"
-source = "git+https://github.com/eclipse-zenoh/zenoh#6cd7aab4ca8e41d561efc853fd5dd334b7f7d64e"
+source = "git+https://github.com/eclipse-zenoh/zenoh#1a366fcc471f74661a7120f3a9aa530b25b1c55e"
 dependencies = [
  "libloading",
  "log",
@@ -3198,7 +3216,7 @@ dependencies = [
 [[package]]
 name = "zenoh-util"
 version = "0.6.0-dev.0"
-source = "git+https://github.com/eclipse-zenoh/zenoh#6cd7aab4ca8e41d561efc853fd5dd334b7f7d64e"
+source = "git+https://github.com/eclipse-zenoh/zenoh#1a366fcc471f74661a7120f3a9aa530b25b1c55e"
 dependencies = [
  "aes 0.7.5",
  "anyhow",

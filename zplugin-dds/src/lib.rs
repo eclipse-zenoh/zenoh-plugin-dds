@@ -283,7 +283,7 @@ impl Serialize for DdsPluginRuntime<'_> {
                 .config
                 .max_frequencies
                 .iter()
-                .map(|(re, freq)| format!("{}={}", re.to_string(), freq))
+                .map(|(re, freq)| format!("{}={}", re, freq))
                 .collect::<Vec<String>>(),
         )?;
         s.serialize_field("forward_discovery", &self.config.forward_discovery)?;
