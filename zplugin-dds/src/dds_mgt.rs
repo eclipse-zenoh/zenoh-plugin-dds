@@ -24,6 +24,7 @@ use std::os::raw;
 use std::sync::Arc;
 use std::time::Duration;
 use zenoh::buf::ZBuf;
+use zenoh::publication::CongestionControl;
 use zenoh::{prelude::*, Session};
 
 const MAX_SAMPLES: u32 = 32;
@@ -184,7 +185,7 @@ pub(crate) fn run_discovery(dp: dds_entity_t, tx: Sender<DiscoveryEvent>) {
 }
 
 unsafe extern "C" fn data_forwarder_listener(dr: dds_entity_t, arg: *mut std::os::raw::c_void) {
-    let pa = arg as *mut (String, KeyExpr, Arc<Session>);
+    let pa = arg as *mut (String, KeyExpr, Arc<Session>, CongestionControl);
     let mut zp: *mut cdds_ddsi_payload = std::ptr::null_mut();
     #[allow(clippy::uninit_assumed_init)]
     let mut si: [dds_sample_info_t; 1] = { MaybeUninit::uninit().assume_init() };
@@ -202,7 +203,13 @@ unsafe extern "C" fn data_forwarder_listener(dr: dds_entity_t, arg: *mut std::os
             } else {
                 log::trace!("Route data from DDS {} to zenoh key={}", &(*pa).0, &(*pa).1);
             }
-            let _ = task::block_on(async { (*pa).2.put(&(*pa).1, rbuf).await });
+            let _ = task::block_on(async {
+                (*pa)
+                    .2
+                    .put(&(*pa).1, rbuf)
+                    .congestion_control((*pa).3)
+                    .await
+            });
             (*zp).payload = std::ptr::null_mut();
         }
         cdds_serdata_unref(zp as *mut ddsi_serdata);
@@ -219,6 +226,7 @@ pub fn create_forwarding_dds_reader(
     z_key: KeyExpr,
     z: Arc<Session>,
     read_period: Option<Duration>,
+    congestion_ctrl: CongestionControl,
 ) -> Result<dds_entity_t, String> {
     let cton = CString::new(topic_name.clone()).unwrap().into_raw();
     let ctyn = CString::new(type_name).unwrap().into_raw();
@@ -229,7 +237,7 @@ pub fn create_forwarding_dds_reader(
         match read_period {
             None => {
                 // Use a Listener to route data as soon as it arraives
-                let arg = Box::new((topic_name, z_key, z));
+                let arg = Box::new((topic_name, z_key, z, congestion_ctrl));
                 let sub_listener =
                     dds_create_listener(Box::into_raw(arg) as *mut std::os::raw::c_void);
                 dds_lset_data_available(sub_listener, Some(data_forwarder_listener));
@@ -289,7 +297,11 @@ pub fn create_forwarding_dds_reader(
                                     (*zp).size as usize,
                                 );
                                 let rbuf = ZBuf::from(bs);
-                                let _ = task::block_on(async { z.put(&z_key, rbuf).await });
+                                let _ = task::block_on(async {
+                                    z.put(&z_key, rbuf)
+                                        .congestion_control(congestion_ctrl)
+                                        .await
+                                });
                                 (*zp).payload = std::ptr::null_mut();
                             }
                             cdds_serdata_unref(zp as *mut ddsi_serdata);

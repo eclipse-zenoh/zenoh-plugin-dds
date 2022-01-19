@@ -19,6 +19,7 @@ pub const DEFAULT_SCOPE: &str = "";
 pub const DEFAULT_DOMAIN: u32 = 0;
 pub const DEFAULT_GROUP_LEASE_SEC: f64 = 3.0;
 pub const DEFAULT_FORWARD_DISCOVERY: bool = false;
+pub const DEFAULT_RELIABLE_ROUTES_BLOCKING: bool = true;
 
 #[derive(Deserialize, Debug)]
 #[serde(deny_unknown_fields)]
@@ -44,6 +45,8 @@ pub struct Config {
     pub generalise_pubs: Vec<String>,
     #[serde(default = "default_forward_discovery")]
     pub forward_discovery: bool,
+    #[serde(default = "default_reliable_routes_blocking")]
+    pub reliable_routes_blocking: bool,
     #[serde(default)]
     __required__: bool,
     #[serde(default, deserialize_with = "deserialize_paths")]
@@ -140,4 +143,8 @@ where
 
 fn default_forward_discovery() -> bool {
     DEFAULT_FORWARD_DISCOVERY
+}
+
+fn default_reliable_routes_blocking() -> bool {
+    DEFAULT_RELIABLE_ROUTES_BLOCKING
 }

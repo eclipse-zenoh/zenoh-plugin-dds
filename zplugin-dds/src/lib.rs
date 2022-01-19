@@ -400,6 +400,7 @@ impl<'a> DdsPluginRuntime<'a> {
         topic_type: &str,
         keyless: bool,
         reader_qos: Qos,
+        congestion_ctrl: CongestionControl,
     ) -> RouteStatus {
         if !self.is_allowed(zkey) {
             info!(
@@ -471,6 +472,7 @@ impl<'a> DdsPluginRuntime<'a> {
             rid.into(),
             self.zsession.clone(),
             read_period,
+            congestion_ctrl,
         ) {
             Ok(dr) => {
                 info!(
@@ -804,10 +806,16 @@ impl<'a> DdsPluginRuntime<'a> {
                             let mut qos = entity.qos.clone();
                             qos.ignore_local_participant = true;
 
+                            // CongestionControl to be used when re-publishing over zenoh: Blocking if Writer is RELIABLE (since we don't know what is remote Reader's QoS)
+                            let congestion_ctrl = match (self.config.reliable_routes_blocking, entity.qos.reliability.kind) {
+                                (true, ReliabilityKind::RELIABLE) => CongestionControl::Block,
+                                _ => CongestionControl::Drop,
+                            };
+
                             // create 1 route per partition, or just 1 if no partition
                             if entity.qos.partitions.is_empty() {
                                 let zkey = format!("{}/{}", scope, entity.topic_name);
-                                let route_status = self.try_add_route_from_dds(&zkey, &entity.topic_name, &entity.type_name, entity.keyless, qos).await;
+                                let route_status = self.try_add_route_from_dds(&zkey, &entity.topic_name, &entity.type_name, entity.keyless, qos, congestion_ctrl).await;
                                 if let RouteStatus::Routed(ref route_key) = route_status {
                                     if let Some(r) = self.routes_from_dds.get_mut(route_key) {
                                         // add Writer's key in local_matched_writers list
@@ -818,7 +826,7 @@ impl<'a> DdsPluginRuntime<'a> {
                             } else {
                                 for p in &entity.qos.partitions {
                                     let zkey = format!("{}/{}/{}", scope, p, entity.topic_name);
-                                    let route_status = self.try_add_route_from_dds(&zkey, &entity.topic_name, &entity.type_name, entity.keyless, qos.clone()).await;
+                                    let route_status = self.try_add_route_from_dds(&zkey, &entity.topic_name, &entity.type_name, entity.keyless, qos.clone(), congestion_ctrl).await;
                                     if let RouteStatus::Routed(ref route_key) = route_status {
                                         if let Some(r) = self.routes_from_dds.get_mut(route_key) {
                                             // if route has been created, add this Writer in its routed_writers list
@@ -1157,10 +1165,16 @@ impl<'a> DdsPluginRuntime<'a> {
                                 let mut qos = entity.qos.clone();
                                 qos.ignore_local_participant = true;
 
+                                // CongestionControl to be used when re-publishing over zenoh: Blocking if Reader is RELIABLE (since Writer will also be, otherwise no matching)
+                                let congestion_ctrl = match (self.config.reliable_routes_blocking, entity.qos.reliability.kind) {
+                                    (true, ReliabilityKind::RELIABLE) => CongestionControl::Block,
+                                    _ => CongestionControl::Drop,
+                                };
+
                                 // create 1 'from_dds" route per partition, or just 1 if no partition
                                 if entity.qos.partitions.is_empty() {
                                     let zkey = format!("{}/{}", scope, entity.topic_name);
-                                    let route_status = self.try_add_route_from_dds(&zkey, &entity.topic_name, &entity.type_name, entity.keyless, qos).await;
+                                    let route_status = self.try_add_route_from_dds(&zkey, &entity.topic_name, &entity.type_name, entity.keyless, qos, congestion_ctrl).await;
                                     if let RouteStatus::Routed(ref route_key) = route_status {
                                         if let Some(r) = self.routes_from_dds.get_mut(route_key) {
                                             // add the reader's admin path to the list of remote_routed_writers
@@ -1177,7 +1191,7 @@ impl<'a> DdsPluginRuntime<'a> {
                                 } else {
                                     for p in &entity.qos.partitions {
                                         let zkey = format!("{}/{}/{}", scope, p, entity.topic_name);
-                                        let route_status = self.try_add_route_from_dds(&zkey, &entity.topic_name, &entity.type_name, entity.keyless, qos.clone()).await;
+                                        let route_status = self.try_add_route_from_dds(&zkey, &entity.topic_name, &entity.type_name, entity.keyless, qos.clone(), congestion_ctrl).await;
                                         if let RouteStatus::Routed(ref route_key) = route_status {
                                             if let Some(r) = self.routes_from_dds.get_mut(route_key) {
                                                 // add the reader's admin path to the list of remote_routed_writers
