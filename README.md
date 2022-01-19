@@ -190,12 +190,16 @@ The `"dds"` part of this configuration file can also be used in the configuratio
    - **`-d, --domain <ID>`** : The DDS Domain ID (if using with ROS this should be the same as `ROS_DOMAIN_ID`)
    - **`-f, --fwd-discovery`** : When set, rather than creating a local route when discovering a local DDS entity, this discovery info is forwarded to the remote plugins/bridges. Those will create the routes, including a replica of the discovered entity. More details [here](#full-support-of-ros-graph-and-topic-lists-via-the-forward-discovery-mode)
    - **`-s, --scope <String>`** : A string used as prefix to scope DDS traffic when mapped to zenoh resources.
-   - **`-a, --allow <String>`** :  A regular expression matching the set of 'partition/topic-name' that must
-     be routed. By default, all partitions and topic are allowed.  
+   - **`-a, --allow <String>`** :  A regular expression matching the set of 'partition/topic-name' that must be routed via zenoh.
+     By default, all partitions and topics are allowed.  
+     If both 'allow' and 'deny' are set a partition and/or topic will be allowed if it matches only the 'allow' expression.  
      Examples of expressions: 
         - `.*/TopicA` will allow only the `TopicA` to be routed, whatever the partition.
         - `PartitionX/.*` will allow all the topics to be routed, but only on `PartitionX`.
         - `cmd_vel|rosout` will allow only the topics containing `cmd_vel` or `rosout` in their name or partition name to be routed.
+   - **`--deny <String>`** :  A regular expression matching the set of 'partition/topic-name' that must NOT be routed via zenoh.
+     By default, no partitions and no topics are denied.  
+     If both 'allow' and 'deny' are set a partition and/or topic will be allowed if it matches only the 'allow' expression.  
    - **`--dds-max-frequency <String>...`** : specifies a maximum frequency of data routing over zenoh per-topic. The string must have the format `"regex=float"` where:
        - `"regex"` is a regular expression matching the set of 'partition/topic-name' for which the data (per DDS instance) must be routedat no higher rate than associated max frequency (same syntax than --allow option).
        - `"float"` is the maximum frequency in Hertz; if publication rate is higher, downsampling will occur when routing.

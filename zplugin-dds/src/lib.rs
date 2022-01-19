@@ -275,7 +275,15 @@ impl Serialize for DdsPluginRuntime<'_> {
                 .config
                 .allow
                 .as_ref()
-                .map_or_else(|| "**".to_string(), |re| re.to_string()),
+                .map_or_else(|| ".*".to_string(), |re| re.to_string()),
+        )?;
+        s.serialize_field(
+            "deny",
+            &self
+                .config
+                .deny
+                .as_ref()
+                .map_or_else(|| "".to_string(), |re| re.to_string()),
         )?;
         s.serialize_field(
             "max-frequencies",
@@ -287,6 +295,10 @@ impl Serialize for DdsPluginRuntime<'_> {
                 .collect::<Vec<String>>(),
         )?;
         s.serialize_field("forward_discovery", &self.config.forward_discovery)?;
+        s.serialize_field(
+            "reliable_routes_blocking",
+            &self.config.reliable_routes_blocking,
+        )?;
         s.end()
     }
 }
@@ -301,9 +313,11 @@ impl<'a> DdsPluginRuntime<'a> {
             // If fwd-discovery mode is enabled, don't route /ros_discovery_info
             return false;
         }
-        match &self.config.allow {
-            Some(re) => re.is_match(zkey),
-            _ => true,
+        match (&self.config.allow, &self.config.deny) {
+            (Some(allow), None) => allow.is_match(zkey),
+            (None, Some(deny)) => !deny.is_match(zkey),
+            (Some(allow), Some(deny)) => allow.is_match(zkey) && !deny.is_match(zkey),
+            (None, None) => true,
         }
     }
 
@@ -404,7 +418,7 @@ impl<'a> DdsPluginRuntime<'a> {
     ) -> RouteStatus {
         if !self.is_allowed(zkey) {
             info!(
-                "Ignoring Publication for resource {} as it is not allowed (see --allow option)",
+                "Ignoring Publication for resource {} as it is not allowed (see your 'allow' or 'deny' configuration)",
                 zkey
             );
             return RouteStatus::NotAllowed;
@@ -511,7 +525,7 @@ impl<'a> DdsPluginRuntime<'a> {
     ) -> RouteStatus {
         if !self.is_allowed(zkey) {
             info!(
-                "Ignoring Subscription for resource {} as it is not allowed (see --allow option)",
+                "Ignoring Subscription for resource {} as it is not allowed (see your 'allow' or 'deny' configuration)",
                 zkey
             );
             return RouteStatus::NotAllowed;
