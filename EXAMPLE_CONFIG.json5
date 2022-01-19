@@ -60,13 +60,22 @@
       ////
       // generalise_subs: ["PUB1", "PUB2"],
 
-
       ////
       //// forward_discovery: When true, rather than creating a local route when discovering a local DDS entity,
-      ////                    this discovery info is forwarded to the remote plugins/bridges. 
-      ////                   Those will create the routes, including a replica of the discovered entity.
+      ////                    this discovery info is forwarded to the remote plugins/bridges.
+      ////                    Those will create the routes, including a replica of the discovered entity.
       ////
-      // forward_discovery: true,
+      // forward_discovery: false,
+
+      ////
+      //// reliable_routes_blocking: When true, the publications from a RELIABLE DDS Writer will be
+      ////                           routed to zenoh using the CongestionControl::Block option.
+      ////                           Meaning the routing will be blocked in case of network congestion,
+      ////                           blocking the DDS Reader and the RELIABLE DDS Writer in return.
+      ////                           When false (or for BERST_EFFORT DDS Writers), CongestionControl::Drop
+      ////                           is used, meaning the route might drop some data in case of congestion.
+      ////
+      // reliable_routes_blocking: true,
     },
 
     ////
