@@ -35,8 +35,10 @@ pub struct Config {
         deserialize_with = "deserialize_group_lease"
     )]
     pub group_lease: Duration,
-    #[serde(default, deserialize_with = "deserialize_allow")]
+    #[serde(default, deserialize_with = "deserialize_regex")]
     pub allow: Option<Regex>,
+    #[serde(default, deserialize_with = "deserialize_regex")]
+    pub deny: Option<Regex>,
     #[serde(default, deserialize_with = "deserialize_max_frequencies")]
     pub max_frequencies: Vec<(Regex, f32)>,
     #[serde(default)]
@@ -107,7 +109,7 @@ where
     deserializer.deserialize_any(V)
 }
 
-fn deserialize_allow<'de, D>(deserializer: D) -> Result<Option<Regex>, D::Error>
+fn deserialize_regex<'de, D>(deserializer: D) -> Result<Option<Regex>, D::Error>
 where
     D: Deserializer<'de>,
 {

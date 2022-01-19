@@ -95,7 +95,13 @@ r#"--group-lease=[Duration]   'The lease duration (in seconds) used in group man
             .default_value(&*DEFAULT_GROUP_LEASE_STR)
         )
         .arg(Arg::from_usage(
-r#"-a, --allow=[String]   'A regular expression matching the set of 'partition/topic-name' that should be bridged. By default, all partitions and topic are allowed.
+r#"-a, --allow=[String]   'A regular expression matching the set of 'partition/topic-name' that must be routed via zenoh. By default, all partitions and topics are allowed.
+If both '--allow' and '--deny' are set a partition and/or topic will be allowed if it matches only the 'allow' expression.
+Examples of expressions: '.*/TopicA', 'Partition-?/.*', 'cmd_vel|rosout'...'"#
+        ))
+        .arg(Arg::from_usage(
+r#"--deny=[String]   'A regular expression matching the set of 'partition/topic-name' that must not be routed via zenoh. By default, no partitions and no topics are denied.
+If both '--allow' and '--deny' are set a partition and/or topic will be allowed if it matches only the 'allow' expression.
 Examples of expressions: '.*/TopicA', 'Partition-?/.*', 'cmd_vel|rosout'...'"#
         ))
         .arg(Arg::from_usage(
@@ -165,6 +171,7 @@ r#"-f, --fwd-discovery   'When set, rather than creating a local route when disc
     insert_json!(config, args, "plugins/dds/group_member_id", if "group-member-id", );
     insert_json!(config, args, "plugins/dds/group_lease", if "group-lease", .parse::<f64>().unwrap());
     insert_json!(config, args, "plugins/dds/allow", if "allow", );
+    insert_json!(config, args, "plugins/dds/deny", if "deny", );
     insert_json!(config, args, "plugins/dds/max_frequencies", for "max-frequency", .collect::<Vec<_>>());
     insert_json!(config, args, "plugins/dds/generalise_pubs", for "generalise-pub", .collect::<Vec<_>>());
     insert_json!(config, args, "plugins/dds/generalise_subs", for "generalise-sub", .collect::<Vec<_>>());
