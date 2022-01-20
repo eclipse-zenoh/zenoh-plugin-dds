@@ -20,6 +20,9 @@ on:
     - cron: "0 1 * * 1-5"
   workflow_dispatch:
 
+env:
+  cargo-deb-version: 1.35.0
+
 jobs:
   checks:
     name: Code checks
@@ -174,6 +177,10 @@ jobs:
         shell: bash
         run: |
           case ${{ matrix.job.target }} in
+            *-linux-gnu*) cargo install cargo-deb --version ${{ env.cargo-deb-version }};;
+          esac
+
+          case ${{ matrix.job.target }} in
             arm-unknown-linux-gnueabi)
               sudo apt-get -y update
               sudo apt-get -y install gcc-arm-linux-gnueabi
@@ -210,6 +217,20 @@ jobs:
           command: build
           args: --release --target=${{ matrix.job.target }} -p zenoh-bridge-dds
 
+      - name: zplugin-dds > Debian package
+        if: contains(matrix.job.target, '-linux-gnu')
+        uses: actions-rs/cargo@v1
+        with:
+          command: deb
+          args: --no-build --target=${{ matrix.job.target }} -p zplugin-dds
+
+      - name: zenoh-bridge-dds > Debian package
+        if: contains(matrix.job.target, '-linux-gnu')
+        uses: actions-rs/cargo@v1
+        with:
+          command: deb
+          args: --no-build --target=${{ matrix.job.target }} -p zenoh-bridge-dds
+
       - name: Packaging
         id: package
         shell: bash
@@ -217,6 +238,7 @@ jobs:
           TARGET=${{ matrix.job.target }}
           LIB_PKG_NAME="${GITHUB_WORKSPACE}/zplugin-dds-${{ needs.checks.outputs.PKG_VERSION }}-${TARGET}.zip"
           BIN_PKG_NAME="${GITHUB_WORKSPACE}/zenoh-bridge-dds-${{ needs.checks.outputs.PKG_VERSION }}-${TARGET}.zip"
+          DEBS_PKG_NAME="${GITHUB_WORKSPACE}/zplugin-dds-${{ needs.checks.outputs.PKG_VERSION }}-${TARGET}-deb-pkgs.zip"
 
           case ${TARGET} in
             *linux*)
@@ -228,6 +250,15 @@ jobs:
               cd -
               echo ::set-output name=LIB_PKG_NAME::"${LIB_PKG_NAME}"
               echo ::set-output name=BIN_PKG_NAME::"${BIN_PKG_NAME}"
+
+              # check if debian packages has been created and packages them in a single tgz
+              if [[ -d target/${TARGET}/debian ]]; then
+                cd target/${TARGET}/debian
+                echo "Packaging ${DEBS_PKG_NAME}:"
+                zip ${DEBS_PKG_NAME} *.deb
+                cd -
+                echo ::set-output name=DEBS_PKG_NAME::"${DEBS_PKG_NAME}"
+              fi
               ;;
             *apple*)
               cd "target/${TARGET}/release/"
@@ -258,6 +289,7 @@ jobs:
           path: |
             ${{ steps.package.outputs.LIB_PKG_NAME }}
             ${{ steps.package.outputs.BIN_PKG_NAME }}
+            ${{ steps.package.outputs.DEBS_PKG_NAME }}
 
   publication:
     name: Publish the release

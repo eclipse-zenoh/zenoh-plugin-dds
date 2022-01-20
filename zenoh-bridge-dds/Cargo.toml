@@ -47,3 +47,20 @@ features = ["unstable", "attributes"]
 [[bin]]
 name = "zenoh-bridge-dds"
 path = "src/main.rs"
+
+[package.metadata.deb]
+name = "zenoh-bridge-dds"
+maintainer = "zenoh-dev@eclipse.org"
+copyright = "2017, 2022 ADLINK Technology Inc."
+section = "net"
+license-file = ["../LICENSE", "0"]
+depends = "$auto"
+maintainer-scripts = ".deb"
+assets = [
+    # binary
+    ["target/release/zenoh-bridge-dds", "/usr/bin/", "755"],
+    # config file
+    ["../EXAMPLE_CONFIG.json5", "/etc/zenoh-bridge-dds/conf.json5", "644"],
+    # service
+    [".service/zenoh-bridge-dds.service", "/lib/systemd/system/zenoh-bridge-dds.service", "644"],
+]

@@ -65,3 +65,11 @@ features = ["unstable", "attributes"]
 
 [build-dependencies]
 rustc_version = "0.4"
+
+[package.metadata.deb]
+name = "zenoh-plugin-dds"
+maintainer = "zenoh-dev@eclipse.org"
+copyright = "2017, 2022 ADLINK Technology Inc."
+section = "net"
+license-file = ["../LICENSE", "0"]
+depends = "zenohd (=0.6.0~dev.0)"
