@@ -444,7 +444,10 @@ impl<'a> DdsPluginRuntime<'a> {
                     // Compute cache size as history.depth * durability_service.max_instances
                     // This makes the assumption that the frequency of publication is the same for all instances...
                     // But as we have no way to know have 1 cache per-instance, there is no other choice.
-                    if reader_qos.durability_service.max_instances > 0 {
+                    if reader_qos.durability_service.max_instances == DDS_LENGTH_UNLIMITED && n > 0
+                    {
+                        usize::MAX
+                    } else if reader_qos.durability_service.max_instances > 0 {
                         if let Some(m) = n.checked_mul(reader_qos.durability_service.max_instances)
                         {
                             m as usize
