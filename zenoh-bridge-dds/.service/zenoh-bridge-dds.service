@@ -1,0 +1,23 @@
+[Unit]
+Description = Eclipse Zenoh Bridge for DDS
+Documentation=https://github.com/eclipse-zenoh/zenoh-plugin-dds
+After=network-online.target
+Wants=network-online.target
+
+
+[Service]
+Type=simple
+Environment=RUST_LOG=info
+ExecStart = /usr/bin/zenoh-bridge-dds -c /etc/zenoh-bridge-dds/conf.json5
+KillMode=mixed
+KillSignal=SIGINT
+RestartKillSignal=SIGINT
+Restart=on-failure
+PermissionsStartOnly=true
+User=zenoh-bridge-dds
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=zenoh-bridge-dds
+[Install]
+WantedBy=multi-user.target
+
