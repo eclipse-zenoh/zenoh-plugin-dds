@@ -36,11 +36,11 @@ no_mangle = ["zenoh-plugin-trait/no_mangle"]
 default = ["no_mangle"]
 
 [dependencies]
-zenoh = { git = "https://github.com/p-avital/zenoh", branch = "crate-splitting" }
-zenoh-ext = { git = "https://github.com/p-avital/zenoh", branch = "crate-splitting" }
-zenoh-core = { git = "https://github.com/p-avital/zenoh", branch = "crate-splitting" }
-zenoh-collections = { git = "https://github.com/p-avital/zenoh", branch = "crate-splitting" }
-zenoh-plugin-trait = { git = "https://github.com/p-avital/zenoh", branch = "crate-splitting", default-features = false }
+zenoh = { git = "https://github.com/eclipse-zenoh/zenoh" }
+zenoh-ext = { git = "https://github.com/eclipse-zenoh/zenoh" }
+zenoh-core = { git = "https://github.com/eclipse-zenoh/zenoh" }
+zenoh-collections = { git = "https://github.com/eclipse-zenoh/zenoh" }
+zenoh-plugin-trait = { git = "https://github.com/eclipse-zenoh/zenoh", default-features = false }
 cyclors = "0.1.2"
 log = "0.4.14"
 async-trait = "0.1.42"
