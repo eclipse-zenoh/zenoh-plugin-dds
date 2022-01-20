@@ -39,10 +39,10 @@ use zenoh::subscriber::Subscriber;
 use zenoh::utils::key_expr;
 use zenoh::Result as ZResult;
 use zenoh::{prelude::*, Session};
+use zenoh_collections::{Timed, TimedEvent, Timer};
+use zenoh_core::{bail, zerror};
 use zenoh_ext::group::{Group, GroupEvent, JoinEvent, LeaseExpiredEvent, LeaveEvent, Member};
 use zenoh_ext::{PublicationCache, QueryingSubscriber, SessionExt};
-use zenoh_util::collections::{Timed, TimedEvent, Timer};
-use zenoh_util::{bail, zerror};
 
 pub mod config;
 mod dds_mgt;
