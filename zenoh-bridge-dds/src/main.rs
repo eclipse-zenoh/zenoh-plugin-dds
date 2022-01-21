@@ -13,7 +13,6 @@
 //
 use clap::{App, Arg};
 use zenoh::config::Config;
-use zenoh_plugin_trait::Plugin;
 
 lazy_static::lazy_static!(
     pub static ref DEFAULT_DOMAIN_STR: String = zplugin_dds::config::DEFAULT_DOMAIN.to_string();
@@ -185,6 +184,7 @@ r#"-f, --fwd-discovery   'When set, rather than creating a local route when disc
 
 #[async_std::main]
 async fn main() {
+    use zenoh_plugin_trait::Plugin;
     env_logger::init();
     log::debug!("zenoh-bridge-dds {}", *zplugin_dds::LONG_VERSION);
 
