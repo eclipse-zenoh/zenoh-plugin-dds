@@ -775,9 +775,9 @@ dependencies = [
 
 [[package]]
 name = "cyclors"
-version = "0.1.2"
+version = "0.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "65fe4c13b24f21f01c9500385747c1619d4be143c3e59ee5f30bc9d80db3e98d"
+checksum = "14be78a90af564e2db1fe75d0febf3a2902dbbcca81b92c86c8d88e376190d79"
 dependencies = [
  "bindgen",
  "cmake",
