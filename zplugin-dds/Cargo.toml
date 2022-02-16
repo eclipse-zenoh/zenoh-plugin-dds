@@ -58,7 +58,7 @@ derivative = "2.2.0"
 cdr = "0.2.4"
 
 [dependencies.async-std]
-version = "1.9.0"
+version = "=1.10.0"
 features = ["unstable", "attributes"]
 
 [build-dependencies]
