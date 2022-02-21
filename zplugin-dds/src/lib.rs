@@ -39,6 +39,8 @@ use zenoh::subscriber::Subscriber;
 use zenoh::utils::key_expr;
 use zenoh::Result as ZResult;
 use zenoh::{prelude::*, Session};
+use zenoh_buffers::reader::HasReader;
+use zenoh_buffers::traits::SplitBuffer;
 use zenoh_collections::{Timed, TimedEvent, Timer};
 use zenoh_core::{bail, zerror};
 use zenoh_ext::group::{Group, GroupEvent, JoinEvent, LeaseExpiredEvent, LeaveEvent, Member};
@@ -599,7 +601,7 @@ impl<'a> DdsPluginRuntime<'a> {
                             log::trace!("Route data from zenoh {} to DDS '{}'", s.key_expr, &ton);
                         }
                         unsafe {
-                            let bs = s.value.payload.to_vec();
+                            let bs = s.value.payload.contiguous().into_owned();
                             // As per the Vec documentation (see https://doc.rust-lang.org/std/vec/struct.Vec.html#method.into_raw_parts)
                             // the only way to correctly releasing it is to create a vec using from_raw_parts
                             // and then have its destructor do the cleanup.
@@ -1109,7 +1111,7 @@ impl<'a> DdsPluginRuntime<'a> {
                             let full_admin_path = format!("/@/service/{}/dds/{}", remote_uuid, remaining_path);
                             if sample.kind != SampleKind::Delete {
                                 // deserialize payload
-                                let (entity, scope) = bincode::deserialize::<(DdsEntity, String)>(&sample.value.payload.to_vec()).unwrap();
+                                let (entity, scope) = bincode::deserialize::<(DdsEntity, String)>(&sample.value.payload.contiguous()).unwrap();
                                 // copy and adapt Writer's QoS for creation of a proxy Writer
                                 let mut qos = entity.qos.clone();
                                 qos.ignore_local_participant = true;
@@ -1177,7 +1179,7 @@ impl<'a> DdsPluginRuntime<'a> {
                             let full_admin_path = format!("/@/service/{}/dds/{}", remote_uuid, remaining_path);
                             if sample.kind != SampleKind::Delete {
                                 // deserialize payload
-                                let (entity, scope) = bincode::deserialize::<(DdsEntity, String)>(&sample.value.payload.to_vec()).unwrap();
+                                let (entity, scope) = bincode::deserialize::<(DdsEntity, String)>(&sample.value.payload.contiguous()).unwrap();
                                 // copy and adapt Reader's QoS for creation of a proxy Reader
                                 let mut qos = entity.qos.clone();
                                 qos.ignore_local_participant = true;
@@ -1248,7 +1250,7 @@ impl<'a> DdsPluginRuntime<'a> {
                         // it's a ros_discovery_info message
                         "ros_disco" => {
                             match cdr::deserialize_from::<_, ParticipantEntitiesInfo, _>(
-                                sample.value.payload,
+                                sample.value.payload.reader(),
                                 cdr::size::Infinite,
                             ) {
                                 Ok(mut info) => {
@@ -1353,7 +1355,7 @@ impl<'a> DdsPluginRuntime<'a> {
                 _ = ros_disco_timer_rcv.next().fuse() => {
                     let infos = ros_disco_mgr.read();
                     for (gid, buf) in infos {
-                        trace!("Received ros_discovery_info from DDS for {}, forward via zenoh: {}", gid, hex::encode(buf.to_vec().as_slice()));
+                        trace!("Received ros_discovery_info from DDS for {}, forward via zenoh: {}", gid, hex::encode(&buf.contiguous()));
                         // forward the payload on zenoh
                         if let Err(e) = self.zsession.put(&format!("{}{}", fwd_ros_discovery_prefix, gid), buf).await {
                             error!("Forward ROS discovery info failed: {}", e);
