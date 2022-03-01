@@ -15,10 +15,10 @@
 name = "zenoh-bridge-dds"
 version = "0.6.0-dev.0"
 authors = [
-	"kydos <angelo@icorsaro.net>",
-	"Esteve Fernandez <esteve.fernandez@gmail.com>",
-	"Julien Enoch <julien@enoch.fr>",
-	"Pierre Avital <pierre.avital@adlinktech.com>",
+    "kydos <angelo@icorsaro.net>",
+    "Esteve Fernandez <esteve.fernandez@gmail.com>",
+    "Julien Enoch <julien@enoch.fr>",
+    "Pierre Avital <pierre.avital@adlinktech.com>",
 ]
 edition = "2018"
 repository = "https://github.com/eclipse-zenoh/zenoh-plugin-dds"
@@ -58,9 +58,21 @@ depends = "$auto"
 maintainer-scripts = ".deb"
 assets = [
     # binary
-    ["target/release/zenoh-bridge-dds", "/usr/bin/", "755"],
+    [
+        "target/release/zenoh-bridge-dds",
+        "/usr/bin/",
+        "755",
+    ],
     # config file
-    ["../EXAMPLE_CONFIG.json5", "/etc/zenoh-bridge-dds/conf.json5", "644"],
+    [
+        "../EXAMPLE_CONFIG.json5",
+        "/etc/zenoh-bridge-dds/conf.json5",
+        "644",
+    ],
     # service
-    [".service/zenoh-bridge-dds.service", "/lib/systemd/system/zenoh-bridge-dds.service", "644"],
+    [
+        ".service/zenoh-bridge-dds.service",
+        "/lib/systemd/system/zenoh-bridge-dds.service",
+        "644",
+    ],
 ]
