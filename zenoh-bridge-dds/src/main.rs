@@ -145,11 +145,15 @@ r#"-f, --fwd-discovery   'When set, rather than creating a local route when disc
             .unwrap();
     }
     if let Some(peers) = args.values_of("peer") {
-        config.peers.extend(peers.map(|p| p.parse().unwrap()))
+        config
+            .connect
+            .endpoints
+            .extend(peers.map(|p| p.parse().unwrap()))
     }
     if let Some(listeners) = args.values_of("listener") {
         config
-            .listeners
+            .listen
+            .endpoints
             .extend(listeners.map(|p| p.parse().unwrap()))
     }
     if args.is_present("no-multicast-scouting") {
@@ -192,7 +196,7 @@ async fn main() {
     let rest_plugin = config.plugin("rest").is_some();
 
     // create a zenoh Runtime (to share with plugins)
-    let runtime = zenoh::net::runtime::Runtime::new(0, config).await.unwrap();
+    let runtime = zenoh::net::runtime::Runtime::new(config).await.unwrap();
 
     // start REST plugin
     if rest_plugin {

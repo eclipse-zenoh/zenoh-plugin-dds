@@ -39,6 +39,7 @@ default = ["no_mangle"]
 zenoh = { git = "https://github.com/eclipse-zenoh/zenoh" }
 zenoh-ext = { git = "https://github.com/eclipse-zenoh/zenoh" }
 zenoh-core = { git = "https://github.com/eclipse-zenoh/zenoh" }
+zenoh-buffers = { git = "https://github.com/eclipse-zenoh/zenoh" }
 zenoh-collections = { git = "https://github.com/eclipse-zenoh/zenoh" }
 zenoh-plugin-trait = { git = "https://github.com/eclipse-zenoh/zenoh", default-features = false }
 cyclors = "0.1.3"
