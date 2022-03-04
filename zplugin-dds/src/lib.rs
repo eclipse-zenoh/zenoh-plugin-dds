@@ -716,7 +716,7 @@ impl<'a> DdsPluginRuntime<'a> {
             // support the case of empty fragment in Selector (e.g.: "/@/**?[]"), returning 'null' value in such case
             // let value_selector = selector.parse_value_selector()?;
             let value = match selector.parse_value_selector().map(|vs| vs.fragment) {
-                Ok(f) if f.is_empty() => (*JSON_NULL_VALUE).clone(),
+                Ok(Some("")) => (*JSON_NULL_VALUE).clone(),
                 _ => v,
             };
             query.reply(Sample::new(admin_path, value));
