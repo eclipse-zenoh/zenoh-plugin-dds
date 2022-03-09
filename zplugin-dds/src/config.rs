@@ -24,7 +24,7 @@ pub const DEFAULT_RELIABLE_ROUTES_BLOCKING: bool = true;
 #[derive(Deserialize, Debug)]
 #[serde(deny_unknown_fields)]
 pub struct Config {
-    #[serde(default = "default_scope")]
+    #[serde(default = "default_scope", deserialize_with = "deserialize_scope")]
     pub scope: String,
     #[serde(default = "default_domain")]
     pub domain: u32,
@@ -57,6 +57,18 @@ pub struct Config {
 
 fn default_scope() -> String {
     DEFAULT_SCOPE.to_string()
+}
+
+fn deserialize_scope<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let s: String = Deserialize::deserialize(deserializer)?;
+    if s.is_empty() || s.starts_with('/') {
+        Ok(s)
+    } else {
+        Ok(format!("/{}", s))
+    }
 }
 
 fn default_domain() -> u32 {
