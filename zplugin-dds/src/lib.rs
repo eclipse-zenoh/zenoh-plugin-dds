@@ -1001,23 +1001,45 @@ impl<'a> DdsPluginRuntime<'a> {
         debug!(r#"Run in "forward discovery" mode"#);
 
         // The admin paths where discovery info will be forwarded to remote DDS plugins.
-        // Note: "/@dds" is used as prefix instead of "/@/..." to not have the PublicationCache replying to queries on admin space.
+        // Note: "/@dds_fwd_disco" is used as prefix instead of "/@/..." to not have the PublicationCache replying to queries on admin space.
         let uuid = self.zsession.id().await;
-        let fwd_writers_path_prefix = format!("/@dds/{}/writer/", uuid);
-        let fwd_readers_path_prefix = format!("/@dds/{}/reader/", uuid);
-        let fwd_ros_discovery_prefix = format!("/@dds/{}/ros_disco/", uuid);
+        let fwd_writers_path_prefix =
+            format!("/@dds_fwd_disco/{}{}/writer/", uuid, self.config.scope);
+        let fwd_readers_path_prefix =
+            format!("/@dds_fwd_disco/{}{}/reader/", uuid, self.config.scope);
+        let fwd_ros_discovery_key_str =
+            format!("/@dds_fwd_disco/{}{}/ros_disco/", uuid, self.config.scope);
+        let fwd_publication_cache_key = format!("/@dds_fwd_disco/{}{}/**", uuid, self.config.scope);
+        let fwd_discovery_subscription_key = format!("/@dds_fwd_disco/*{}/**", self.config.scope);
+
+        // Register prefixes for optimization
+        let fwd_writers_path_prefix_key = self
+            .zsession
+            .declare_expr(fwd_writers_path_prefix)
+            .await
+            .unwrap();
+        let fwd_readers_path_prefix_key = self
+            .zsession
+            .declare_expr(fwd_readers_path_prefix)
+            .await
+            .unwrap();
+        let fwd_ros_discovery_key = self
+            .zsession
+            .declare_expr(&fwd_ros_discovery_key_str)
+            .await
+            .unwrap();
 
         // Cache the publications on admin space for late joiners DDS plugins
         let _fwd_disco_pub_cache = self
             .zsession
-            .publication_cache(format!("/@dds/{}/**", uuid))
+            .publication_cache(fwd_publication_cache_key)
             .await
             .unwrap();
 
         // Subscribe to remote DDS plugins publications of new Readers/Writers on admin space
         let mut fwd_disco_sub = self
             .zsession
-            .subscribe_with_query("/@dds/**")
+            .subscribe_with_query(fwd_discovery_subscription_key)
             .await
             .unwrap();
 
@@ -1046,7 +1068,7 @@ impl<'a> DdsPluginRuntime<'a> {
                             debug!("Discovered DDS Writer on {}: {} => advertise it", entity.topic_name, entity.key);
                             // advertise the entity and its scope within admin space (bincode format)
                             let admin_path = DdsPluginRuntime::get_admin_path(&entity, true);
-                            let fwd_path = format!("{}{}", fwd_writers_path_prefix, admin_path);
+                            let fwd_path = KeyExpr { scope: fwd_writers_path_prefix_key, suffix: admin_path.as_str().into() };
                             let msg = (&entity, &scope);
                             self.zsession.put(&fwd_path, bincode::serialize(&msg).unwrap()).congestion_control(CongestionControl::Block).await.unwrap();
 
@@ -1059,7 +1081,7 @@ impl<'a> DdsPluginRuntime<'a> {
                         } => {
                             debug!("Undiscovered DDS Writer {} => advertise it", key);
                             if let Some((admin_path, _)) = self.remove_dds_writer(&key) {
-                                let fwd_path = format!("{}{}", fwd_writers_path_prefix, admin_path);
+                                let fwd_path = KeyExpr { scope: fwd_writers_path_prefix_key, suffix: admin_path.as_str().into() };
                                 // publish its deletion from admin space
                                 self.zsession.delete(&fwd_path).congestion_control(CongestionControl::Block).await.unwrap();
                             }
@@ -1071,7 +1093,7 @@ impl<'a> DdsPluginRuntime<'a> {
                             debug!("Discovered DDS Reader on {}: {} => advertise it", entity.topic_name, entity.key);
                             // advertise the entity and its scope within admin space (bincode format)
                             let admin_path = DdsPluginRuntime::get_admin_path(&entity, false);
-                            let fwd_path = format!("{}{}", fwd_readers_path_prefix, admin_path);
+                            let fwd_path = KeyExpr { scope: fwd_readers_path_prefix_key, suffix: admin_path.as_str().into() };
                             let msg = (&entity, &scope);
                             self.zsession.put(&fwd_path, bincode::serialize(&msg).unwrap()).congestion_control(CongestionControl::Block).await.unwrap();
 
@@ -1084,7 +1106,7 @@ impl<'a> DdsPluginRuntime<'a> {
                         } => {
                             debug!("Undiscovered DDS Reader {} => advertise it", key);
                             if let Some((admin_path, _)) = self.remove_dds_reader(&key) {
-                                let fwd_path = format!("{}{}", fwd_readers_path_prefix, admin_path);
+                                let fwd_path = KeyExpr { scope: fwd_readers_path_prefix_key, suffix: admin_path.as_str().into() };
                                 // publish its deletion from admin space
                                 self.zsession.delete(&fwd_path).congestion_control(CongestionControl::Block).await.unwrap();
                             }
@@ -1097,11 +1119,17 @@ impl<'a> DdsPluginRuntime<'a> {
                     let fwd_path = &sample.key_expr;
                     debug!("Received forwarded discovery message on {}", fwd_path);
 
-                    // decode the beginning part of fwd_path segments (0th is empty as res_name starts with '/')
-                    let mut split_it = fwd_path.as_str().splitn(5, '/');
-                    let remote_uuid = split_it.nth(2).unwrap();
-                    let disco_kind = split_it.next().unwrap();
-                    let remaining_path = split_it.next().unwrap();
+                    // parse fwd_path which have format: "/@dds_fwd_disco/<remote_uuid>[/scope/possibly/multiple]/<disco_kind>/<remaining_path...>"
+                    let mut split_it = fwd_path.as_str().split('/');
+                    let remote_uuid = if let Some(uuid) = split_it.nth(2) { uuid } else {
+                        error!("Unexpected forwarded discovery message received on invalid key: {}", fwd_path);
+                        break;
+                    };
+                    let disco_kind = if let Some(kind) = split_it.find(|segment| *segment == "reader" || *segment == "writer" || *segment == "ros_disco") { kind } else {
+                        error!("Unexpected forwarded discovery message received on invalid key: {} (no expected kind)", fwd_path);
+                        break;
+                    };
+                    let remaining_path = split_it.collect::<Vec<&str>>().join("/");
 
                     match disco_kind {
                         // it's a writer discovery message
@@ -1269,8 +1297,8 @@ impl<'a> DdsPluginRuntime<'a> {
                             }
                         }
 
-                        _ => {
-                            error!("Unexpected forwarded discovery message received on {}", fwd_path);
+                        x => {
+                            error!("Unexpected forwarded discovery message received on invalid key {} (unkown kind: {}) ", fwd_path, x);
                         }
                     }
                 },
@@ -1356,7 +1384,7 @@ impl<'a> DdsPluginRuntime<'a> {
                     for (gid, buf) in infos {
                         trace!("Received ros_discovery_info from DDS for {}, forward via zenoh: {}", gid, hex::encode(buf.contiguous()));
                         // forward the payload on zenoh
-                        if let Err(e) = self.zsession.put(&format!("{}{}", fwd_ros_discovery_prefix, gid), buf).await {
+                        if let Err(e) = self.zsession.put(KeyExpr { scope: fwd_ros_discovery_key, suffix: gid.into()}, buf).await {
                             error!("Forward ROS discovery info failed: {}", e);
                         }
                     }
