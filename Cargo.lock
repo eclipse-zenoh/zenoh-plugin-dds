@@ -88,9 +88,9 @@ dependencies = [
 
 [[package]]
 name = "anyhow"
-version = "1.0.53"
+version = "1.0.56"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "94a45b455c14666b85fc40a019e8ab9eb75e3a124e05494f5397122bc9eb06e0"
+checksum = "4361135be9122e0870de935d7c439aef945b9f9ddd4199a553b5270b49c82a27"
 
 [[package]]
 name = "arrayref"
@@ -151,9 +151,9 @@ dependencies = [
 
 [[package]]
 name = "async-global-executor"
-version = "2.0.2"
+version = "2.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9586ec52317f36de58453159d48351bc244bc24ced3effc1fce22f3d48664af6"
+checksum = "c026b7e44f1316b567ee750fea85103f87fcb80792b860e979f221259796ca0a"
 dependencies = [
  "async-channel",
  "async-executor",
@@ -202,9 +202,9 @@ dependencies = [
 
 [[package]]
 name = "async-lock"
-version = "2.4.0"
+version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e6a8ea61bf9947a1007c5cada31e647dbc77b103c679858150003ba697ea798b"
+checksum = "e97a171d191782fba31bb902b14ad94e24a68145032b7eedf871ab0bc0d077b6"
 dependencies = [
  "event-listener",
 ]
@@ -312,9 +312,9 @@ dependencies = [
 
 [[package]]
 name = "async-task"
-version = "4.1.0"
+version = "4.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "677d306121baf53310a3fd342d88dc0824f6bbeace68347593658525565abee8"
+checksum = "30696a84d817107fc028e049980e09d5e140e8da8f1caeb17e8e950658a3cea9"
 
 [[package]]
 name = "async-trait"
@@ -475,9 +475,9 @@ checksum = "8d696c370c750c948ada61c69a0ee2cbbb9c50b1019ddb86d9317157a99c2cae"
 
 [[package]]
 name = "blocking"
-version = "1.1.0"
+version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "046e47d4b2d391b1f6f8b407b1deb8dee56c1852ccd868becf2710f601b5f427"
+checksum = "c6ccb65d468978a086b69884437ded69a90faab3bbe6e67f242173ea728acccc"
 dependencies = [
  "async-channel",
  "async-task",
@@ -902,9 +902,9 @@ checksum = "279fb028e20b3c4c320317955b77c5e0c9701f05a1d309905d6fc702cdc5053e"
 
 [[package]]
 name = "flume"
-version = "0.10.11"
+version = "0.10.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0b279436a715a9de95dcd26b151db590a71961cc06e54918b24fe0dd5b7d3fc4"
+checksum = "843c03199d0c0ca54bc1ea90ac0d507274c28abcc4f691ae8b4eaa375087c76a"
 dependencies = [
  "futures-core",
  "futures-sink",
@@ -1059,9 +1059,9 @@ dependencies = [
 
 [[package]]
 name = "getrandom"
-version = "0.2.4"
+version = "0.2.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "418d37c8b1d42553c93648be529cb70f920d3baf8ef469b74b9638df426e0b4c"
+checksum = "d39cd93900197114fa1fcb7ae84ca742095eed9442088988ae74fa744e930e77"
 dependencies = [
  "cfg-if 1.0.0",
  "js-sys",
@@ -1340,9 +1340,9 @@ checksum = "830d08ce1d1d941e6b30645f1a0eb5643013d835ce3779a5fc208261dbe10f55"
 
 [[package]]
 name = "libc"
-version = "0.2.118"
+version = "0.2.120"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "06e509672465a0504304aa87f9f176f2b2b716ed8fb105ebe5c02dc6dce96a94"
+checksum = "ad5c14e80759d0939d013e6ca49930e59fc53dd8e5009132f76240c179380c09"
 
 [[package]]
 name = "libloading"
@@ -1414,11 +1414,11 @@ dependencies = [
 
 [[package]]
 name = "nanorand"
-version = "0.6.1"
+version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "729eb334247daa1803e0a094d0a5c55711b85571179f5ec6e53eccfdf7008958"
+checksum = "6a51313c5820b0b02bd422f4b44776fbf47961755c74ce64afc73bfad10226c3"
 dependencies = [
- "getrandom 0.2.4",
+ "getrandom 0.2.5",
 ]
 
 [[package]]
@@ -1518,9 +1518,9 @@ dependencies = [
 
 [[package]]
 name = "once_cell"
-version = "1.9.0"
+version = "1.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "da32515d9f6e6e489d7bc9d84c71b060db7247dc035bbe44eac88cf87486d8d5"
+checksum = "87f3e037eac156d1775da914196f0f37741a274155e34a0b7e427c35d2a2ecb9"
 
 [[package]]
 name = "opaque-debug"
@@ -1892,7 +1892,7 @@ version = "0.6.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d34f1408f55294453790c48b2f1ebbb1c5b4b7563eb1f418bcfcfdbb06ebb4e7"
 dependencies = [
- "getrandom 0.2.4",
+ "getrandom 0.2.5",
 ]
 
 [[package]]
@@ -1906,9 +1906,9 @@ dependencies = [
 
 [[package]]
 name = "redox_syscall"
-version = "0.2.10"
+version = "0.2.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8383f39639269cde97d255a32bdb68c047337295414940c68bdd30c2e13203ff"
+checksum = "8380fe0152551244f0747b1bf41737e0f8a74f97a14ccefd1148187271634f3c"
 dependencies = [
  "bitflags",
 ]
@@ -1919,15 +1919,15 @@ version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "528532f3d801c87aec9def2add9ca802fe569e44a544afe633765267840abe64"
 dependencies = [
- "getrandom 0.2.4",
+ "getrandom 0.2.5",
  "redox_syscall",
 ]
 
 [[package]]
 name = "regex"
-version = "1.5.4"
+version = "1.5.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d07a8629359eb56f1e2fb1652bb04212c072a87ba68546a04065d525673ac461"
+checksum = "1a11647b6b25ff05a515cb92c365cec08801e83423a235b51e231e1808747286"
 dependencies = [
  "aho-corasick",
  "memchr",
@@ -2002,7 +2002,7 @@ version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bfa0f585226d2e68097d4f95d113b15b83a82e819ab25717ec0590d9584ef366"
 dependencies = [
- "semver 1.0.5",
+ "semver 1.0.6",
 ]
 
 [[package]]
@@ -2051,9 +2051,9 @@ dependencies = [
 
 [[package]]
 name = "semver"
-version = "1.0.5"
+version = "1.0.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0486718e92ec9a68fbed73bb5ef687d71103b142595b406835649bebd33f72c7"
+checksum = "a4a3381e03edd24287172047536f20cabde766e2cd3e65e6b00fb3af51c4f38d"
 
 [[package]]
 name = "semver-parser"
@@ -2371,9 +2371,9 @@ checksum = "45f6ee7c7b87caf59549e9fe45d6a69c75c8019e79e212a835c5da0e92f0ba08"
 
 [[package]]
 name = "syn"
-version = "1.0.86"
+version = "1.0.87"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8a65b3f4ffa0092e9887669db0eae07941f023991ab58ea44da8fe8e2d511c6b"
+checksum = "1e59d925cf59d8151f25a3bedf97c9c157597c9df7324d32d68991cc399ed08b"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2394,9 +2394,9 @@ dependencies = [
 
 [[package]]
 name = "termcolor"
-version = "1.1.2"
+version = "1.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2dfed899f0eb03f32ee8c6a0aabdb8a7949659e3466561fc0adf54e26d88c5f4"
+checksum = "bab24d30b911b2376f3a13cc2cd443142f0c81dda04c118693e35b3835757755"
 dependencies = [
  "winapi-util",
 ]
@@ -2624,7 +2624,7 @@ version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bc5cf98d8186244414c848017f0e2676b3fcb46807f6668a97dfe67359a3c4b7"
 dependencies = [
- "getrandom 0.2.4",
+ "getrandom 0.2.5",
 ]
 
 [[package]]
@@ -2865,7 +2865,7 @@ dependencies = [
 [[package]]
 name = "zenoh"
 version = "0.6.0-dev.0"
-source = "git+https://github.com/eclipse-zenoh/zenoh#d610eaab5de21b2957b062f195e92affe6ceb8b4"
+source = "git+https://github.com/eclipse-zenoh/zenoh#274933eabf3cba723bae2ff7d96a8327d59568b6"
 dependencies = [
  "async-global-executor",
  "async-std",
@@ -2927,7 +2927,7 @@ dependencies = [
 [[package]]
 name = "zenoh-buffers"
 version = "0.6.0-dev.0"
-source = "git+https://github.com/eclipse-zenoh/zenoh#d610eaab5de21b2957b062f195e92affe6ceb8b4"
+source = "git+https://github.com/eclipse-zenoh/zenoh#274933eabf3cba723bae2ff7d96a8327d59568b6"
 dependencies = [
  "async-std",
  "bincode",
@@ -2942,7 +2942,7 @@ dependencies = [
 [[package]]
 name = "zenoh-cfg-properties"
 version = "0.6.0-dev.0"
-source = "git+https://github.com/eclipse-zenoh/zenoh#d610eaab5de21b2957b062f195e92affe6ceb8b4"
+source = "git+https://github.com/eclipse-zenoh/zenoh#274933eabf3cba723bae2ff7d96a8327d59568b6"
 dependencies = [
  "zenoh-core",
  "zenoh-macros",
@@ -2951,7 +2951,7 @@ dependencies = [
 [[package]]
 name = "zenoh-collections"
 version = "0.6.0-dev.0"
-source = "git+https://github.com/eclipse-zenoh/zenoh#d610eaab5de21b2957b062f195e92affe6ceb8b4"
+source = "git+https://github.com/eclipse-zenoh/zenoh#274933eabf3cba723bae2ff7d96a8327d59568b6"
 dependencies = [
  "async-std",
  "async-trait",
@@ -2964,7 +2964,7 @@ dependencies = [
 [[package]]
 name = "zenoh-config"
 version = "0.6.0-dev.0"
-source = "git+https://github.com/eclipse-zenoh/zenoh#d610eaab5de21b2957b062f195e92affe6ceb8b4"
+source = "git+https://github.com/eclipse-zenoh/zenoh#274933eabf3cba723bae2ff7d96a8327d59568b6"
 dependencies = [
  "flume",
  "json5",
@@ -2981,7 +2981,7 @@ dependencies = [
 [[package]]
 name = "zenoh-core"
 version = "0.6.0-dev.0"
-source = "git+https://github.com/eclipse-zenoh/zenoh#d610eaab5de21b2957b062f195e92affe6ceb8b4"
+source = "git+https://github.com/eclipse-zenoh/zenoh#274933eabf3cba723bae2ff7d96a8327d59568b6"
 dependencies = [
  "anyhow",
  "lazy_static",
@@ -2990,7 +2990,7 @@ dependencies = [
 [[package]]
 name = "zenoh-crypto"
 version = "0.6.0-dev.0"
-source = "git+https://github.com/eclipse-zenoh/zenoh#d610eaab5de21b2957b062f195e92affe6ceb8b4"
+source = "git+https://github.com/eclipse-zenoh/zenoh#274933eabf3cba723bae2ff7d96a8327d59568b6"
 dependencies = [
  "aes 0.7.5",
  "hmac 0.11.0",
@@ -3003,7 +3003,7 @@ dependencies = [
 [[package]]
 name = "zenoh-ext"
 version = "0.6.0-dev.0"
-source = "git+https://github.com/eclipse-zenoh/zenoh#d610eaab5de21b2957b062f195e92affe6ceb8b4"
+source = "git+https://github.com/eclipse-zenoh/zenoh#274933eabf3cba723bae2ff7d96a8327d59568b6"
 dependencies = [
  "async-std",
  "bincode",
@@ -3022,7 +3022,7 @@ dependencies = [
 [[package]]
 name = "zenoh-link"
 version = "0.6.0-dev.0"
-source = "git+https://github.com/eclipse-zenoh/zenoh#d610eaab5de21b2957b062f195e92affe6ceb8b4"
+source = "git+https://github.com/eclipse-zenoh/zenoh#274933eabf3cba723bae2ff7d96a8327d59568b6"
 dependencies = [
  "async-std",
  "async-trait",
@@ -3040,7 +3040,7 @@ dependencies = [
 [[package]]
 name = "zenoh-link-commons"
 version = "0.6.0-dev.0"
-source = "git+https://github.com/eclipse-zenoh/zenoh#d610eaab5de21b2957b062f195e92affe6ceb8b4"
+source = "git+https://github.com/eclipse-zenoh/zenoh#274933eabf3cba723bae2ff7d96a8327d59568b6"
 dependencies = [
  "async-std",
  "async-trait",
@@ -3055,7 +3055,7 @@ dependencies = [
 [[package]]
 name = "zenoh-link-tcp"
 version = "0.6.0-dev.0"
-source = "git+https://github.com/eclipse-zenoh/zenoh#d610eaab5de21b2957b062f195e92affe6ceb8b4"
+source = "git+https://github.com/eclipse-zenoh/zenoh#274933eabf3cba723bae2ff7d96a8327d59568b6"
 dependencies = [
  "async-std",
  "async-trait",
@@ -3070,7 +3070,7 @@ dependencies = [
 [[package]]
 name = "zenoh-link-tls"
 version = "0.6.0-dev.0"
-source = "git+https://github.com/eclipse-zenoh/zenoh#d610eaab5de21b2957b062f195e92affe6ceb8b4"
+source = "git+https://github.com/eclipse-zenoh/zenoh#274933eabf3cba723bae2ff7d96a8327d59568b6"
 dependencies = [
  "async-rustls",
  "async-std",
@@ -3088,7 +3088,7 @@ dependencies = [
 [[package]]
 name = "zenoh-link-udp"
 version = "0.6.0-dev.0"
-source = "git+https://github.com/eclipse-zenoh/zenoh#d610eaab5de21b2957b062f195e92affe6ceb8b4"
+source = "git+https://github.com/eclipse-zenoh/zenoh#274933eabf3cba723bae2ff7d96a8327d59568b6"
 dependencies = [
  "async-std",
  "async-trait",
@@ -3105,7 +3105,7 @@ dependencies = [
 [[package]]
 name = "zenoh-link-unixsock_stream"
 version = "0.6.0-dev.0"
-source = "git+https://github.com/eclipse-zenoh/zenoh#d610eaab5de21b2957b062f195e92affe6ceb8b4"
+source = "git+https://github.com/eclipse-zenoh/zenoh#274933eabf3cba723bae2ff7d96a8327d59568b6"
 dependencies = [
  "async-std",
  "async-trait",
@@ -3121,7 +3121,7 @@ dependencies = [
 [[package]]
 name = "zenoh-macros"
 version = "0.6.0-dev.0"
-source = "git+https://github.com/eclipse-zenoh/zenoh#d610eaab5de21b2957b062f195e92affe6ceb8b4"
+source = "git+https://github.com/eclipse-zenoh/zenoh#274933eabf3cba723bae2ff7d96a8327d59568b6"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3133,7 +3133,7 @@ dependencies = [
 [[package]]
 name = "zenoh-plugin-rest"
 version = "0.6.0-dev.0"
-source = "git+https://github.com/eclipse-zenoh/zenoh#d610eaab5de21b2957b062f195e92affe6ceb8b4"
+source = "git+https://github.com/eclipse-zenoh/zenoh#274933eabf3cba723bae2ff7d96a8327d59568b6"
 dependencies = [
  "async-std",
  "base64 0.13.0",
@@ -3156,7 +3156,7 @@ dependencies = [
 [[package]]
 name = "zenoh-plugin-trait"
 version = "0.6.0-dev.0"
-source = "git+https://github.com/eclipse-zenoh/zenoh#d610eaab5de21b2957b062f195e92affe6ceb8b4"
+source = "git+https://github.com/eclipse-zenoh/zenoh#274933eabf3cba723bae2ff7d96a8327d59568b6"
 dependencies = [
  "libloading",
  "log",
@@ -3169,7 +3169,7 @@ dependencies = [
 [[package]]
 name = "zenoh-protocol"
 version = "0.6.0-dev.0"
-source = "git+https://github.com/eclipse-zenoh/zenoh#d610eaab5de21b2957b062f195e92affe6ceb8b4"
+source = "git+https://github.com/eclipse-zenoh/zenoh#274933eabf3cba723bae2ff7d96a8327d59568b6"
 dependencies = [
  "log",
  "uhlc",
@@ -3181,7 +3181,7 @@ dependencies = [
 [[package]]
 name = "zenoh-protocol-core"
 version = "0.6.0-dev.0"
-source = "git+https://github.com/eclipse-zenoh/zenoh#d610eaab5de21b2957b062f195e92affe6ceb8b4"
+source = "git+https://github.com/eclipse-zenoh/zenoh#274933eabf3cba723bae2ff7d96a8327d59568b6"
 dependencies = [
  "hex",
  "lazy_static",
@@ -3194,7 +3194,7 @@ dependencies = [
 [[package]]
 name = "zenoh-sync"
 version = "0.6.0-dev.0"
-source = "git+https://github.com/eclipse-zenoh/zenoh#d610eaab5de21b2957b062f195e92affe6ceb8b4"
+source = "git+https://github.com/eclipse-zenoh/zenoh#274933eabf3cba723bae2ff7d96a8327d59568b6"
 dependencies = [
  "async-std",
  "event-listener",
@@ -3207,7 +3207,7 @@ dependencies = [
 [[package]]
 name = "zenoh-transport"
 version = "0.6.0-dev.0"
-source = "git+https://github.com/eclipse-zenoh/zenoh#d610eaab5de21b2957b062f195e92affe6ceb8b4"
+source = "git+https://github.com/eclipse-zenoh/zenoh#274933eabf3cba723bae2ff7d96a8327d59568b6"
 dependencies = [
  "async-global-executor",
  "async-std",
@@ -3233,7 +3233,7 @@ dependencies = [
 [[package]]
 name = "zenoh-util"
 version = "0.6.0-dev.0"
-source = "git+https://github.com/eclipse-zenoh/zenoh#d610eaab5de21b2957b062f195e92affe6ceb8b4"
+source = "git+https://github.com/eclipse-zenoh/zenoh#274933eabf3cba723bae2ff7d96a8327d59568b6"
 dependencies = [
  "async-std",
  "clap",
@@ -3266,9 +3266,9 @@ dependencies = [
 
 [[package]]
 name = "zeroize_derive"
-version = "1.3.1"
+version = "1.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "81e8f13fef10b63c06356d65d416b070798ddabcadc10d3ece0c5be9b3c7eddb"
+checksum = "3f8f187641dad4f680d25c4bfc4225b418165984179f26ca76ec4fb6441d3a17"
 dependencies = [
  "proc-macro2",
  "quote",
