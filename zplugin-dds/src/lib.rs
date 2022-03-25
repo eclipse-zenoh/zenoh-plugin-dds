@@ -1120,185 +1120,176 @@ impl<'a> DdsPluginRuntime<'a> {
                     debug!("Received forwarded discovery message on {}", fwd_path);
 
                     // parse fwd_path which have format: "/@dds_fwd_disco/<remote_uuid>[/scope/possibly/multiple]/<disco_kind>/<remaining_path...>"
-                    let mut split_it = fwd_path.as_str().split('/');
-                    let remote_uuid = if let Some(uuid) = split_it.nth(2) { uuid } else {
-                        error!("Unexpected forwarded discovery message received on invalid key: {}", fwd_path);
-                        break;
-                    };
-                    let disco_kind = if let Some(kind) = split_it.find(|segment| *segment == "reader" || *segment == "writer" || *segment == "ros_disco") { kind } else {
-                        error!("Unexpected forwarded discovery message received on invalid key: {} (no expected kind)", fwd_path);
-                        break;
-                    };
-                    let remaining_path = split_it.collect::<Vec<&str>>().join("/");
+                    if let Some((remote_uuid, disco_kind, remaining_path)) = Self::parse_fwd_discovery_path(fwd_path.as_str()) {
+                        match disco_kind {
+                            // it's a writer discovery message
+                            "writer" => {
+                                // reconstruct full admin path for this entity (i.e. with it's remote plugin's uuid)
+                                let full_admin_path = format!("/@/service/{}/dds/{}", remote_uuid, remaining_path);
+                                if sample.kind != SampleKind::Delete {
+                                    // deserialize payload
+                                    let (entity, scope) = bincode::deserialize::<(DdsEntity, String)>(&sample.value.payload.contiguous()).unwrap();
+                                    // copy and adapt Writer's QoS for creation of a proxy Writer
+                                    let mut qos = entity.qos.clone();
+                                    qos.ignore_local_participant = true;
 
-                    match disco_kind {
-                        // it's a writer discovery message
-                        "writer" => {
-                            // reconstruct full admin path for this entity (i.e. with it's remote plugin's uuid)
-                            let full_admin_path = format!("/@/service/{}/dds/{}", remote_uuid, remaining_path);
-                            if sample.kind != SampleKind::Delete {
-                                // deserialize payload
-                                let (entity, scope) = bincode::deserialize::<(DdsEntity, String)>(&sample.value.payload.contiguous()).unwrap();
-                                // copy and adapt Writer's QoS for creation of a proxy Writer
-                                let mut qos = entity.qos.clone();
-                                qos.ignore_local_participant = true;
-
-                                // create 1 "to_dds" route per partition, or just 1 if no partition
-                                if entity.qos.partitions.is_empty() {
-                                    let zkey = format!("{}/{}", scope, entity.topic_name);
-                                    let route_status = self.try_add_route_to_dds(&zkey, &entity.topic_name, &entity.type_name, entity.keyless, qos).await;
-                                    if let RouteStatus::Routed(ref route_key) = route_status {
-                                        if let Some(r) = self.routes_to_dds.get_mut(route_key) {
-                                            // add the writer's admin path to the list of remote_routed_writers
-                                            r.remote_routed_writers.push(full_admin_path);
-                                            // check amongst local Readers is some are matching (only wrt. topic_name and partition. TODO: consider qos match also)
-                                            for reader in self.discovered_readers.values_mut() {
-                                                if reader.topic_name == entity.topic_name && reader.qos.partitions.is_empty() {
-                                                    r.local_routed_readers.push(reader.key.clone());
-                                                    reader.routes.insert("*".to_string(), route_status.clone());
-                                                }
-                                            }
-                                        }
-                                    }
-                                } else {
-                                    for p in &entity.qos.partitions {
-                                        let zkey = format!("{}/{}/{}", scope, p, entity.topic_name);
-                                        let route_status = self.try_add_route_to_dds(&zkey, &entity.topic_name, &entity.type_name, entity.keyless, qos.clone()).await;
+                                    // create 1 "to_dds" route per partition, or just 1 if no partition
+                                    if entity.qos.partitions.is_empty() {
+                                        let zkey = format!("{}/{}", scope, entity.topic_name);
+                                        let route_status = self.try_add_route_to_dds(&zkey, &entity.topic_name, &entity.type_name, entity.keyless, qos).await;
                                         if let RouteStatus::Routed(ref route_key) = route_status {
                                             if let Some(r) = self.routes_to_dds.get_mut(route_key) {
                                                 // add the writer's admin path to the list of remote_routed_writers
-                                                r.remote_routed_writers.push(full_admin_path.clone());
+                                                r.remote_routed_writers.push(full_admin_path);
                                                 // check amongst local Readers is some are matching (only wrt. topic_name and partition. TODO: consider qos match also)
                                                 for reader in self.discovered_readers.values_mut() {
-                                                    if reader.topic_name == entity.topic_name && reader.qos.partitions.contains(p) {
+                                                    if reader.topic_name == entity.topic_name && reader.qos.partitions.is_empty() {
                                                         r.local_routed_readers.push(reader.key.clone());
-                                                        reader.routes.insert(p.clone(), route_status.clone());
+                                                        reader.routes.insert("*".to_string(), route_status.clone());
                                                     }
                                                 }
                                             }
                                         }
-                                    }
-                                }
-                            } else {
-                                // writer was deleted; remove it from all the active routes refering it (deleting the route if no longer used)
-                                let admin_space = &mut self.admin_space;
-                                self.routes_to_dds.retain(|zkey, route| {
-                                        route.remote_routed_writers.retain(|s| s != &full_admin_path);
-                                        if route.remote_routed_writers.is_empty() {
-                                            info!(
-                                                "Remove unused route: zenoh '{}' => DDS '{}'",
-                                                zkey, zkey
-                                            );
-                                            let path = format!("route/to_dds/{}", zkey);
-                                            admin_space.remove(&path);
-                                            false
-                                        } else {
-                                            true
-                                        }
-                                    }
-                                );
-                            }
-                        }
-
-                        // it's a reader discovery message
-                        "reader" => {
-                            // reconstruct full admin path for this entity (i.e. with it's remote plugin's uuid)
-                            let full_admin_path = format!("/@/service/{}/dds/{}", remote_uuid, remaining_path);
-                            if sample.kind != SampleKind::Delete {
-                                // deserialize payload
-                                let (entity, scope) = bincode::deserialize::<(DdsEntity, String)>(&sample.value.payload.contiguous()).unwrap();
-                                // copy and adapt Reader's QoS for creation of a proxy Reader
-                                let mut qos = entity.qos.clone();
-                                qos.ignore_local_participant = true;
-
-                                // CongestionControl to be used when re-publishing over zenoh: Blocking if Reader is RELIABLE (since Writer will also be, otherwise no matching)
-                                let congestion_ctrl = match (self.config.reliable_routes_blocking, entity.qos.reliability.kind) {
-                                    (true, ReliabilityKind::RELIABLE) => CongestionControl::Block,
-                                    _ => CongestionControl::Drop,
-                                };
-
-                                // create 1 'from_dds" route per partition, or just 1 if no partition
-                                if entity.qos.partitions.is_empty() {
-                                    let zkey = format!("{}/{}", scope, entity.topic_name);
-                                    let route_status = self.try_add_route_from_dds(&zkey, &entity.topic_name, &entity.type_name, entity.keyless, qos, congestion_ctrl).await;
-                                    if let RouteStatus::Routed(ref route_key) = route_status {
-                                        if let Some(r) = self.routes_from_dds.get_mut(route_key) {
-                                            // add the reader's admin path to the list of remote_routed_writers
-                                            r.remote_routed_readers.push(full_admin_path);
-                                            // check amongst local Writers is some are matching (only wrt. topic_name and partition. TODO: consider qos match also)
-                                            for writer in self.discovered_writers.values_mut() {
-                                                if writer.topic_name == entity.topic_name && writer.qos.partitions.is_empty() {
-                                                    r.local_routed_writers.push(writer.key.clone());
-                                                    writer.routes.insert("*".to_string(), route_status.clone());
+                                    } else {
+                                        for p in &entity.qos.partitions {
+                                            let zkey = format!("{}/{}/{}", scope, p, entity.topic_name);
+                                            let route_status = self.try_add_route_to_dds(&zkey, &entity.topic_name, &entity.type_name, entity.keyless, qos.clone()).await;
+                                            if let RouteStatus::Routed(ref route_key) = route_status {
+                                                if let Some(r) = self.routes_to_dds.get_mut(route_key) {
+                                                    // add the writer's admin path to the list of remote_routed_writers
+                                                    r.remote_routed_writers.push(full_admin_path.clone());
+                                                    // check amongst local Readers is some are matching (only wrt. topic_name and partition. TODO: consider qos match also)
+                                                    for reader in self.discovered_readers.values_mut() {
+                                                        if reader.topic_name == entity.topic_name && reader.qos.partitions.contains(p) {
+                                                            r.local_routed_readers.push(reader.key.clone());
+                                                            reader.routes.insert(p.clone(), route_status.clone());
+                                                        }
+                                                    }
                                                 }
                                             }
                                         }
                                     }
                                 } else {
-                                    for p in &entity.qos.partitions {
-                                        let zkey = format!("{}/{}/{}", scope, p, entity.topic_name);
-                                        let route_status = self.try_add_route_from_dds(&zkey, &entity.topic_name, &entity.type_name, entity.keyless, qos.clone(), congestion_ctrl).await;
+                                    // writer was deleted; remove it from all the active routes refering it (deleting the route if no longer used)
+                                    let admin_space = &mut self.admin_space;
+                                    self.routes_to_dds.retain(|zkey, route| {
+                                            route.remote_routed_writers.retain(|s| s != &full_admin_path);
+                                            if route.remote_routed_writers.is_empty() {
+                                                info!(
+                                                    "Remove unused route: zenoh '{}' => DDS '{}'",
+                                                    zkey, zkey
+                                                );
+                                                let path = format!("route/to_dds/{}", zkey);
+                                                admin_space.remove(&path);
+                                                false
+                                            } else {
+                                                true
+                                            }
+                                        }
+                                    );
+                                }
+                            }
+
+                            // it's a reader discovery message
+                            "reader" => {
+                                // reconstruct full admin path for this entity (i.e. with it's remote plugin's uuid)
+                                let full_admin_path = format!("/@/service/{}/dds/{}", remote_uuid, remaining_path);
+                                if sample.kind != SampleKind::Delete {
+                                    // deserialize payload
+                                    let (entity, scope) = bincode::deserialize::<(DdsEntity, String)>(&sample.value.payload.contiguous()).unwrap();
+                                    // copy and adapt Reader's QoS for creation of a proxy Reader
+                                    let mut qos = entity.qos.clone();
+                                    qos.ignore_local_participant = true;
+
+                                    // CongestionControl to be used when re-publishing over zenoh: Blocking if Reader is RELIABLE (since Writer will also be, otherwise no matching)
+                                    let congestion_ctrl = match (self.config.reliable_routes_blocking, entity.qos.reliability.kind) {
+                                        (true, ReliabilityKind::RELIABLE) => CongestionControl::Block,
+                                        _ => CongestionControl::Drop,
+                                    };
+
+                                    // create 1 'from_dds" route per partition, or just 1 if no partition
+                                    if entity.qos.partitions.is_empty() {
+                                        let zkey = format!("{}/{}", scope, entity.topic_name);
+                                        let route_status = self.try_add_route_from_dds(&zkey, &entity.topic_name, &entity.type_name, entity.keyless, qos, congestion_ctrl).await;
                                         if let RouteStatus::Routed(ref route_key) = route_status {
                                             if let Some(r) = self.routes_from_dds.get_mut(route_key) {
                                                 // add the reader's admin path to the list of remote_routed_writers
-                                                r.remote_routed_readers.push(full_admin_path.clone());
+                                                r.remote_routed_readers.push(full_admin_path);
                                                 // check amongst local Writers is some are matching (only wrt. topic_name and partition. TODO: consider qos match also)
                                                 for writer in self.discovered_writers.values_mut() {
-                                                    if writer.topic_name == entity.topic_name && writer.qos.partitions.contains(p) {
+                                                    if writer.topic_name == entity.topic_name && writer.qos.partitions.is_empty() {
                                                         r.local_routed_writers.push(writer.key.clone());
-                                                        writer.routes.insert(p.clone(), route_status.clone());
+                                                        writer.routes.insert("*".to_string(), route_status.clone());
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    } else {
+                                        for p in &entity.qos.partitions {
+                                            let zkey = format!("{}/{}/{}", scope, p, entity.topic_name);
+                                            let route_status = self.try_add_route_from_dds(&zkey, &entity.topic_name, &entity.type_name, entity.keyless, qos.clone(), congestion_ctrl).await;
+                                            if let RouteStatus::Routed(ref route_key) = route_status {
+                                                if let Some(r) = self.routes_from_dds.get_mut(route_key) {
+                                                    // add the reader's admin path to the list of remote_routed_writers
+                                                    r.remote_routed_readers.push(full_admin_path.clone());
+                                                    // check amongst local Writers is some are matching (only wrt. topic_name and partition. TODO: consider qos match also)
+                                                    for writer in self.discovered_writers.values_mut() {
+                                                        if writer.topic_name == entity.topic_name && writer.qos.partitions.contains(p) {
+                                                            r.local_routed_writers.push(writer.key.clone());
+                                                            writer.routes.insert(p.clone(), route_status.clone());
+                                                        }
                                                     }
                                                 }
                                             }
                                         }
                                     }
+                                } else {
+                                    // reader was deleted; remove it from all the active routes refering it (deleting the route if no longer used)
+                                    let admin_space = &mut self.admin_space;
+                                    self.routes_from_dds.retain(|zkey, route| {
+                                            route.remote_routed_readers.retain(|s| s != &full_admin_path);
+                                            if route.remote_routed_readers.is_empty() {
+                                                info!(
+                                                    "Remove unused route: DDS '{}' => zenoh '{}'",
+                                                    zkey, zkey
+                                                );
+                                                let path = format!("route/from_dds/{}", zkey);
+                                                admin_space.remove(&path);
+                                                false
+                                            } else {
+                                                true
+                                            }
+                                        }
+                                    );
                                 }
-                            } else {
-                                // reader was deleted; remove it from all the active routes refering it (deleting the route if no longer used)
-                                let admin_space = &mut self.admin_space;
-                                self.routes_from_dds.retain(|zkey, route| {
-                                        route.remote_routed_readers.retain(|s| s != &full_admin_path);
-                                        if route.remote_routed_readers.is_empty() {
-                                            info!(
-                                                "Remove unused route: DDS '{}' => zenoh '{}'",
-                                                zkey, zkey
-                                            );
-                                            let path = format!("route/from_dds/{}", zkey);
-                                            admin_space.remove(&path);
-                                            false
-                                        } else {
-                                            true
+                            }
+
+                            // it's a ros_discovery_info message
+                            "ros_disco" => {
+                                match cdr::deserialize_from::<_, ParticipantEntitiesInfo, _>(
+                                    &*sample.value.payload.contiguous(),
+                                    cdr::size::Infinite,
+                                ) {
+                                    Ok(mut info) => {
+                                        // remap all original gids with the gids of the routes
+                                        self.remap_entities_info(&mut info.node_entities_info_seq);
+                                        // update the ParticipantEntitiesInfo for this bridge and re-publish it on DDS
+                                        participant_info.update_with(info.node_entities_info_seq);
+                                        debug!("Publish updated ros_discovery_info: {:?}", participant_info);
+                                        if let Err(e) = ros_disco_mgr.write(&participant_info) {
+                                            error!("Error forwarding ros_discovery_info: {}", e);
                                         }
                                     }
-                                );
-                            }
-                        }
-
-                        // it's a ros_discovery_info message
-                        "ros_disco" => {
-                            match cdr::deserialize_from::<_, ParticipantEntitiesInfo, _>(
-                                &*sample.value.payload.contiguous(),
-                                cdr::size::Infinite,
-                            ) {
-                                Ok(mut info) => {
-                                    // remap all original gids with the gids of the routes
-                                    self.remap_entities_info(&mut info.node_entities_info_seq);
-                                    // update the ParticipantEntitiesInfo for this bridge and re-publish it on DDS
-                                    participant_info.update_with(info.node_entities_info_seq);
-                                    debug!("Publish updated ros_discovery_info: {:?}", participant_info);
-                                    if let Err(e) = ros_disco_mgr.write(&participant_info) {
-                                        error!("Error forwarding ros_discovery_info: {}", e);
-                                    }
+                                    Err(e) => error!(
+                                        "Error receiving ParticipantEntitiesInfo on {}: {}",
+                                        fwd_path, e
+                                    ),
                                 }
-                                Err(e) => error!(
-                                    "Error receiving ParticipantEntitiesInfo on {}: {}",
-                                    fwd_path, e
-                                ),
                             }
-                        }
 
-                        x => {
-                            error!("Unexpected forwarded discovery message received on invalid key {} (unkown kind: {}) ", fwd_path, x);
+                            x => {
+                                error!("Unexpected forwarded discovery message received on invalid key {} (unkown kind: {}) ", fwd_path, x);
+                            }
                         }
                     }
                 },
@@ -1391,6 +1382,34 @@ impl<'a> DdsPluginRuntime<'a> {
                 }
             )
         }
+    }
+
+    fn parse_fwd_discovery_path(fwd_path: &str) -> Option<(&str, &str, String)> {
+        // parse fwd_path which have format: "/@dds_fwd_disco/<remote_uuid>[/scope/possibly/multiple]/<disco_kind>/<remaining_path...>"
+        let mut split_it = fwd_path.split('/');
+        if split_it.nth(1) != Some("@dds_fwd_disco") {
+            // publication on a key expression matching the fwd_path: ignore it
+            return None;
+        }
+        let remote_uuid = if let Some(uuid) = split_it.nth(2) {
+            uuid
+        } else {
+            error!(
+                "Unexpected forwarded discovery message received on invalid key: {}",
+                fwd_path
+            );
+            return None;
+        };
+        let disco_kind = if let Some(kind) = split_it
+            .find(|segment| *segment == "reader" || *segment == "writer" || *segment == "ros_disco")
+        {
+            kind
+        } else {
+            error!("Unexpected forwarded discovery message received on invalid key: {} (no expected kind 'reader', 'writer' or 'ros_disco')", fwd_path);
+            return None;
+        };
+        let remaining_path = split_it.collect::<Vec<&str>>().join("/");
+        Some((remote_uuid, disco_kind, remaining_path))
     }
 
     fn remap_entities_info(&self, entities_info: &mut HashMap<String, NodeEntitiesInfo>) {
