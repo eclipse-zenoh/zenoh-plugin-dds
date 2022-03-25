@@ -55,13 +55,13 @@ r#"-c, --config=[FILE] \
 'The configuration file. Currently, this file must be a valid JSON5 file.'"#,
             ))
         .arg(Arg::from_usage(
-r#"-l, --listener=[LOCATOR]... \
+r#"-l, --listen=[ENDPOINT]... \
 'A locator on which this router will listen for incoming sessions.
 Repeat this option to open several listeners.'"#,
                 ),
             )
         .arg(Arg::from_usage(
-r#"-e, --peer=[LOCATOR]... \
+r#"-e, --connect=[ENDPOINT]... \
 'A peer locator this router will try to connect to.
 Repeat this option to connect to several peers.'"#,
             ))
@@ -144,17 +144,17 @@ r#"-f, --fwd-discovery   'When set, rather than creating a local route when disc
             .set_mode(Some(args.value_of("mode").unwrap().parse().unwrap()))
             .unwrap();
     }
-    if let Some(peers) = args.values_of("peer") {
+    if let Some(endpoints) = args.values_of("connect") {
         config
             .connect
             .endpoints
-            .extend(peers.map(|p| p.parse().unwrap()))
+            .extend(endpoints.map(|p| p.parse().unwrap()))
     }
-    if let Some(listeners) = args.values_of("listener") {
+    if let Some(endpoints) = args.values_of("listen") {
         config
             .listen
             .endpoints
-            .extend(listeners.map(|p| p.parse().unwrap()))
+            .extend(endpoints.map(|p| p.parse().unwrap()))
     }
     if args.is_present("no-multicast-scouting") {
         config.scouting.multicast.set_enabled(Some(false)).unwrap();

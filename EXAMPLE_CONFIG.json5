@@ -114,16 +114,23 @@
   //mode: "client",
 
   ////
-  //// peers: Which locators to connect to, proto may be one of tcp|udp|quic|tls|unixsock-stream.
+  //// Which endpoints to connect to. E.g. tcp/localhost:7447.
+  //// By configuring the endpoints, it is possible to tell zenoh which router/peer to connect to at startup.
   ////
-  peers: [
-    // "<proto>/<ip>:<port>"
-  ],
+  connect: {
+    endpoints: [
+      // "<proto>/<ip>:<port>"
+    ]
+  },
 
   ////
-  //// listeners: Which locators to listen on. These are typically bound to local IPs or 0.0.0.0
+  //// Which endpoints to listen on. E.g. tcp/localhost:7447.
+  //// By configuring the endpoints, it is possible to tell zenoh which are the endpoints that other routers, 
+  //// peers, or client can use to establish a zenoh session.
   ////
-  listeners: [
-    // "<proto>/<ip>:<port>"
-  ],
+  listen: {
+    endpoints: [
+      // "<proto>/<ip>:<port>"
+    ]
+  },
 }
