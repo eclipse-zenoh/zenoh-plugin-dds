@@ -435,7 +435,15 @@ impl<'a> DdsPluginRuntime<'a> {
         }
 
         // declare the zenoh resource and the publisher
-        let rid = self.zsession.declare_expr(zkey).await.unwrap();
+        let rid = match self.zsession.declare_expr(zkey).await {
+            Ok(id) => id,
+            Err(e) => {
+                return RouteStatus::CreationFailure(format!(
+                    "Failed to declare expression {}: {}",
+                    zkey, e
+                ))
+            }
+        };
         let zenoh_publisher: ZPublisher<'a> = if reader_qos.durability.kind
             == DurabilityKind::TRANSIENT_LOCAL
         {
@@ -465,16 +473,28 @@ impl<'a> DdsPluginRuntime<'a> {
                 "Caching publications for TRANSIENT_LOCAL Writer on resource {} with history {}",
                 zkey, history
             );
-            ZPublisher::PublicationCache(
-                self.zsession
-                    .publication_cache(rid)
-                    .history(history)
-                    .queryable_prefix(format!("{}/{}", PUB_CACHE_QUERY_PREFIX, self.member.id()))
-                    .await
-                    .unwrap(),
-            )
+            match self
+                .zsession
+                .publication_cache(rid)
+                .history(history)
+                .queryable_prefix(format!("{}/{}", PUB_CACHE_QUERY_PREFIX, self.member.id()))
+                .await
+            {
+                Ok(pub_cache) => ZPublisher::PublicationCache(pub_cache),
+                Err(e) => {
+                    return RouteStatus::CreationFailure(format!(
+                        "Failed create PublicationCache for key {} (rid={}): {}",
+                        zkey, rid, e
+                    ))
+                }
+            }
         } else {
-            self.zsession.declare_publication(rid).await.unwrap();
+            if let Err(e) = self.zsession.declare_publication(rid).await {
+                warn!(
+                    "Failed to declare publication for key {} (rid={}): {}",
+                    zkey, rid, e
+                );
+            }
             ZPublisher::Publisher(rid)
         };
 
@@ -568,17 +588,33 @@ impl<'a> DdsPluginRuntime<'a> {
                         "Querying historical data for TRANSIENT_LOCAL Reader on resource {}",
                         zkey
                     );
-                    let mut sub = self
+                    let mut sub = match self
                         .zsession
                         .subscribe_with_query(zkey)
                         .reliable()
                         .query_selector(&format!("{}/*{}", PUB_CACHE_QUERY_PREFIX, zkey))
                         .wait()
-                        .unwrap();
+                    {
+                        Ok(s) => s,
+                        Err(e) => {
+                            return RouteStatus::CreationFailure(format!(
+                                "Failed create QueryingSubscriber for key {}: {}",
+                                zkey, e
+                            ))
+                        }
+                    };
                     let receiver = sub.receiver().clone();
                     (ZSubscriber::QueryingSubscriber(sub), Box::pin(receiver))
                 } else {
-                    let mut sub = self.zsession.subscribe(zkey).reliable().wait().unwrap();
+                    let mut sub = match self.zsession.subscribe(zkey).reliable().wait() {
+                        Ok(s) => s,
+                        Err(e) => {
+                            return RouteStatus::CreationFailure(format!(
+                                "Failed create Subscriber for key {}: {}",
+                                zkey, e
+                            ))
+                        }
+                    };
                     let receiver = sub.receiver().clone();
                     (ZSubscriber::Subscriber(sub), Box::pin(receiver))
                 };
@@ -618,12 +654,15 @@ impl<'a> DdsPluginRuntime<'a> {
                             );
                             drop(CString::from_raw(cton));
                             drop(CString::from_raw(ctyn));
-                            let fwdp = cdds_ddsi_payload_create(
-                                st,
-                                ddsi_serdata_kind_SDK_DATA,
-                                ptr,
-                                len.try_into().unwrap(),
-                            );
+                            let size: size_t = match len.try_into() {
+                                Ok(s) => s,
+                                Err(_) => {
+                                    warn!("Can't route data from zenoh {} to DDS '{}': excessive payload size ({})", s.key_expr, &ton, len);
+                                    continue;
+                                }
+                            };
+                            let fwdp =
+                                cdds_ddsi_payload_create(st, ddsi_serdata_kind_SDK_DATA, ptr, size);
                             dds_writecdr(dw, fwdp as *mut ddsi_serdata);
                             drop(Vec::from_raw_parts(ptr, len, capacity));
                             cdds_sertopic_unref(st);
@@ -652,26 +691,30 @@ impl<'a> DdsPluginRuntime<'a> {
         }
     }
 
-    fn get_admin_value(&self, admin_ref: &AdminRef) -> Option<Value> {
+    fn get_admin_value(&self, admin_ref: &AdminRef) -> Result<Option<Value>, serde_json::Error> {
         match admin_ref {
             AdminRef::DdsReaderEntity(key) => self
                 .discovered_readers
                 .get(key)
-                .map(|e| serde_json::to_value(e).unwrap()),
+                .map(serde_json::to_value)
+                .transpose(),
             AdminRef::DdsWriterEntity(key) => self
                 .discovered_writers
                 .get(key)
-                .map(|e| serde_json::to_value(e).unwrap()),
+                .map(serde_json::to_value)
+                .transpose(),
             AdminRef::FromDdsRoute(zkey) => self
                 .routes_from_dds
                 .get(zkey)
-                .map(|e| serde_json::to_value(e).unwrap()),
+                .map(serde_json::to_value)
+                .transpose(),
             AdminRef::ToDdsRoute(zkey) => self
                 .routes_to_dds
                 .get(zkey)
-                .map(|e| serde_json::to_value(e).unwrap()),
-            AdminRef::Config => Some(serde_json::to_value(self).unwrap()),
-            AdminRef::Version => Some(Value::String(LONG_VERSION.clone())),
+                .map(serde_json::to_value)
+                .transpose(),
+            AdminRef::Config => Some(serde_json::to_value(self)).transpose(),
+            AdminRef::Version => Ok(Some(Value::String(LONG_VERSION.clone()))),
         }
     }
 
@@ -691,20 +734,24 @@ impl<'a> DdsPluginRuntime<'a> {
                 // iterate over all admin space to find matching keys
                 for (path, admin_ref) in self.admin_space.iter() {
                     if key_expr::intersect(path_expr, path) {
-                        if let Some(v) = self.get_admin_value(admin_ref) {
-                            kvs.push((path, v));
-                        } else {
-                            warn!("INTERNAL ERROR: Dangling {:?}", admin_ref);
+                        match self.get_admin_value(admin_ref) {
+                            Ok(Some(v)) => kvs.push((path, v)),
+                            Ok(None) => error!("INTERNAL ERROR: Dangling {:?}", admin_ref),
+                            Err(e) => {
+                                error!("INTERNAL ERROR serializing admin value as JSON: {}", e)
+                            }
                         }
                     }
                 }
             } else {
                 // path_expr correspond to 1 key - just get it.
                 if let Some(admin_ref) = self.admin_space.get(path_expr) {
-                    if let Some(v) = self.get_admin_value(admin_ref) {
-                        kvs.push((path_expr, v));
-                    } else {
-                        warn!("INTERNAL ERROR: Dangling {:?}", admin_ref);
+                    match self.get_admin_value(admin_ref) {
+                        Ok(Some(v)) => kvs.push((path_expr, v)),
+                        Ok(None) => error!("INTERNAL ERROR: Dangling {:?}", admin_ref),
+                        Err(e) => {
+                            error!("INTERNAL ERROR serializing admin value as JSON: {}", e)
+                        }
                     }
                 }
             }
@@ -771,7 +818,7 @@ impl<'a> DdsPluginRuntime<'a> {
             .queryable(&admin_path_expr)
             .kind(zenoh::queryable::EVAL)
             .await
-            .unwrap();
+            .expect("Failed to create AdminSpace queryable");
 
         // add plugin's config and version in admin space
         self.admin_space
@@ -985,7 +1032,11 @@ impl<'a> DdsPluginRuntime<'a> {
                 }
 
                 get_request = admin_query_rcv.next().fuse() => {
-                    self.treat_admin_query(get_request.unwrap(), &admin_path_prefix).await;
+                    if let Some(query) = get_request {
+                        self.treat_admin_query(query, &admin_path_prefix).await;
+                    } else {
+                        warn!("AdminSpace queryable was closed!");
+                    }
                 }
             )
         }
@@ -1017,34 +1068,35 @@ impl<'a> DdsPluginRuntime<'a> {
             .zsession
             .declare_expr(fwd_writers_path_prefix)
             .await
-            .unwrap();
+            .expect("Failed to declare key expression for Fwd Discovery of writers");
         let fwd_readers_path_prefix_key = self
             .zsession
             .declare_expr(fwd_readers_path_prefix)
             .await
-            .unwrap();
+            .expect("Failed to declare key expression for Fwd Discovery of readers");
         let fwd_ros_discovery_key = self
             .zsession
             .declare_expr(&fwd_ros_discovery_key_str)
             .await
-            .unwrap();
+            .expect("Failed to declare key expression for Fwd Discovery of ros_discovery");
 
         // Cache the publications on admin space for late joiners DDS plugins
         let _fwd_disco_pub_cache = self
             .zsession
             .publication_cache(fwd_publication_cache_key)
             .await
-            .unwrap();
+            .expect("Failed to declare PublicationCache for Fwd Discovery");
 
         // Subscribe to remote DDS plugins publications of new Readers/Writers on admin space
         let mut fwd_disco_sub = self
             .zsession
             .subscribe_with_query(fwd_discovery_subscription_key)
             .await
-            .unwrap();
+            .expect("Failed to declare QueryingSubscriber for Fwd Discovery");
 
         // Manage ros_discovery_info topic, reading it periodically
-        let ros_disco_mgr = RosDiscoveryInfoMgr::create(self.dp).unwrap();
+        let ros_disco_mgr =
+            RosDiscoveryInfoMgr::create(self.dp).expect("Failed to create RosDiscoveryInfoMgr");
         let timer = Timer::default();
         let (tx, mut ros_disco_timer_rcv): (Sender<()>, Receiver<()>) = unbounded();
         let ros_disco_timer_event = TimedEvent::periodic(
@@ -1054,7 +1106,9 @@ impl<'a> DdsPluginRuntime<'a> {
         let _ = timer.add_async(ros_disco_timer_event).await;
 
         // The ParticipantEntitiesInfo to be re-published on ros_discovery_info (with this bridge's participant gid)
-        let mut participant_info = ParticipantEntitiesInfo::new(get_guid(&self.dp).unwrap());
+        let mut participant_info = ParticipantEntitiesInfo::new(
+            get_guid(&self.dp).expect("Failed to get my Participant's guid"),
+        );
 
         let scope = self.config.scope.clone();
         let admin_query_rcv = admin_queryable.receiver();
@@ -1070,7 +1124,13 @@ impl<'a> DdsPluginRuntime<'a> {
                             let admin_path = DdsPluginRuntime::get_admin_path(&entity, true);
                             let fwd_path = KeyExpr { scope: fwd_writers_path_prefix_key, suffix: admin_path.as_str().into() };
                             let msg = (&entity, &scope);
-                            self.zsession.put(&fwd_path, bincode::serialize(&msg).unwrap()).congestion_control(CongestionControl::Block).await.unwrap();
+                            let ser_msg = match bincode::serialize(&msg) {
+                                Ok(s) => s,
+                                Err(e) => { error!("INTERNAL ERROR: failed to serialize discovery message for {:?}: {}", entity, e); continue; }
+                            };
+                            if let Err(e) = self.zsession.put(&fwd_path, ser_msg).congestion_control(CongestionControl::Block).await {
+                                error!("INTERNAL ERROR: failed to publish discovery message on {}: {}", fwd_path, e);
+                            }
 
                             // store the writer in admin space
                             self.insert_dds_writer(admin_path, entity);
@@ -1083,7 +1143,9 @@ impl<'a> DdsPluginRuntime<'a> {
                             if let Some((admin_path, _)) = self.remove_dds_writer(&key) {
                                 let fwd_path = KeyExpr { scope: fwd_writers_path_prefix_key, suffix: admin_path.as_str().into() };
                                 // publish its deletion from admin space
-                                self.zsession.delete(&fwd_path).congestion_control(CongestionControl::Block).await.unwrap();
+                                if let Err(e) = self.zsession.delete(&fwd_path).congestion_control(CongestionControl::Block).await {
+                                    error!("INTERNAL ERROR: failed to publish undiscovery message on {:?}: {}", fwd_path, e);
+                                }
                             }
                         }
 
@@ -1095,7 +1157,13 @@ impl<'a> DdsPluginRuntime<'a> {
                             let admin_path = DdsPluginRuntime::get_admin_path(&entity, false);
                             let fwd_path = KeyExpr { scope: fwd_readers_path_prefix_key, suffix: admin_path.as_str().into() };
                             let msg = (&entity, &scope);
-                            self.zsession.put(&fwd_path, bincode::serialize(&msg).unwrap()).congestion_control(CongestionControl::Block).await.unwrap();
+                            let ser_msg = match bincode::serialize(&msg) {
+                                Ok(s) => s,
+                                Err(e) => { error!("INTERNAL ERROR: failed to serialize discovery message for {:?}: {}", entity, e); continue; }
+                            };
+                            if let Err(e) = self.zsession.put(&fwd_path, ser_msg).congestion_control(CongestionControl::Block).await {
+                                error!("INTERNAL ERROR: failed to publish discovery message on {}: {}", fwd_path, e);
+                            }
 
                             // store the reader
                             self.insert_dds_reader(admin_path, entity);
@@ -1108,14 +1176,16 @@ impl<'a> DdsPluginRuntime<'a> {
                             if let Some((admin_path, _)) = self.remove_dds_reader(&key) {
                                 let fwd_path = KeyExpr { scope: fwd_readers_path_prefix_key, suffix: admin_path.as_str().into() };
                                 // publish its deletion from admin space
-                                self.zsession.delete(&fwd_path).congestion_control(CongestionControl::Block).await.unwrap();
+                                if let Err(e) = self.zsession.delete(&fwd_path).congestion_control(CongestionControl::Block).await {
+                                    error!("INTERNAL ERROR: failed to publish undiscovery message on {:?}: {}", fwd_path, e);
+                                }
                             }
                         }
                     }
                 },
 
                 sample = fwd_disco_sub.receiver().next().fuse() => {
-                    let sample = sample.unwrap();
+                    let sample = sample.expect("Fwd Discovery subscriber was closed!");
                     let fwd_path = &sample.key_expr;
                     debug!("Received forwarded discovery message on {}", fwd_path);
 
@@ -1128,7 +1198,13 @@ impl<'a> DdsPluginRuntime<'a> {
                                 let full_admin_path = format!("/@/service/{}/dds/{}", remote_uuid, remaining_path);
                                 if sample.kind != SampleKind::Delete {
                                     // deserialize payload
-                                    let (entity, scope) = bincode::deserialize::<(DdsEntity, String)>(&sample.value.payload.contiguous()).unwrap();
+                                    let (entity, scope) = match bincode::deserialize::<(DdsEntity, String)>(&sample.value.payload.contiguous()) {
+                                        Ok(x) => x,
+                                        Err(e) => {
+                                            warn!("Failed to deserialize discovery msg for {}: {}", full_admin_path, e);
+                                            continue;
+                                        }
+                                    };
                                     // copy and adapt Writer's QoS for creation of a proxy Writer
                                     let mut qos = entity.qos.clone();
                                     qos.ignore_local_participant = true;
@@ -1196,7 +1272,13 @@ impl<'a> DdsPluginRuntime<'a> {
                                 let full_admin_path = format!("/@/service/{}/dds/{}", remote_uuid, remaining_path);
                                 if sample.kind != SampleKind::Delete {
                                     // deserialize payload
-                                    let (entity, scope) = bincode::deserialize::<(DdsEntity, String)>(&sample.value.payload.contiguous()).unwrap();
+                                    let (entity, scope) = match bincode::deserialize::<(DdsEntity, String)>(&sample.value.payload.contiguous()) {
+                                        Ok(x) => x,
+                                        Err(e) => {
+                                            warn!("Failed to deserialize discovery msg for {}: {}", full_admin_path, e);
+                                            continue;
+                                        }
+                                    };
                                     // copy and adapt Reader's QoS for creation of a proxy Reader
                                     let mut qos = entity.qos.clone();
                                     qos.ignore_local_participant = true;
@@ -1329,8 +1411,12 @@ impl<'a> DdsPluginRuntime<'a> {
                                     );
                                     let path = format!("route/to_dds/{}", zkey);
                                     admin_space.remove(&path);
-                                    participant_info.remove_writer_gid(&get_guid(&route.serving_writer).unwrap());
-                                    participant_info_changed = true;
+                                    if let Ok(guid) = get_guid(&route.serving_writer) {
+                                        participant_info.remove_writer_gid(&guid);
+                                        participant_info_changed = true;
+                                    } else {
+                                        warn!("Failed to get guid for Writer serving the route zenoh '{}' => DDS '{}'. Can't update ros_discovery_info accordingly", zkey, zkey);
+                                    }
                                     false
                                 } else {
                                     true
@@ -1345,15 +1431,19 @@ impl<'a> DdsPluginRuntime<'a> {
                                     );
                                     let path = format!("route/from_dds/{}", zkey);
                                     admin_space.remove(&path);
-                                    participant_info.remove_reader_gid(&get_guid(&route.serving_reader).unwrap());
-                                    participant_info_changed = true;
+                                    if let Ok(guid) = get_guid(&route.serving_reader) {
+                                        participant_info.remove_reader_gid(&guid);
+                                        participant_info_changed = true;
+                                    } else {
+                                        warn!("Failed to get guid for Reader serving the route DDS '{}' => zenoh '{}'. Can't update ros_discovery_info accordingly", zkey, zkey);
+                                    }
                                     false
                                 } else {
                                     true
                                 }
                             });
                             if participant_info_changed {
-                                debug!("Publishing up-to-date tos_discovery_info after leaving of plugin {}", mid);
+                                debug!("Publishing up-to-date ros_discovery_info after leaving of plugin {}", mid);
                                 participant_info.cleanup();
                                 if let Err(e) = ros_disco_mgr.write(&participant_info) {
                                     error!("Error forwarding ros_discovery_info: {}", e);
@@ -1367,7 +1457,11 @@ impl<'a> DdsPluginRuntime<'a> {
                 }
 
                 get_request = admin_query_rcv.next().fuse() => {
-                    self.treat_admin_query(get_request.unwrap(), &admin_path_prefix).await;
+                    if let Some(query) = get_request {
+                        self.treat_admin_query(query, &admin_path_prefix).await;
+                    } else {
+                        warn!("AdminSpace queryable was closed!");
+                    }
                 }
 
                 _ = ros_disco_timer_rcv.next().fuse() => {
@@ -1426,14 +1520,17 @@ impl<'a> DdsPluginRuntime<'a> {
                 }) {
                     Some(route) => {
                         // replace the gid with route's reader's gid
-                        let gid = get_guid(&route.serving_reader).unwrap();
-                        trace!(
-                            "ros_discovery_info remap reader {} -> {}",
-                            node.reader_gid_seq[i],
-                            gid
-                        );
-                        node.reader_gid_seq[i] = gid;
-                        i += 1;
+                        if let Ok(gid) = get_guid(&route.serving_reader) {
+                            trace!(
+                                "ros_discovery_info remap reader {} -> {}",
+                                node.reader_gid_seq[i],
+                                gid
+                            );
+                            node.reader_gid_seq[i] = gid;
+                            i += 1;
+                        } else {
+                            error!("Failed to get guid for Reader serving the a route. Can't remap in ros_discovery_info");
+                        }
                     }
                     None => {
                         // remove the gid (not route found because either not allowed to be routed,
@@ -1457,14 +1554,17 @@ impl<'a> DdsPluginRuntime<'a> {
                 }) {
                     Some(route) => {
                         // replace the gid with route's writer's gid
-                        let gid = get_guid(&route.serving_writer).unwrap();
-                        trace!(
-                            "ros_discovery_info remap writer {} -> {}",
-                            node.writer_gid_seq[i],
-                            gid
-                        );
-                        node.writer_gid_seq[i] = gid;
-                        i += 1;
+                        if let Ok(gid) = get_guid(&route.serving_writer) {
+                            trace!(
+                                "ros_discovery_info remap writer {} -> {}",
+                                node.writer_gid_seq[i],
+                                gid
+                            );
+                            node.writer_gid_seq[i] = gid;
+                            i += 1;
+                        } else {
+                            error!("Failed to get guid for Writer serving the a route. Can't remap in ros_discovery_info");
+                        }
                     }
                     None => {
                         // remove the gid (not route found because either not allowed to be routed,

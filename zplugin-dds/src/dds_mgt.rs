@@ -15,7 +15,7 @@ use crate::qos::{HistoryKind, Qos};
 use async_std::channel::Sender;
 use async_std::task;
 use cyclors::*;
-use log::debug;
+use log::{debug, error, warn};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::ffi::{CStr, CString};
@@ -83,8 +83,20 @@ unsafe extern "C" fn on_data(dr: dds_entity_t, arg: *mut std::os::raw::c_void) {
             let key = hex::encode((*sample).key.v);
             let participant_key = hex::encode((*sample).participant_key.v);
             let keyless = (*sample).key.v[15] == 3 || (*sample).key.v[15] == 4;
-            let topic_name = CStr::from_ptr((*sample).topic_name).to_str().unwrap();
-            let type_name = CStr::from_ptr((*sample).type_name).to_str().unwrap();
+            let topic_name = match CStr::from_ptr((*sample).topic_name).to_str() {
+                Ok(s) => s,
+                Err(e) => {
+                    warn!("Discovery of an invalid topic name: {}", e);
+                    continue;
+                }
+            };
+            let type_name = match CStr::from_ptr((*sample).type_name).to_str() {
+                Ok(s) => s,
+                Err(e) => {
+                    warn!("Discovery of an invalid topic type: {}", e);
+                    continue;
+                }
+            };
 
             debug!(
                 "{} DDS {} {} from Participant {} on {} with type {} (keyless: {})",
@@ -132,22 +144,14 @@ unsafe extern "C" fn on_data(dr: dds_entity_t, arg: *mut std::os::raw::c_void) {
                 };
 
                 if pub_discovery {
-                    (btx.1)
-                        .try_send(DiscoveryEvent::DiscoveredPublication { entity })
-                        .unwrap();
+                    send_discovery_event(&btx.1, DiscoveryEvent::DiscoveredPublication { entity });
                 } else {
-                    (btx.1)
-                        .try_send(DiscoveryEvent::DiscoveredSubscription { entity })
-                        .unwrap();
+                    send_discovery_event(&btx.1, DiscoveryEvent::DiscoveredSubscription { entity });
                 }
             } else if pub_discovery {
-                (btx.1)
-                    .try_send(DiscoveryEvent::UndiscoveredPublication { key })
-                    .unwrap();
+                send_discovery_event(&btx.1, DiscoveryEvent::UndiscoveredPublication { key });
             } else {
-                (btx.1)
-                    .try_send(DiscoveryEvent::UndiscoveredSubscription { key })
-                    .unwrap();
+                send_discovery_event(&btx.1, DiscoveryEvent::UndiscoveredSubscription { key });
             }
         }
     }
@@ -157,6 +161,15 @@ unsafe extern "C" fn on_data(dr: dds_entity_t, arg: *mut std::os::raw::c_void) {
         MAX_SAMPLES as i32,
     );
     Box::into_raw(btx);
+}
+
+fn send_discovery_event(sender: &Sender<DiscoveryEvent>, event: DiscoveryEvent) {
+    if let Err(e) = sender.try_send(event) {
+        error!(
+            "INTERNAL ERROR sending DiscoveryEvent to internal channel: {:?}",
+            e
+        );
+    }
 }
 
 pub(crate) fn run_discovery(dp: dds_entity_t, tx: Sender<DiscoveryEvent>) {
@@ -249,15 +262,19 @@ pub fn create_forwarding_dds_reader(
                         dds_reader_wait_for_historical_data(reader, crate::qos::DDS_100MS_DURATION);
                     if res < 0 {
                         log::error!(
-                            "Error caling dds_reader_wait_for_historical_data(): {}",
-                            CStr::from_ptr(dds_strretcode(-res)).to_str().unwrap()
+                            "Error calling dds_reader_wait_for_historical_data(): {}",
+                            CStr::from_ptr(dds_strretcode(-res))
+                                .to_str()
+                                .unwrap_or("unrecoverable DDS retcode")
                         );
                     }
                     Ok(reader)
                 } else {
                     Err(format!(
                         "Error creating DDS Reader: {}",
-                        CStr::from_ptr(dds_strretcode(-reader)).to_str().unwrap()
+                        CStr::from_ptr(dds_strretcode(-reader))
+                            .to_str()
+                            .unwrap_or("unrecoverable DDS retcode")
                     ))
                 }
             }
@@ -334,7 +351,9 @@ pub fn create_forwarding_dds_writer(
         } else {
             Err(format!(
                 "Error creating DDS Writer: {}",
-                CStr::from_ptr(dds_strretcode(-writer)).to_str().unwrap()
+                CStr::from_ptr(dds_strretcode(-writer))
+                    .to_str()
+                    .unwrap_or("unrecoverable DDS retcode")
             ))
         }
     }
