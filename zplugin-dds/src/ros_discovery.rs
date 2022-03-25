@@ -87,7 +87,9 @@ impl RosDiscoveryInfoMgr {
                 return Err(format!(
                     "Error creating DDS Reader on {}: {}",
                     ROS_DISCOVERY_INFO_TOPIC_NAME,
-                    CStr::from_ptr(dds_strretcode(-reader)).to_str().unwrap()
+                    CStr::from_ptr(dds_strretcode(-reader))
+                        .to_str()
+                        .unwrap_or("unrecoverable DDS retcode")
                 ));
             }
 
@@ -112,7 +114,9 @@ impl RosDiscoveryInfoMgr {
                 return Err(format!(
                     "Error creating DDS Writer on {}: {}",
                     ROS_DISCOVERY_INFO_TOPIC_NAME,
-                    CStr::from_ptr(dds_strretcode(-reader)).to_str().unwrap()
+                    CStr::from_ptr(dds_strretcode(-reader))
+                        .to_str()
+                        .unwrap_or("unrecoverable DDS retcode")
                 ));
             }
 
@@ -181,7 +185,9 @@ impl RosDiscoveryInfoMgr {
                 sertopic,
                 ddsi_serdata_kind_SDK_DATA,
                 ptr,
-                len.try_into().unwrap(),
+                len.try_into().map_err(|e| {
+                    format!("Error creating payload for ParticipantEntitiesInfo: {}", e)
+                })?,
             );
             dds_writecdr(self.writer, fwdp as *mut ddsi_serdata);
             drop(Vec::from_raw_parts(ptr, len, capacity));
@@ -282,7 +288,9 @@ fn serialize_gid<S>(gid: &str, serializer: S) -> Result<S::Ok, S::Error>
 where
     S: Serializer,
 {
-    let mut buf = hex::decode(gid).unwrap();
+    let mut buf = hex::decode(gid).map_err(|e| {
+        serde::ser::Error::custom(format!("Failed to decode gid {} as hex: {}", gid, e))
+    })?;
     // Gid size in ROS messages in 24 bytes (The DDS gid is usually 16 bytes). Resize the buffer
     buf.resize(24, 0);
     serde::Serialize::serialize(
@@ -306,7 +314,9 @@ where
 {
     let mut seq = serializer.serialize_seq(Some(gids.len()))?;
     for s in gids {
-        let mut buf = hex::decode(s).unwrap();
+        let mut buf = hex::decode(s).map_err(|e| {
+            serde::ser::Error::custom(format!("Failed to decode gid {} as hex: {}", s, e))
+        })?;
         // Gid size in ROS messages in 24 bytes (The DDS gid is usually 16 bytes). Resize the buffer
         buf.resize(24, 0);
         seq.serialize_element(TryInto::<&[u8; 24]>::try_into(&buf[..24]).unwrap())?;
