@@ -13,21 +13,22 @@
 //
 use clap::{App, Arg};
 use zenoh::config::Config;
+use zenoh::prelude::*;
 
 lazy_static::lazy_static!(
     pub static ref DEFAULT_DOMAIN_STR: String = zplugin_dds::config::DEFAULT_DOMAIN.to_string();
     pub static ref DEFAULT_GROUP_LEASE_STR: String = zplugin_dds::config::DEFAULT_GROUP_LEASE_SEC.to_string();
 );
 
-macro_rules! insert_json {
+macro_rules! insert_json5 {
     ($config: expr, $args: expr, $key: expr, if $name: expr, $($t: tt)*) => {
         if $args.occurrences_of($name) > 0 {
-            $config.insert_json($key, &serde_json::to_string(&$args.value_of($name).unwrap()$($t)*).unwrap()).unwrap();
+            $config.insert_json5($key, &serde_json::to_string(&$args.value_of($name).unwrap()$($t)*).unwrap()).unwrap();
         }
     };
     ($config: expr, $args: expr, $key: expr, for $name: expr, $($t: tt)*) => {
         if let Some(value) = $args.values_of($name) {
-            $config.insert_json($key, &serde_json::to_string(&value$($t)*).unwrap()).unwrap();
+            $config.insert_json5($key, &serde_json::to_string(&value$($t)*).unwrap()).unwrap();
         }
     };
 }
@@ -129,7 +130,7 @@ r#"-f, --fwd-discovery   'When set, rather than creating a local route when disc
     };
     // if "dds" plugin conf is not present, add it (empty to use default config)
     if config.plugin("dds").is_none() {
-        config.insert_json("plugins/dds", "{}").unwrap();
+        config.insert_json5("plugins/dds", "{}").unwrap();
     }
 
     // apply zenoh related arguments over config
@@ -161,7 +162,7 @@ r#"-f, --fwd-discovery   'When set, rather than creating a local route when disc
     }
     if let Some(port) = args.value_of("rest-http-port") {
         config
-            .insert_json("plugins/rest/http_port", &format!(r#""{}""#, port))
+            .insert_json5("plugins/rest/http_port", &format!(r#""{}""#, port))
             .unwrap();
     }
 
@@ -169,18 +170,18 @@ r#"-f, --fwd-discovery   'When set, rather than creating a local route when disc
     config.set_add_timestamp(Some(true)).unwrap();
 
     // apply DDS related arguments over config
-    insert_json!(config, args, "plugins/dds/scope", if "scope",);
-    insert_json!(config, args, "plugins/dds/domain", if "domain", .parse::<u64>().unwrap());
-    insert_json!(config, args, "plugins/dds/group_member_id", if "group-member-id", );
-    insert_json!(config, args, "plugins/dds/group_lease", if "group-lease", .parse::<f64>().unwrap());
-    insert_json!(config, args, "plugins/dds/allow", if "allow", );
-    insert_json!(config, args, "plugins/dds/deny", if "deny", );
-    insert_json!(config, args, "plugins/dds/max_frequencies", for "max-frequency", .collect::<Vec<_>>());
-    insert_json!(config, args, "plugins/dds/generalise_pubs", for "generalise-pub", .collect::<Vec<_>>());
-    insert_json!(config, args, "plugins/dds/generalise_subs", for "generalise-sub", .collect::<Vec<_>>());
+    insert_json5!(config, args, "plugins/dds/scope", if "scope",);
+    insert_json5!(config, args, "plugins/dds/domain", if "domain", .parse::<u64>().unwrap());
+    insert_json5!(config, args, "plugins/dds/group_member_id", if "group-member-id", );
+    insert_json5!(config, args, "plugins/dds/group_lease", if "group-lease", .parse::<f64>().unwrap());
+    insert_json5!(config, args, "plugins/dds/allow", if "allow", );
+    insert_json5!(config, args, "plugins/dds/deny", if "deny", );
+    insert_json5!(config, args, "plugins/dds/max_frequencies", for "max-frequency", .collect::<Vec<_>>());
+    insert_json5!(config, args, "plugins/dds/generalise_pubs", for "generalise-pub", .collect::<Vec<_>>());
+    insert_json5!(config, args, "plugins/dds/generalise_subs", for "generalise-sub", .collect::<Vec<_>>());
     if args.is_present("fwd-discovery") {
         config
-            .insert_json("plugins/dds/forward_discovery", "true")
+            .insert_json5("plugins/dds/forward_discovery", "true")
             .unwrap();
     }
     config
@@ -189,8 +190,8 @@ r#"-f, --fwd-discovery   'When set, rather than creating a local route when disc
 #[async_std::main]
 async fn main() {
     use zenoh_plugin_trait::Plugin;
-    env_logger::init();
-    log::debug!("zenoh-bridge-dds {}", *zplugin_dds::LONG_VERSION);
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("z=info")).init();
+    log::info!("zenoh-bridge-dds {}", *zplugin_dds::LONG_VERSION);
 
     let config = parse_args();
     let rest_plugin = config.plugin("rest").is_some();
