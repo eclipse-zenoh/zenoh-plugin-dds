@@ -40,7 +40,7 @@ zplugin-dds = { path = "../zplugin-dds", default-features = false }
 
 
 [dependencies.async-std]
-version = "=1.10.0"
+version = "=1.11.0"
 features = ["unstable", "attributes"]
 
 
