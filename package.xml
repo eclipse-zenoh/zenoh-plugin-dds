@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <!--
-Copyright (c) 2017, 2020 ADLINK Technology Inc.
+Copyright (c) 2022 ZettaScale Technology
 
 This program and the accompanying materials are made available under the
 terms of the Eclipse Public License 2.0 which is available at
@@ -10,7 +10,7 @@ which is available at https://www.apache.org/licenses/LICENSE-2.0.
 SPDX-License-Identifier: EPL-2.0 OR Apache-2.0
 
 Contributors:
-  ADLINK zenoh team, <zenoh@adlink-labs.tech>
+    ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 -->
 
 <!-- ROS2 package declaration -->
@@ -23,7 +23,7 @@ Contributors:
     or the tunneling of ROS2 communications between nodes via the zenoh protocol at Internet scale.
   </description>
   <url>https://github.com/eclipse-zenoh/zenoh-plugin-dds</url>
-  <maintainer email="zenoh@adlink-labs.tech">ADLINK zenoh team</maintainer>
+  <maintainer email="zenoh@zettascale.tech">ZettaScale Zenoh team</maintainer>
   <license>EPL-2.0</license>
   <license>Apache-2.0</license>
 
