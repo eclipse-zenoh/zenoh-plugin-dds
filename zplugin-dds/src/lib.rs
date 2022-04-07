@@ -1485,7 +1485,7 @@ impl<'a> DdsPluginRuntime<'a> {
             // publication on a key expression matching the fwd_path: ignore it
             return None;
         }
-        let remote_uuid = if let Some(uuid) = split_it.nth(2) {
+        let remote_uuid = if let Some(uuid) = split_it.next() {
             uuid
         } else {
             error!(
