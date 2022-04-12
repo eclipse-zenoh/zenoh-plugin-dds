@@ -1380,6 +1380,16 @@ impl<'a> DdsPluginRuntime<'a> {
                     match group_event {
                         Some(GroupEvent::Join(JoinEvent{member})) => {
                             debug!("New zenoh_dds_plugin detected: {}", member.id());
+                            // query for past publications of discocvery messages from this new member
+                            let key: KeyExpr = format!("/@dds_fwd_disco/{}{}/**", member.id(), self.config.scope).into();
+                            let target = QueryTarget {
+                                kind: PublicationCache::QUERYABLE_KIND,
+                                target: Target::All,
+                            };
+                            debug!("Query past discovery messages from {} on {}", member.id(), key);
+                            if let Err(e) = fwd_disco_sub.query_on(Selector::from(&key), target, QueryConsolidation::none()).await {
+                                warn!("Query on {} for discovery messages failed: {}", key, e);
+                            }
                             // make all QueryingSubscriber to query this new member
                             for (zkey, zsub) in &mut self.routes_to_dds {
                                 if let ZSubscriber::QueryingSubscriber(sub) = &mut zsub.zenoh_subscriber {
