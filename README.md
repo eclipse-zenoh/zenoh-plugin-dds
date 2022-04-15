@@ -204,7 +204,7 @@ The `"dds"` part of this configuration file can also be used in the configuratio
    - **`--deny <String>`** :  A regular expression matching the set of 'partition/topic-name' that must NOT be routed via zenoh.
      By default, no partitions and no topics are denied.  
      If both 'allow' and 'deny' are set a partition and/or topic will be allowed if it matches only the 'allow' expression.  
-   - **`--dds-max-frequency <String>...`** : specifies a maximum frequency of data routing over zenoh per-topic. The string must have the format `"regex=float"` where:
+   - **`--max-frequency <String>...`** : specifies a maximum frequency of data routing over zenoh per-topic. The string must have the format `"regex=float"` where:
        - `"regex"` is a regular expression matching the set of 'partition/topic-name' for which the data (per DDS instance) must be routedat no higher rate than associated max frequency (same syntax than --allow option).
        - `"float"` is the maximum frequency in Hertz; if publication rate is higher, downsampling will occur when routing.
 
