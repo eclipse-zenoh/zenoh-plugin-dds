@@ -34,7 +34,7 @@ use zenoh::net::protocol::io::SplitBuffer;
 use zenoh::net::runtime::Runtime;
 use zenoh::plugins::{Plugin, RunningPluginTrait, ZenohPlugin};
 use zenoh::publication::CongestionControl;
-use zenoh::query::{QueryConsolidation, QueryTarget, Target};
+use zenoh::query::{QueryConsolidation, QueryTarget};
 use zenoh::queryable::{Query, Queryable};
 use zenoh::subscriber::Subscriber;
 use zenoh::utils::key_expr;
@@ -766,7 +766,9 @@ impl<'a> DdsPluginRuntime<'a> {
                 Ok(Some("")) => (*JSON_NULL_VALUE).clone(),
                 _ => v,
             };
-            query.reply(Sample::new(admin_path, value));
+            if let Err(e) = query.reply(Ok(Sample::new(admin_path, value))).await {
+                warn!("Error replying to admin query {:?}: {}", query, e);
+            }
         }
     }
 
@@ -816,7 +818,6 @@ impl<'a> DdsPluginRuntime<'a> {
         let mut admin_queryable = self
             .zsession
             .queryable(&admin_path_expr)
-            .kind(zenoh::queryable::EVAL)
             .await
             .expect("Failed to create AdminSpace queryable");
 
@@ -1019,11 +1020,7 @@ impl<'a> DdsPluginRuntime<'a> {
                             if let ZSubscriber::QueryingSubscriber(sub) = &mut zsub.zenoh_subscriber {
                                 let rkey: KeyExpr = format!("{}/{}/{}", PUB_CACHE_QUERY_PREFIX, member.id(), zkey).into();
                                 debug!("Query for TRANSIENT_LOCAL topic on: {}", rkey);
-                                let target = QueryTarget {
-                                    kind: PublicationCache::QUERYABLE_KIND,
-                                    target: Target::All,
-                                };
-                                if let Err(e) = sub.query_on(Selector::from(&rkey), target, QueryConsolidation::none()).await {
+                                if let Err(e) = sub.query_on(Selector::from(&rkey), QueryTarget::All, QueryConsolidation::none()).await {
                                     warn!("Query on {} for TRANSIENT_LOCAL topic failed: {}", rkey, e);
                                 }
                             }
@@ -1198,7 +1195,7 @@ impl<'a> DdsPluginRuntime<'a> {
                                 let full_admin_path = format!("/@/service/{}/dds/{}", remote_uuid, remaining_path);
                                 if sample.kind != SampleKind::Delete {
                                     // deserialize payload
-                                    let (entity, scope) = match bincode::deserialize::<(DdsEntity, String)>(&sample.value.payload.contiguous()) {
+                                    let (entity, scope) = match bincode::deserialize::<(DdsEntity, String)>(&sample.payload.contiguous()) {
                                         Ok(x) => x,
                                         Err(e) => {
                                             warn!("Failed to deserialize discovery msg for {}: {}", full_admin_path, e);
@@ -1272,7 +1269,7 @@ impl<'a> DdsPluginRuntime<'a> {
                                 let full_admin_path = format!("/@/service/{}/dds/{}", remote_uuid, remaining_path);
                                 if sample.kind != SampleKind::Delete {
                                     // deserialize payload
-                                    let (entity, scope) = match bincode::deserialize::<(DdsEntity, String)>(&sample.value.payload.contiguous()) {
+                                    let (entity, scope) = match bincode::deserialize::<(DdsEntity, String)>(&sample.payload.contiguous()) {
                                         Ok(x) => x,
                                         Err(e) => {
                                             warn!("Failed to deserialize discovery msg for {}: {}", full_admin_path, e);
@@ -1349,7 +1346,7 @@ impl<'a> DdsPluginRuntime<'a> {
                             // it's a ros_discovery_info message
                             "ros_disco" => {
                                 match cdr::deserialize_from::<_, ParticipantEntitiesInfo, _>(
-                                    &*sample.value.payload.contiguous(),
+                                    &*sample.payload.contiguous(),
                                     cdr::size::Infinite,
                                 ) {
                                     Ok(mut info) => {
@@ -1382,12 +1379,8 @@ impl<'a> DdsPluginRuntime<'a> {
                             debug!("New zenoh_dds_plugin detected: {}", member.id());
                             // query for past publications of discocvery messages from this new member
                             let key: KeyExpr = format!("/@dds_fwd_disco/{}{}/**", member.id(), self.config.scope).into();
-                            let target = QueryTarget {
-                                kind: PublicationCache::QUERYABLE_KIND,
-                                target: Target::All,
-                            };
                             debug!("Query past discovery messages from {} on {}", member.id(), key);
-                            if let Err(e) = fwd_disco_sub.query_on(Selector::from(&key), target, QueryConsolidation::none()).await {
+                            if let Err(e) = fwd_disco_sub.query_on(Selector::from(&key), QueryTarget::All, QueryConsolidation::none()).await {
                                 warn!("Query on {} for discovery messages failed: {}", key, e);
                             }
                             // make all QueryingSubscriber to query this new member
@@ -1395,11 +1388,7 @@ impl<'a> DdsPluginRuntime<'a> {
                                 if let ZSubscriber::QueryingSubscriber(sub) = &mut zsub.zenoh_subscriber {
                                     let rkey: KeyExpr = format!("{}/{}/{}", PUB_CACHE_QUERY_PREFIX, member.id(), zkey).into();
                                     debug!("Query for TRANSIENT_LOCAL topic on: {}", rkey);
-                                    let target = QueryTarget {
-                                        kind: PublicationCache::QUERYABLE_KIND,
-                                        target: Target::All,
-                                    };
-                                    if let Err(e) = sub.query_on(Selector::from(&rkey), target, QueryConsolidation::none()).await {
+                                    if let Err(e) = sub.query_on(Selector::from(&rkey), QueryTarget::All, QueryConsolidation::none()).await {
                                         warn!("Query on {} for TRANSIENT_LOCAL topic failed: {}", rkey, e);
                                     }
                                 }
