@@ -12,6 +12,7 @@
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 use clap::{App, Arg};
+use std::str::FromStr;
 use zenoh::config::Config;
 use zenoh::prelude::*;
 
@@ -137,7 +138,7 @@ r#"-f, --fwd-discovery   'When set, rather than creating a local route when disc
     // NOTE: only if args.occurrences_of()>0 to avoid overriding config with the default arg value
     if args.occurrences_of("id") > 0 {
         config
-            .set_id(args.value_of("id").map(|s| s.to_string()))
+            .set_id(ZenohId::from_str(args.value_of("id").unwrap()).unwrap())
             .unwrap();
     }
     if args.occurrences_of("mode") > 0 {

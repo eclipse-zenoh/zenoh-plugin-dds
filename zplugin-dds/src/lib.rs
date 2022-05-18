@@ -12,7 +12,6 @@
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 use async_std::channel::{unbounded, Receiver, Sender};
-use async_std::task;
 use async_trait::async_trait;
 use cyclors::*;
 use flume::r#async::RecvStream;
@@ -27,7 +26,6 @@ use std::collections::HashMap;
 use std::convert::TryInto;
 use std::ffi::CString;
 use std::mem::ManuallyDrop;
-use std::pin::Pin;
 use std::sync::Arc;
 use std::time::Duration;
 use zenoh::net::protocol::io::SplitBuffer;
@@ -35,15 +33,15 @@ use zenoh::net::runtime::Runtime;
 use zenoh::plugins::{Plugin, RunningPluginTrait, ZenohPlugin};
 use zenoh::publication::CongestionControl;
 use zenoh::query::{QueryConsolidation, QueryTarget};
-use zenoh::queryable::{Query, Queryable};
-use zenoh::subscriber::Subscriber;
+use zenoh::queryable::{FlumeQueryable, Query};
+use zenoh::subscriber::CallbackSubscriber;
 use zenoh::utils::key_expr;
 use zenoh::Result as ZResult;
 use zenoh::{prelude::*, Session};
 use zenoh_collections::{Timed, TimedEvent, Timer};
 use zenoh_core::{bail, zerror};
 use zenoh_ext::group::{Group, GroupEvent, JoinEvent, LeaseExpiredEvent, LeaveEvent, Member};
-use zenoh_ext::{PublicationCache, QueryingSubscriber, SessionExt};
+use zenoh_ext::{CallbackQueryingSubscriber, PublicationCache, SessionExt};
 
 pub mod config;
 mod dds_mgt;
@@ -205,8 +203,8 @@ impl Drop for FromDdsRoute<'_> {
 }
 
 enum ZSubscriber<'a> {
-    Subscriber(Subscriber<'a>),
-    QueryingSubscriber(QueryingSubscriber<'a>),
+    Subscriber(CallbackSubscriber<'a>),
+    QueryingSubscriber(CallbackQueryingSubscriber<'a>),
 }
 
 // a route to DDS
@@ -579,21 +577,68 @@ impl<'a> DdsPluginRuntime<'a> {
                     zkey, topic_name, topic_type
                 );
 
+                let ton = topic_name.to_string();
+                let tyn = topic_type.to_string();
+                let keyless = keyless;
+                let dp = self.dp;
+                let subscriber_callback = move |s: Sample| {
+                    if *LOG_PAYLOAD {
+                        log::trace!(
+                            "Route data from zenoh {} to DDS '{}' - payload: {:?}",
+                            s.key_expr,
+                            &ton,
+                            s.value.payload
+                        );
+                    } else {
+                        log::trace!("Route data from zenoh {} to DDS '{}'", s.key_expr, &ton);
+                    }
+                    unsafe {
+                        let bs = s.value.payload.contiguous().into_owned();
+                        // As per the Vec documentation (see https://doc.rust-lang.org/std/vec/struct.Vec.html#method.into_raw_parts)
+                        // the only way to correctly releasing it is to create a vec using from_raw_parts
+                        // and then have its destructor do the cleanup.
+                        // Thus, while tempting to just pass the raw pointer to cyclone and then free it from C,
+                        // that is not necessarily safe or guaranteed to be leak free.
+                        // TODO replace when stable https://github.com/rust-lang/rust/issues/65816
+                        let (ptr, len, capacity) = vec_into_raw_parts(bs);
+                        let cton = CString::new(ton.clone()).unwrap().into_raw();
+                        let ctyn = CString::new(tyn.clone()).unwrap().into_raw();
+                        let st = cdds_create_blob_sertopic(
+                            dp,
+                            cton as *mut std::os::raw::c_char,
+                            ctyn as *mut std::os::raw::c_char,
+                            keyless,
+                        );
+                        drop(CString::from_raw(cton));
+                        drop(CString::from_raw(ctyn));
+                        let size: size_t = match len.try_into() {
+                            Ok(s) => s,
+                            Err(_) => {
+                                warn!("Can't route data from zenoh {} to DDS '{}': excessive payload size ({})", s.key_expr, &ton, len);
+                                return;
+                            }
+                        };
+                        let fwdp =
+                            cdds_ddsi_payload_create(st, ddsi_serdata_kind_SDK_DATA, ptr, size);
+                        dds_writecdr(dw, fwdp as *mut ddsi_serdata);
+                        drop(Vec::from_raw_parts(ptr, len, capacity));
+                        cdds_sertopic_unref(st);
+                    };
+                };
+
                 // create zenoh subscriber
-                let (zenoh_subscriber, mut receiver): (
-                    _,
-                    Pin<Box<dyn Stream<Item = Sample> + Send>>,
-                ) = if is_transient_local {
+                let zenoh_subscriber = if is_transient_local {
                     debug!(
                         "Querying historical data for TRANSIENT_LOCAL Reader on resource {}",
                         zkey
                     );
-                    let mut sub = match self
+                    let sub = match self
                         .zsession
                         .subscribe_with_query(zkey)
+                        .callback(subscriber_callback)
                         .reliable()
                         .query_selector(&format!("{}/*{}", PUB_CACHE_QUERY_PREFIX, zkey))
-                        .wait()
+                        .await
                     {
                         Ok(s) => s,
                         Err(e) => {
@@ -603,10 +648,15 @@ impl<'a> DdsPluginRuntime<'a> {
                             ))
                         }
                     };
-                    let receiver = sub.receiver().clone();
-                    (ZSubscriber::QueryingSubscriber(sub), Box::pin(receiver))
+                    ZSubscriber::QueryingSubscriber(sub)
                 } else {
-                    let mut sub = match self.zsession.subscribe(zkey).reliable().wait() {
+                    let sub = match self
+                        .zsession
+                        .subscribe(zkey)
+                        .callback(subscriber_callback)
+                        .reliable()
+                        .await
+                    {
                         Ok(s) => s,
                         Err(e) => {
                             return RouteStatus::CreationFailure(format!(
@@ -615,60 +665,8 @@ impl<'a> DdsPluginRuntime<'a> {
                             ))
                         }
                     };
-                    let receiver = sub.receiver().clone();
-                    (ZSubscriber::Subscriber(sub), Box::pin(receiver))
+                    ZSubscriber::Subscriber(sub)
                 };
-
-                let ton = topic_name.to_string();
-                let tyn = topic_type.to_string();
-                let keyless = keyless;
-                let dp = self.dp;
-                task::spawn(async move {
-                    while let Some(s) = receiver.next().await {
-                        if *LOG_PAYLOAD {
-                            log::trace!(
-                                "Route data from zenoh {} to DDS '{}' - payload: {:?}",
-                                s.key_expr,
-                                &ton,
-                                s.value.payload
-                            );
-                        } else {
-                            log::trace!("Route data from zenoh {} to DDS '{}'", s.key_expr, &ton);
-                        }
-                        unsafe {
-                            let bs = s.value.payload.contiguous().into_owned();
-                            // As per the Vec documentation (see https://doc.rust-lang.org/std/vec/struct.Vec.html#method.into_raw_parts)
-                            // the only way to correctly releasing it is to create a vec using from_raw_parts
-                            // and then have its destructor do the cleanup.
-                            // Thus, while tempting to just pass the raw pointer to cyclone and then free it from C,
-                            // that is not necessarily safe or guaranteed to be leak free.
-                            // TODO replace when stable https://github.com/rust-lang/rust/issues/65816
-                            let (ptr, len, capacity) = vec_into_raw_parts(bs);
-                            let cton = CString::new(ton.clone()).unwrap().into_raw();
-                            let ctyn = CString::new(tyn.clone()).unwrap().into_raw();
-                            let st = cdds_create_blob_sertopic(
-                                dp,
-                                cton as *mut std::os::raw::c_char,
-                                ctyn as *mut std::os::raw::c_char,
-                                keyless,
-                            );
-                            drop(CString::from_raw(cton));
-                            drop(CString::from_raw(ctyn));
-                            let size: size_t = match len.try_into() {
-                                Ok(s) => s,
-                                Err(_) => {
-                                    warn!("Can't route data from zenoh {} to DDS '{}': excessive payload size ({})", s.key_expr, &ton, len);
-                                    continue;
-                                }
-                            };
-                            let fwdp =
-                                cdds_ddsi_payload_create(st, ddsi_serdata_kind_SDK_DATA, ptr, size);
-                            dds_writecdr(dw, fwdp as *mut ddsi_serdata);
-                            drop(Vec::from_raw_parts(ptr, len, capacity));
-                            cdds_sertopic_unref(st);
-                        };
-                    }
-                });
 
                 self.insert_route_to_dds(
                     zkey,
@@ -815,7 +813,7 @@ impl<'a> DdsPluginRuntime<'a> {
         let admin_path_prefix = format!("/@/service/{}/dds/", self.zsession.id().await);
         let admin_path_expr = format!("{}**", admin_path_prefix);
         debug!("Declare admin space on {}", admin_path_expr);
-        let mut admin_queryable = self
+        let admin_queryable = self
             .zsession
             .queryable(&admin_path_expr)
             .await
@@ -832,7 +830,7 @@ impl<'a> DdsPluginRuntime<'a> {
                 &mut group_stream,
                 &dds_disco_rcv,
                 admin_path_prefix,
-                &mut admin_queryable,
+                &admin_queryable,
             )
             .await;
         } else {
@@ -840,7 +838,7 @@ impl<'a> DdsPluginRuntime<'a> {
                 &mut group_stream,
                 &dds_disco_rcv,
                 admin_path_prefix,
-                &mut admin_queryable,
+                &admin_queryable,
             )
             .await;
         }
@@ -851,12 +849,11 @@ impl<'a> DdsPluginRuntime<'a> {
         group_stream: &mut RecvStream<'_, GroupEvent>,
         dds_disco_rcv: &Receiver<DiscoveryEvent>,
         admin_path_prefix: String,
-        admin_queryable: &mut Queryable<'_>,
+        admin_queryable: &FlumeQueryable<'_>,
     ) {
         debug!(r#"Run in "local discovery" mode"#);
 
         let scope = self.config.scope.clone();
-        let admin_query_rcv = admin_queryable.receiver();
         loop {
             select!(
                 evt = dds_disco_rcv.recv().fuse() => {
@@ -1028,8 +1025,8 @@ impl<'a> DdsPluginRuntime<'a> {
                     }
                 }
 
-                get_request = admin_query_rcv.next().fuse() => {
-                    if let Some(query) = get_request {
+                get_request = admin_queryable.recv_async() => {
+                    if let Ok(query) = get_request {
                         self.treat_admin_query(query, &admin_path_prefix).await;
                     } else {
                         warn!("AdminSpace queryable was closed!");
@@ -1044,7 +1041,7 @@ impl<'a> DdsPluginRuntime<'a> {
         group_stream: &mut RecvStream<'_, GroupEvent>,
         dds_disco_rcv: &Receiver<DiscoveryEvent>,
         admin_path_prefix: String,
-        admin_queryable: &mut Queryable<'_>,
+        admin_queryable: &FlumeQueryable<'_>,
     ) {
         debug!(r#"Run in "forward discovery" mode"#);
 
@@ -1108,7 +1105,6 @@ impl<'a> DdsPluginRuntime<'a> {
         );
 
         let scope = self.config.scope.clone();
-        let admin_query_rcv = admin_queryable.receiver();
         loop {
             select!(
                 evt = dds_disco_rcv.recv().fuse() => {
@@ -1181,7 +1177,7 @@ impl<'a> DdsPluginRuntime<'a> {
                     }
                 },
 
-                sample = fwd_disco_sub.receiver().next().fuse() => {
+                sample = fwd_disco_sub.recv_async() => {
                     let sample = sample.expect("Fwd Discovery subscriber was closed!");
                     let fwd_path = &sample.key_expr;
                     debug!("Received forwarded discovery message on {}", fwd_path);
@@ -1455,8 +1451,8 @@ impl<'a> DdsPluginRuntime<'a> {
                     }
                 }
 
-                get_request = admin_query_rcv.next().fuse() => {
-                    if let Some(query) = get_request {
+                get_request = admin_queryable.recv_async() => {
+                    if let Ok(query) = get_request {
                         self.treat_admin_query(query, &admin_path_prefix).await;
                     } else {
                         warn!("AdminSpace queryable was closed!");
