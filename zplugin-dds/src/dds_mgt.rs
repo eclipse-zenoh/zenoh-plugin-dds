@@ -12,9 +12,9 @@
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 use crate::qos::{HistoryKind, Qos};
-use async_std::channel::Sender;
 use async_std::task;
 use cyclors::*;
+use flume::Sender;
 use log::{debug, error, warn};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;

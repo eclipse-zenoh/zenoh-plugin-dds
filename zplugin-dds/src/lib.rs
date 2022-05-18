@@ -11,11 +11,9 @@
 // Contributors:
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
-use async_std::channel::{unbounded, Receiver, Sender};
 use async_trait::async_trait;
 use cyclors::*;
-use flume::r#async::RecvStream;
-use futures::prelude::*;
+use flume::{unbounded, Receiver, Sender};
 use futures::select;
 use git_version::git_version;
 use log::{debug, error, info, trace, warn};
@@ -803,7 +801,6 @@ impl<'a> DdsPluginRuntime<'a> {
         // join DDS plugins group
         let group = Group::join(self.zsession.clone(), GROUP_NAME, self.member.clone()).await;
         let group_subscriber = group.subscribe().await;
-        let mut group_stream = group_subscriber.stream();
 
         // run DDS discovery
         let (tx, dds_disco_rcv): (Sender<DiscoveryEvent>, Receiver<DiscoveryEvent>) = unbounded();
@@ -827,7 +824,7 @@ impl<'a> DdsPluginRuntime<'a> {
 
         if self.config.forward_discovery {
             self.run_fwd_discovery_mode(
-                &mut group_stream,
+                &group_subscriber,
                 &dds_disco_rcv,
                 admin_path_prefix,
                 &admin_queryable,
@@ -835,7 +832,7 @@ impl<'a> DdsPluginRuntime<'a> {
             .await;
         } else {
             self.run_local_discovery_mode(
-                &mut group_stream,
+                &group_subscriber,
                 &dds_disco_rcv,
                 admin_path_prefix,
                 &admin_queryable,
@@ -846,7 +843,7 @@ impl<'a> DdsPluginRuntime<'a> {
 
     async fn run_local_discovery_mode(
         &mut self,
-        group_stream: &mut RecvStream<'_, GroupEvent>,
+        group_subscriber: &Receiver<GroupEvent>,
         dds_disco_rcv: &Receiver<DiscoveryEvent>,
         admin_path_prefix: String,
         admin_queryable: &FlumeQueryable<'_>,
@@ -856,7 +853,7 @@ impl<'a> DdsPluginRuntime<'a> {
         let scope = self.config.scope.clone();
         loop {
             select!(
-                evt = dds_disco_rcv.recv().fuse() => {
+                evt = dds_disco_rcv.recv_async() => {
                     match evt.unwrap() {
                         DiscoveryEvent::DiscoveredPublication {
                             mut entity
@@ -1009,19 +1006,23 @@ impl<'a> DdsPluginRuntime<'a> {
                     }
                 },
 
-                group_event = group_stream.next().fuse() => {
-                    if let Some(GroupEvent::Join(JoinEvent{member})) = group_event {
-                        debug!("New zenoh_dds_plugin detected: {}", member.id());
-                        // make all QueryingSubscriber to query this new member
-                        for (zkey, zsub) in &mut self.routes_to_dds {
-                            if let ZSubscriber::QueryingSubscriber(sub) = &mut zsub.zenoh_subscriber {
-                                let rkey: KeyExpr = format!("{}/{}/{}", PUB_CACHE_QUERY_PREFIX, member.id(), zkey).into();
-                                debug!("Query for TRANSIENT_LOCAL topic on: {}", rkey);
-                                if let Err(e) = sub.query_on(Selector::from(&rkey), QueryTarget::All, QueryConsolidation::none()).await {
-                                    warn!("Query on {} for TRANSIENT_LOCAL topic failed: {}", rkey, e);
+                group_event = group_subscriber.recv_async() => {
+                    match group_event {
+                        Ok(GroupEvent::Join(JoinEvent{member})) => {
+                            debug!("New zenoh_dds_plugin detected: {}", member.id());
+                            // make all QueryingSubscriber to query this new member
+                            for (zkey, zsub) in &mut self.routes_to_dds {
+                                if let ZSubscriber::QueryingSubscriber(sub) = &mut zsub.zenoh_subscriber {
+                                    let rkey: KeyExpr = format!("{}/{}/{}", PUB_CACHE_QUERY_PREFIX, member.id(), zkey).into();
+                                    debug!("Query for TRANSIENT_LOCAL topic on: {}", rkey);
+                                    if let Err(e) = sub.query_on(Selector::from(&rkey), QueryTarget::All, QueryConsolidation::none()).await {
+                                        warn!("Query on {} for TRANSIENT_LOCAL topic failed: {}", rkey, e);
+                                    }
                                 }
                             }
                         }
+                        Ok(_) => {} // ignore other GroupEvents
+                        Err(e) => warn!("Error receiving GroupEvent: {}", e)
                     }
                 }
 
@@ -1038,7 +1039,7 @@ impl<'a> DdsPluginRuntime<'a> {
 
     async fn run_fwd_discovery_mode(
         &mut self,
-        group_stream: &mut RecvStream<'_, GroupEvent>,
+        group_subscriber: &Receiver<GroupEvent>,
         dds_disco_rcv: &Receiver<DiscoveryEvent>,
         admin_path_prefix: String,
         admin_queryable: &FlumeQueryable<'_>,
@@ -1092,7 +1093,7 @@ impl<'a> DdsPluginRuntime<'a> {
         let ros_disco_mgr =
             RosDiscoveryInfoMgr::create(self.dp).expect("Failed to create RosDiscoveryInfoMgr");
         let timer = Timer::default();
-        let (tx, mut ros_disco_timer_rcv): (Sender<()>, Receiver<()>) = unbounded();
+        let (tx, ros_disco_timer_rcv): (Sender<()>, Receiver<()>) = unbounded();
         let ros_disco_timer_event = TimedEvent::periodic(
             Duration::from_millis(ROS_DISCOVERY_INFO_POLL_INTERVAL_MS),
             ChannelEvent { tx },
@@ -1107,7 +1108,7 @@ impl<'a> DdsPluginRuntime<'a> {
         let scope = self.config.scope.clone();
         loop {
             select!(
-                evt = dds_disco_rcv.recv().fuse() => {
+                evt = dds_disco_rcv.recv_async() => {
                     match evt.unwrap() {
                         DiscoveryEvent::DiscoveredPublication {
                             entity
@@ -1369,9 +1370,9 @@ impl<'a> DdsPluginRuntime<'a> {
                     }
                 },
 
-                group_event = group_stream.next().fuse() => {
+                group_event = group_subscriber.recv_async() => {
                     match group_event {
-                        Some(GroupEvent::Join(JoinEvent{member})) => {
+                        Ok(GroupEvent::Join(JoinEvent{member})) => {
                             debug!("New zenoh_dds_plugin detected: {}", member.id());
                             // query for past publications of discocvery messages from this new member
                             let key: KeyExpr = format!("/@dds_fwd_disco/{}{}/**", member.id(), self.config.scope).into();
@@ -1390,7 +1391,7 @@ impl<'a> DdsPluginRuntime<'a> {
                                 }
                             }
                         }
-                        Some(GroupEvent::Leave(LeaveEvent{mid})) | Some(GroupEvent::LeaseExpired(LeaseExpiredEvent{mid})) => {
+                        Ok(GroupEvent::Leave(LeaveEvent{mid})) | Ok(GroupEvent::LeaseExpired(LeaseExpiredEvent{mid})) => {
                             debug!("Remote zenoh_dds_plugin left: {}", mid);
                             // remove all the references to the plugin's enities, removing no longer used routes
                             // and updating/re-publishing ParticipantEntitiesInfo
@@ -1446,8 +1447,8 @@ impl<'a> DdsPluginRuntime<'a> {
                             }
 
                         }
-
-                        _ => {}
+                        Ok(_) => {}, // ignore other GroupEvent
+                        Err(e) => warn!("Error receiving GroupEvent: {}", e)
                     }
                 }
 
@@ -1459,7 +1460,7 @@ impl<'a> DdsPluginRuntime<'a> {
                     }
                 }
 
-                _ = ros_disco_timer_rcv.next().fuse() => {
+                _ = ros_disco_timer_rcv.recv_async() => {
                     let infos = ros_disco_mgr.read();
                     for (gid, buf) in infos {
                         trace!("Received ros_discovery_info from DDS for {}, forward via zenoh: {}", gid, hex::encode(buf.contiguous()));
@@ -1590,7 +1591,7 @@ struct ChannelEvent {
 #[async_trait]
 impl Timed for ChannelEvent {
     async fn run(&mut self) {
-        if self.tx.send(()).await.is_err() {
+        if self.tx.send(()).is_err() {
             warn!("Error sending periodic timer notification on channel");
         };
     }
