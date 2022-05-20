@@ -135,10 +135,16 @@ impl RosDiscoveryInfoMgr {
         unsafe {
             let mut zp: *mut cdds_ddsi_payload = std::ptr::null_mut();
             #[allow(clippy::uninit_assumed_init)]
-            let mut si: [dds_sample_info_t; 1] = { MaybeUninit::uninit().assume_init() };
+            let mut si = MaybeUninit::<[dds_sample_info_t; 1]>::uninit();
             // Place read samples into a map indexed by Participant gid. Thus we only keep the last update for each
             let mut result: HashMap<String, ZBuf> = HashMap::new();
-            while cdds_take_blob(self.reader, &mut zp, si.as_mut_ptr()) > 0 {
+            while cdds_take_blob(
+                self.reader,
+                &mut zp,
+                si.as_mut_ptr() as *mut dds_sample_info_t,
+            ) > 0
+            {
+                let si = si.assume_init();
                 if si[0].valid_data {
                     let bs = Vec::from_raw_parts(
                         (*zp).payload,

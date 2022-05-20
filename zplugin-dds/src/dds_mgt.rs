@@ -64,7 +64,7 @@ unsafe extern "C" fn on_data(dr: dds_entity_t, arg: *mut std::os::raw::c_void) {
     let _ = dds_get_instance_handle(dp, &mut dpih);
 
     #[allow(clippy::uninit_assumed_init)]
-    let mut si: [dds_sample_info_t; MAX_SAMPLES as usize] = { MaybeUninit::uninit().assume_init() };
+    let mut si = MaybeUninit::<[dds_sample_info_t; MAX_SAMPLES as usize]>::uninit();
     let mut samples: [*mut ::std::os::raw::c_void; MAX_SAMPLES as usize] =
         [std::ptr::null_mut(); MAX_SAMPLES as usize];
     samples[0] = std::ptr::null_mut();
@@ -76,6 +76,8 @@ unsafe extern "C" fn on_data(dr: dds_entity_t, arg: *mut std::os::raw::c_void) {
         MAX_SAMPLES.into(),
         MAX_SAMPLES,
     );
+    let si = si.assume_init();
+
     for i in 0..n {
         if si[i as usize].valid_data {
             let sample = samples[i as usize] as *mut dds_builtintopic_endpoint_t;
@@ -201,8 +203,9 @@ unsafe extern "C" fn data_forwarder_listener(dr: dds_entity_t, arg: *mut std::os
     let pa = arg as *mut (String, KeyExpr, Arc<Session>, CongestionControl);
     let mut zp: *mut cdds_ddsi_payload = std::ptr::null_mut();
     #[allow(clippy::uninit_assumed_init)]
-    let mut si: [dds_sample_info_t; 1] = { MaybeUninit::uninit().assume_init() };
-    while cdds_take_blob(dr, &mut zp, si.as_mut_ptr()) > 0 {
+    let mut si = MaybeUninit::<[dds_sample_info_t; 1]>::uninit();
+    while cdds_take_blob(dr, &mut zp, si.as_mut_ptr() as *mut dds_sample_info_t) > 0 {
+        let si = si.assume_init();
         if si[0].valid_data {
             let bs = Vec::from_raw_parts((*zp).payload, (*zp).size as usize, (*zp).size as usize);
             let rbuf = ZBuf::from(bs);
@@ -300,9 +303,14 @@ pub fn create_forwarding_dds_reader(
                         async_std::task::sleep(period).await;
                         let mut zp: *mut cdds_ddsi_payload = std::ptr::null_mut();
                         #[allow(clippy::uninit_assumed_init)]
-                        let mut si: [dds_sample_info_t; 1] =
-                            { MaybeUninit::uninit().assume_init() };
-                        while cdds_take_blob(reader, &mut zp, si.as_mut_ptr()) > 0 {
+                        let mut si = MaybeUninit::<[dds_sample_info_t; 1]>::uninit();
+                        while cdds_take_blob(
+                            reader,
+                            &mut zp,
+                            si.as_mut_ptr() as *mut dds_sample_info_t,
+                        ) > 0
+                        {
+                            let si = si.assume_init();
                             if si[0].valid_data {
                                 log::trace!(
                                     "Route (periodic) data to zenoh resource with rid={}",
