@@ -29,13 +29,15 @@ use std::time::Duration;
 use zenoh::net::protocol::io::SplitBuffer;
 use zenoh::net::runtime::Runtime;
 use zenoh::plugins::{Plugin, RunningPluginTrait, ZenohPlugin};
+use zenoh::prelude::r#async::AsyncResolve;
+use zenoh::prelude::*;
 use zenoh::publication::CongestionControl;
 use zenoh::query::{QueryConsolidation, QueryTarget};
 use zenoh::queryable::{FlumeQueryable, Query};
 use zenoh::subscriber::CallbackSubscriber;
 use zenoh::utils::key_expr;
 use zenoh::Result as ZResult;
-use zenoh::{prelude::*, Session};
+use zenoh::Session;
 use zenoh_collections::{Timed, TimedEvent, Timer};
 use zenoh_core::{bail, zerror};
 use zenoh_ext::group::{Group, GroupEvent, JoinEvent, LeaseExpiredEvent, LeaveEvent, Member};
@@ -136,6 +138,7 @@ pub async fn run(runtime: Runtime, config: Config) {
             config.generalise_subs.clone(),
             config.generalise_pubs.clone(),
         )
+        .res()
         .await,
     );
 
@@ -431,7 +434,7 @@ impl<'a> DdsPluginRuntime<'a> {
         }
 
         // declare the zenoh resource and the publisher
-        let rid = match self.zsession.declare_expr(zkey).await {
+        let rid = match self.zsession.declare_expr(zkey).res().await {
             Ok(id) => id,
             Err(e) => {
                 return RouteStatus::CreationFailure(format!(
@@ -474,6 +477,7 @@ impl<'a> DdsPluginRuntime<'a> {
                 .publication_cache(rid)
                 .history(history)
                 .queryable_prefix(format!("{}/{}", PUB_CACHE_QUERY_PREFIX, self.member.id()))
+                .res()
                 .await
             {
                 Ok(pub_cache) => ZPublisher::PublicationCache(pub_cache),
@@ -485,7 +489,7 @@ impl<'a> DdsPluginRuntime<'a> {
                 }
             }
         } else {
-            if let Err(e) = self.zsession.declare_publication(rid).await {
+            if let Err(e) = self.zsession.declare_publication(rid).res().await {
                 warn!(
                     "Failed to declare publication for key {} (rid={}): {}",
                     zkey, rid, e
@@ -636,6 +640,7 @@ impl<'a> DdsPluginRuntime<'a> {
                         .callback(subscriber_callback)
                         .reliable()
                         .query_selector(&format!("{}/*{}", PUB_CACHE_QUERY_PREFIX, zkey))
+                        .res()
                         .await
                     {
                         Ok(s) => s,
@@ -653,6 +658,7 @@ impl<'a> DdsPluginRuntime<'a> {
                         .subscribe(zkey)
                         .callback(subscriber_callback)
                         .reliable()
+                        .res()
                         .await
                     {
                         Ok(s) => s,
@@ -762,7 +768,7 @@ impl<'a> DdsPluginRuntime<'a> {
                 Ok(Some("")) => (*JSON_NULL_VALUE).clone(),
                 _ => v,
             };
-            if let Err(e) = query.reply(Ok(Sample::new(admin_path, value))).await {
+            if let Err(e) = query.reply(Ok(Sample::new(admin_path, value))).res().await {
                 warn!("Error replying to admin query {:?}: {}", query, e);
             }
         }
@@ -807,12 +813,13 @@ impl<'a> DdsPluginRuntime<'a> {
         run_discovery(self.dp, tx);
 
         // declare admin space queryable
-        let admin_path_prefix = format!("/@/service/{}/dds/", self.zsession.id().await);
+        let admin_path_prefix = format!("/@/service/{}/dds/", self.zsession.id());
         let admin_path_expr = format!("{}**", admin_path_prefix);
         debug!("Declare admin space on {}", admin_path_expr);
         let admin_queryable = self
             .zsession
             .queryable(&admin_path_expr)
+            .res()
             .await
             .expect("Failed to create AdminSpace queryable");
 
@@ -1015,7 +1022,7 @@ impl<'a> DdsPluginRuntime<'a> {
                                 if let ZSubscriber::QueryingSubscriber(sub) = &mut zsub.zenoh_subscriber {
                                     let rkey: KeyExpr = format!("{}/{}/{}", PUB_CACHE_QUERY_PREFIX, member.id(), zkey).into();
                                     debug!("Query for TRANSIENT_LOCAL topic on: {}", rkey);
-                                    if let Err(e) = sub.query_on(Selector::from(&rkey), QueryTarget::All, QueryConsolidation::none()).await {
+                                    if let Err(e) = sub.query_on(Selector::from(&rkey), QueryTarget::All, QueryConsolidation::none()).res().await {
                                         warn!("Query on {} for TRANSIENT_LOCAL topic failed: {}", rkey, e);
                                     }
                                 }
@@ -1048,7 +1055,7 @@ impl<'a> DdsPluginRuntime<'a> {
 
         // The admin paths where discovery info will be forwarded to remote DDS plugins.
         // Note: "/@dds_fwd_disco" is used as prefix instead of "/@/..." to not have the PublicationCache replying to queries on admin space.
-        let uuid = self.zsession.id().await;
+        let uuid = self.zsession.id();
         let fwd_writers_path_prefix =
             format!("/@dds_fwd_disco/{}{}/writer/", uuid, self.config.scope);
         let fwd_readers_path_prefix =
@@ -1062,16 +1069,19 @@ impl<'a> DdsPluginRuntime<'a> {
         let fwd_writers_path_prefix_key = self
             .zsession
             .declare_expr(fwd_writers_path_prefix)
+            .res()
             .await
             .expect("Failed to declare key expression for Fwd Discovery of writers");
         let fwd_readers_path_prefix_key = self
             .zsession
             .declare_expr(fwd_readers_path_prefix)
+            .res()
             .await
             .expect("Failed to declare key expression for Fwd Discovery of readers");
         let fwd_ros_discovery_key = self
             .zsession
             .declare_expr(&fwd_ros_discovery_key_str)
+            .res()
             .await
             .expect("Failed to declare key expression for Fwd Discovery of ros_discovery");
 
@@ -1079,6 +1089,7 @@ impl<'a> DdsPluginRuntime<'a> {
         let _fwd_disco_pub_cache = self
             .zsession
             .publication_cache(fwd_publication_cache_key)
+            .res()
             .await
             .expect("Failed to declare PublicationCache for Fwd Discovery");
 
@@ -1086,6 +1097,7 @@ impl<'a> DdsPluginRuntime<'a> {
         let mut fwd_disco_sub = self
             .zsession
             .subscribe_with_query(fwd_discovery_subscription_key)
+            .res()
             .await
             .expect("Failed to declare QueryingSubscriber for Fwd Discovery");
 
@@ -1122,7 +1134,7 @@ impl<'a> DdsPluginRuntime<'a> {
                                 Ok(s) => s,
                                 Err(e) => { error!("INTERNAL ERROR: failed to serialize discovery message for {:?}: {}", entity, e); continue; }
                             };
-                            if let Err(e) = self.zsession.put(&fwd_path, ser_msg).congestion_control(CongestionControl::Block).await {
+                            if let Err(e) = self.zsession.put(&fwd_path, ser_msg).congestion_control(CongestionControl::Block).res().await {
                                 error!("INTERNAL ERROR: failed to publish discovery message on {}: {}", fwd_path, e);
                             }
 
@@ -1137,7 +1149,7 @@ impl<'a> DdsPluginRuntime<'a> {
                             if let Some((admin_path, _)) = self.remove_dds_writer(&key) {
                                 let fwd_path = KeyExpr { scope: fwd_writers_path_prefix_key, suffix: admin_path.as_str().into() };
                                 // publish its deletion from admin space
-                                if let Err(e) = self.zsession.delete(&fwd_path).congestion_control(CongestionControl::Block).await {
+                                if let Err(e) = self.zsession.delete(&fwd_path).congestion_control(CongestionControl::Block).res().await {
                                     error!("INTERNAL ERROR: failed to publish undiscovery message on {:?}: {}", fwd_path, e);
                                 }
                             }
@@ -1155,7 +1167,7 @@ impl<'a> DdsPluginRuntime<'a> {
                                 Ok(s) => s,
                                 Err(e) => { error!("INTERNAL ERROR: failed to serialize discovery message for {:?}: {}", entity, e); continue; }
                             };
-                            if let Err(e) = self.zsession.put(&fwd_path, ser_msg).congestion_control(CongestionControl::Block).await {
+                            if let Err(e) = self.zsession.put(&fwd_path, ser_msg).congestion_control(CongestionControl::Block).res().await {
                                 error!("INTERNAL ERROR: failed to publish discovery message on {}: {}", fwd_path, e);
                             }
 
@@ -1170,7 +1182,7 @@ impl<'a> DdsPluginRuntime<'a> {
                             if let Some((admin_path, _)) = self.remove_dds_reader(&key) {
                                 let fwd_path = KeyExpr { scope: fwd_readers_path_prefix_key, suffix: admin_path.as_str().into() };
                                 // publish its deletion from admin space
-                                if let Err(e) = self.zsession.delete(&fwd_path).congestion_control(CongestionControl::Block).await {
+                                if let Err(e) = self.zsession.delete(&fwd_path).congestion_control(CongestionControl::Block).res().await {
                                     error!("INTERNAL ERROR: failed to publish undiscovery message on {:?}: {}", fwd_path, e);
                                 }
                             }
@@ -1377,7 +1389,7 @@ impl<'a> DdsPluginRuntime<'a> {
                             // query for past publications of discocvery messages from this new member
                             let key: KeyExpr = format!("/@dds_fwd_disco/{}{}/**", member.id(), self.config.scope).into();
                             debug!("Query past discovery messages from {} on {}", member.id(), key);
-                            if let Err(e) = fwd_disco_sub.query_on(Selector::from(&key), QueryTarget::All, QueryConsolidation::none()).await {
+                            if let Err(e) = fwd_disco_sub.query_on(Selector::from(&key), QueryTarget::All, QueryConsolidation::none()).res().await {
                                 warn!("Query on {} for discovery messages failed: {}", key, e);
                             }
                             // make all QueryingSubscriber to query this new member
@@ -1385,7 +1397,7 @@ impl<'a> DdsPluginRuntime<'a> {
                                 if let ZSubscriber::QueryingSubscriber(sub) = &mut zsub.zenoh_subscriber {
                                     let rkey: KeyExpr = format!("{}/{}/{}", PUB_CACHE_QUERY_PREFIX, member.id(), zkey).into();
                                     debug!("Query for TRANSIENT_LOCAL topic on: {}", rkey);
-                                    if let Err(e) = sub.query_on(Selector::from(&rkey), QueryTarget::All, QueryConsolidation::none()).await {
+                                    if let Err(e) = sub.query_on(Selector::from(&rkey), QueryTarget::All, QueryConsolidation::none()).res().await {
                                         warn!("Query on {} for TRANSIENT_LOCAL topic failed: {}", rkey, e);
                                     }
                                 }
@@ -1465,7 +1477,7 @@ impl<'a> DdsPluginRuntime<'a> {
                     for (gid, buf) in infos {
                         trace!("Received ros_discovery_info from DDS for {}, forward via zenoh: {}", gid, hex::encode(buf.contiguous()));
                         // forward the payload on zenoh
-                        if let Err(e) = self.zsession.put(KeyExpr { scope: fwd_ros_discovery_key, suffix: gid.into()}, buf).await {
+                        if let Err(e) = self.zsession.put(KeyExpr { scope: fwd_ros_discovery_key, suffix: gid.into()}, buf).res().await {
                             error!("Forward ROS discovery info failed: {}", e);
                         }
                     }

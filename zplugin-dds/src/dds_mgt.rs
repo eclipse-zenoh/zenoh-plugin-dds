@@ -24,8 +24,10 @@ use std::os::raw;
 use std::sync::Arc;
 use std::time::Duration;
 use zenoh::buf::ZBuf;
+use zenoh::prelude::r#async::AsyncResolve;
+use zenoh::prelude::*;
 use zenoh::publication::CongestionControl;
-use zenoh::{prelude::*, Session};
+use zenoh::Session;
 
 const MAX_SAMPLES: u32 = 32;
 
@@ -224,6 +226,7 @@ unsafe extern "C" fn data_forwarder_listener(dr: dds_entity_t, arg: *mut std::os
                     .2
                     .put(&(*pa).1, rbuf)
                     .congestion_control((*pa).3)
+                    .res()
                     .await
             });
             (*zp).payload = std::ptr::null_mut();
@@ -325,6 +328,7 @@ pub fn create_forwarding_dds_reader(
                                 let _ = task::block_on(async {
                                     z.put(&z_key, rbuf)
                                         .congestion_control(congestion_ctrl)
+                                        .res()
                                         .await
                                 });
                                 (*zp).payload = std::ptr::null_mut();
