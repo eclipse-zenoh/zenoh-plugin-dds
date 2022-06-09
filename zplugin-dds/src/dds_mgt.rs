@@ -102,6 +102,11 @@ unsafe extern "C" fn on_data(dr: dds_entity_t, arg: *mut std::os::raw::c_void) {
                 }
             };
 
+            if (*sample).participant_instance_handle == dpih {
+                // Ignore discovery of entities created by our own participant
+                continue;
+            }
+
             debug!(
                 "{} DDS {} {} from Participant {} on {} with type {} (keyless: {})",
                 if is_alive {
@@ -121,11 +126,8 @@ unsafe extern "C" fn on_data(dr: dds_entity_t, arg: *mut std::os::raw::c_void) {
                 keyless
             );
 
-            if topic_name.contains("DCPS") || (*sample).participant_instance_handle == dpih {
-                debug!(
-                    "Ignoring discovery of {} ({}) from local participant",
-                    key, topic_name
-                );
+            if topic_name.starts_with("DCPS") {
+                debug!("Ignoring discovery of {} ({} is a builtin topic)", key, topic_name);
                 continue;
             }
 
@@ -255,7 +257,7 @@ pub fn create_forwarding_dds_reader(
 
         match read_period {
             None => {
-                // Use a Listener to route data as soon as it arraives
+                // Use a Listener to route data as soon as it arrives
                 let arg = Box::new((topic_name, z_key, z, congestion_ctrl));
                 let sub_listener =
                     dds_create_listener(Box::into_raw(arg) as *mut std::os::raw::c_void);

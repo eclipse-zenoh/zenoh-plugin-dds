@@ -147,6 +147,7 @@ pub async fn run(runtime: Runtime, config: Config) {
 
     // create DDS Participant
     let dp = unsafe { dds_create_participant(config.domain, std::ptr::null(), std::ptr::null()) };
+    debug!("DDS plugin {} with group_member_id={} and using DDS Participant {}", zsession.id(), group_member_id, get_guid(&dp).unwrap());
 
     let mut dds_plugin = DdsPluginRuntime {
         config,
@@ -449,13 +450,16 @@ impl<'a> DdsPluginRuntime<'a> {
             #[allow(non_upper_case_globals)]
             let history = match (reader_qos.history.kind, reader_qos.history.depth) {
                 (HistoryKind::KEEP_LAST, n) => {
-                    // Compute cache size as history.depth * durability_service.max_instances
-                    // This makes the assumption that the frequency of publication is the same for all instances...
-                    // But as we have no way to know have 1 cache per-instance, there is no other choice.
-                    if reader_qos.durability_service.max_instances == DDS_LENGTH_UNLIMITED && n > 0
-                    {
+                    if keyless {
+                        // only 1 instance => history=n
+                        n as usize
+                    } else if reader_qos.durability_service.max_instances == DDS_LENGTH_UNLIMITED {
+                        // No limit! => history=MAX
                         usize::MAX
                     } else if reader_qos.durability_service.max_instances > 0 {
+                        // Compute cache size as history.depth * durability_service.max_instances
+                        // This makes the assumption that the frequency of publication is the same for all instances...
+                        // But as we have no way to have 1 cache per-instance, there is no other choice.
                         if let Some(m) = n.checked_mul(reader_qos.durability_service.max_instances)
                         {
                             m as usize
@@ -469,8 +473,8 @@ impl<'a> DdsPluginRuntime<'a> {
                 (HistoryKind::KEEP_ALL, _) => usize::MAX,
             };
             debug!(
-                "Caching publications for TRANSIENT_LOCAL Writer on resource {} with history {}",
-                zkey, history
+                "Caching publications for TRANSIENT_LOCAL Writer on resource {} with history {} (Writer uses {:?} and DurabilityService.max_instances={})",
+                zkey, history, reader_qos.history, reader_qos.durability_service.max_instances
             );
             match self
                 .zsession
@@ -514,7 +518,8 @@ impl<'a> DdsPluginRuntime<'a> {
         ) {
             Ok(dr) => {
                 info!(
-                    "New route: DDS '{}' => zenoh '{}' with type '{}'",
+                    "New route: DDS Reader {} on '{}' => zenoh '{}' with type '{}'",
+                    get_guid(&dr).unwrap_or_else(|e| format!("[ERROR: {}]", e)),
                     topic_name, zkey, topic_type
                 );
 
@@ -575,8 +580,9 @@ impl<'a> DdsPluginRuntime<'a> {
         ) {
             Ok(dw) => {
                 info!(
-                    "New route: zenoh '{}' => DDS '{}' with type '{}'",
-                    zkey, topic_name, topic_type
+                    "New route: zenoh '{}' => DDS Writer {} on '{}' with type '{}'",
+                    zkey, get_guid(&dw).unwrap_or_else(|e| format!("[ERROR: {}]", e)),
+                    topic_name, topic_type
                 );
 
                 let ton = topic_name.to_string();
@@ -865,7 +871,7 @@ impl<'a> DdsPluginRuntime<'a> {
                         DiscoveryEvent::DiscoveredPublication {
                             mut entity
                         } => {
-                            debug!("Discovered DDS Writer on {}: {}", entity.topic_name, entity.key);
+                            debug!("Discovered DDS Writer {} on {} with type '{}' and QoS: {:?}", entity.key, entity.topic_name, entity.type_name, entity.qos);
                             // get its admin_path
                             let admin_path = DdsPluginRuntime::get_admin_path(&entity, true);
 
@@ -936,7 +942,7 @@ impl<'a> DdsPluginRuntime<'a> {
                         DiscoveryEvent::DiscoveredSubscription {
                             mut entity
                         } => {
-                            debug!("Discovered DDS Reader on {}: {}", entity.topic_name, entity.key);
+                            debug!("Discovered DDS Reader {} on {} with type '{}' and QoS: {:?}", entity.key, entity.topic_name, entity.type_name, entity.qos);
                             let admin_path = DdsPluginRuntime::get_admin_path(&entity, false);
 
                             // copy and adapt Reader's QoS for creation of a matching Writer
@@ -1125,7 +1131,7 @@ impl<'a> DdsPluginRuntime<'a> {
                         DiscoveryEvent::DiscoveredPublication {
                             entity
                         } => {
-                            debug!("Discovered DDS Writer on {}: {} => advertise it", entity.topic_name, entity.key);
+                            debug!("Discovered DDS Writer {} on {} with type '{}' and QoS: {:?} => advertise it", entity.key, entity.topic_name, entity.type_name, entity.qos);
                             // advertise the entity and its scope within admin space (bincode format)
                             let admin_path = DdsPluginRuntime::get_admin_path(&entity, true);
                             let fwd_path = KeyExpr { scope: fwd_writers_path_prefix_key, suffix: admin_path.as_str().into() };
@@ -1158,7 +1164,7 @@ impl<'a> DdsPluginRuntime<'a> {
                         DiscoveryEvent::DiscoveredSubscription {
                             entity
                         } => {
-                            debug!("Discovered DDS Reader on {}: {} => advertise it", entity.topic_name, entity.key);
+                            debug!("Discovered DDS Reader {} on {} with type '{}' and QoS: {:?} => advertise it", entity.key, entity.topic_name, entity.type_name, entity.qos);
                             // advertise the entity and its scope within admin space (bincode format)
                             let admin_path = DdsPluginRuntime::get_admin_path(&entity, false);
                             let fwd_path = KeyExpr { scope: fwd_readers_path_prefix_key, suffix: admin_path.as_str().into() };
