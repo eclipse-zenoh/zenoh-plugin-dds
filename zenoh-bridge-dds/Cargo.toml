@@ -28,7 +28,7 @@ categories = ["network-programming"]
 description = "Zenoh plugin for ROS2 and DDS in general"
 
 [dependencies]
-clap = "2.33"
+clap = "3.2.12"
 log = "0.4"
 env_logger = "0.9.0"
 lazy_static = "1.4.0"
@@ -39,7 +39,7 @@ zenoh-plugin-trait = { git = "https://github.com/eclipse-zenoh/zenoh", branch ="
 zplugin-dds = { path = "../zplugin-dds", default-features = false }
 
 [dependencies.async-std]
-version = "=1.11.0"
+version = "=1.12.0"
 features = ["unstable", "attributes"]
 
 
