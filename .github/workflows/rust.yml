@@ -68,29 +68,3 @@ jobs:
         with:
           command: test
           args: --verbose
-
-  build-1-51:
-    name: Build with Rust 1.51 (for ROS2 buildfarm compliance)
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v2
-
-      - name: Install Rust toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: 1.51
-
-      - name: Build zplugin-dds
-        uses: actions-rs/cargo@v1
-        with:
-          toolchain: 1.51
-          command: build
-          args: -p zplugin-dds --verbose --all-targets
-
-      - name: Build zenoh-bridge-dds
-        uses: actions-rs/cargo@v1
-        with:
-          toolchain: 1.51
-          command: build
-          args: -p zenoh-bridge-dds --verbose --all-targets
