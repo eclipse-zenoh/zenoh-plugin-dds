@@ -13,7 +13,7 @@
 //
 use clap::{App, Arg};
 use std::str::FromStr;
-use zenoh::config::Config;
+use zenoh::config::{Config, ModeDependentValue};
 use zenoh::prelude::*;
 
 lazy_static::lazy_static!(
@@ -168,7 +168,10 @@ r#"-f, --fwd-discovery   'When set, rather than creating a local route when disc
     }
 
     // Always add timestamps to publications (required for PublicationCache used in case of TRANSIENT_LOCAL topics)
-    config.set_add_timestamp(Some(true)).unwrap();
+    config
+        .timestamping
+        .set_enabled(Some(ModeDependentValue::Unique(true)))
+        .unwrap();
 
     // apply DDS related arguments over config
     insert_json5!(config, args, "plugins/dds/scope", if "scope",);
@@ -202,6 +205,7 @@ async fn main() {
 
     // start REST plugin
     if rest_plugin {
+        use zenoh_plugin_trait::Plugin;
         zplugin_rest::RestPlugin::start("rest", &runtime).unwrap();
     }
 

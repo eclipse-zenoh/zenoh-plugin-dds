@@ -33,10 +33,10 @@ const MAX_SAMPLES: u32 = 32;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub(crate) enum RouteStatus {
-    Routed(String), // Routing is active, String is the zenoh zenoh resource key used for the route
-    NotAllowed,     // Routing was not allowed per configuration
+    Routed(OwnedKeyExpr), // Routing is active, with the zenoh key expression used for the route
+    NotAllowed,           // Routing was not allowed per configuration
     CreationFailure(String), // The route creation failed
-    _QoSConflict,   // A route was already established but with conflicting QoS
+    _QoSConflict,         // A route was already established but with conflicting QoS
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -127,7 +127,10 @@ unsafe extern "C" fn on_data(dr: dds_entity_t, arg: *mut std::os::raw::c_void) {
             );
 
             if topic_name.starts_with("DCPS") {
-                debug!("Ignoring discovery of {} ({} is a builtin topic)", key, topic_name);
+                debug!(
+                    "Ignoring discovery of {} ({} is a builtin topic)",
+                    key, topic_name
+                );
                 continue;
             }
 
@@ -292,7 +295,7 @@ pub fn create_forwarding_dds_reader(
                 qos.history.depth = 1;
                 let qos_native = qos.to_qos_native();
                 let reader = dds_create_reader(dp, t, qos_native, std::ptr::null());
-                let z_key = z_key.to_owned();
+                let z_key = z_key.into_owned();
                 task::spawn(async move {
                     // loop while reader's instance handle remain the same
                     // (if reader was deleted, its dds_entity_t value might have been
