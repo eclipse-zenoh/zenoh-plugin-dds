@@ -153,7 +153,7 @@ pub async fn run(runtime: Runtime, config: Config) {
     // create group member using the group_member_id if configured, or the Session ID otherwise
     let member_id = match config.group_member_id {
         Some(ref id) => id.clone(),
-        None => zsession.id().into_keyexpr(),
+        None => zsession.zid().into_keyexpr(),
     };
     let member = Member::new(member_id.clone())
         .unwrap()
@@ -163,7 +163,7 @@ pub async fn run(runtime: Runtime, config: Config) {
     let dp = unsafe { dds_create_participant(config.domain, std::ptr::null(), std::ptr::null()) };
     debug!(
         "DDS plugin {} with member_id={} and using DDS Participant {}",
-        zsession.id(),
+        zsession.zid(),
         member_id,
         get_guid(&dp).unwrap()
     );
@@ -821,7 +821,7 @@ impl<'a> DdsPluginRuntime<'a> {
 
         // declare admin space queryable
         let admin_keyexpr_prefix =
-            *KE_PREFIX_ADMIN_SPACE / &self.zsession.id().into_keyexpr() / ke_for_sure!("dds");
+            *KE_PREFIX_ADMIN_SPACE / &self.zsession.zid().into_keyexpr() / ke_for_sure!("dds");
         let admin_keyexpr_expr = (&admin_keyexpr_prefix) / *KE_ANY_N_SEGMENT;
         debug!("Declare admin space on {}", admin_keyexpr_expr);
         let admin_queryable = self
@@ -1085,7 +1085,7 @@ impl<'a> DdsPluginRuntime<'a> {
         //   - ros_discovery_info on <KE_PREFIX_FWD_DISCO>/<uuid>/[<scope>]/ros_disco/<gid>
         // The PublicationCache is declared on <KE_PREFIX_FWD_DISCO>/<uuid>/[<scope>]/**
         // The QuerySubscriber is declared on  <KE_PREFIX_FWD_DISCO>/*/[<scope>]/**
-        let uuid: OwnedKeyExpr = self.zsession.id().try_into().unwrap();
+        let uuid: OwnedKeyExpr = self.zsession.zid().try_into().unwrap();
         let fwd_key_prefix = if let Some(scope) = &self.config.scope {
             *KE_PREFIX_FWD_DISCO / &uuid / scope
         } else {
