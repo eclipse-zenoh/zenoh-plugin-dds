@@ -29,7 +29,7 @@ pub struct Config {
     #[serde(default = "default_domain")]
     pub domain: u32,
     #[serde(default)]
-    pub group_member_id: Option<String>,
+    pub group_member_id: Option<OwnedKeyExpr>,
     #[serde(
         default = "default_group_lease",
         deserialize_with = "deserialize_group_lease"

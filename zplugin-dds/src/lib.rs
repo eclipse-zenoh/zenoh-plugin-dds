@@ -20,7 +20,6 @@ use log::{debug, error, info, trace, warn};
 use serde::ser::SerializeStruct;
 use serde::{Serialize, Serializer};
 use serde_json::Value;
-use std::borrow::Cow;
 use std::collections::HashMap;
 use std::convert::TryInto;
 use std::ffi::CString;
@@ -57,15 +56,24 @@ use crate::ros_discovery::{
 
 pub const GIT_VERSION: &str = git_version!(prefix = "v", cargo_prefix = "v");
 
+macro_rules! ke_for_sure {
+    ($val:expr) => {
+        unsafe { keyexpr::from_str_unchecked($val) }
+    };
+}
+
 lazy_static::lazy_static!(
     pub static ref LONG_VERSION: String = format!("{} built with {}", GIT_VERSION, env!("RUSTC_VERSION"));
     static ref LOG_PAYLOAD: bool = std::env::var("Z_LOG_PAYLOAD").is_ok();
 
-    static ref KE_PREFIX_ADMIN_SPACE: OwnedKeyExpr = "@/service".try_into().unwrap();
-    static ref KE_PREFIX_ROUTE_TO_DDS: OwnedKeyExpr = "route/to_dds".try_into().unwrap();
-    static ref KE_PREFIX_ROUTE_FROM_DDS: OwnedKeyExpr = "route/from_dds".try_into().unwrap();
-    static ref KE_PREFIX_PUB_CACHE: OwnedKeyExpr = "@dds_pub_cache".try_into().unwrap();
-    static ref KE_PREFIX_FWD_DISCO: OwnedKeyExpr = "@dds_fwd_disco".try_into().unwrap();
+    static ref KE_PREFIX_ADMIN_SPACE: &'static keyexpr = ke_for_sure!("@/service");
+    static ref KE_PREFIX_ROUTE_TO_DDS: &'static keyexpr = ke_for_sure!("route/to_dds");
+    static ref KE_PREFIX_ROUTE_FROM_DDS: &'static keyexpr = ke_for_sure!("route/from_dds");
+    static ref KE_PREFIX_PUB_CACHE: &'static keyexpr = ke_for_sure!("@dds_pub_cache");
+    static ref KE_PREFIX_FWD_DISCO: &'static keyexpr = ke_for_sure!("@dds_fwd_disco");
+
+    static ref KE_ANY_1_SEGMENT: &'static keyexpr = ke_for_sure!("*");
+    static ref KE_ANY_N_SEGMENT: &'static keyexpr = ke_for_sure!("**");
 );
 
 const GROUP_NAME: &str = "zenoh-plugin-dds";
@@ -112,10 +120,7 @@ impl RunningPluginTrait for DDSPlugin {
     ) -> ZResult<Vec<zenoh::plugins::Response>> {
         let mut responses = Vec::new();
         let version_key = [plugin_status_key, "/__version__"].concat();
-        if selector
-            .key_expr
-            .intersects(unsafe { keyexpr::from_str_unchecked(&version_key) })
-        {
+        if selector.key_expr.intersects(ke_for_sure!(&version_key)) {
             responses.push(zenoh::plugins::Response::new(
                 version_key,
                 GIT_VERSION.into(),
@@ -133,11 +138,6 @@ pub async fn run(runtime: Runtime, config: Config) {
     debug!("DDS plugin {}", LONG_VERSION.as_str());
     debug!("DDS plugin {:?}", config);
 
-    let group_member_id = match config.group_member_id {
-        Some(ref id) => id.clone(),
-        None => runtime.get_zid_str(),
-    };
-
     // open zenoh-net Session (with local routing disabled to avoid loops)
     let zsession = Arc::new(
         Session::init(
@@ -150,15 +150,21 @@ pub async fn run(runtime: Runtime, config: Config) {
         .await,
     );
 
-    // create group member
-    let member = Member::new(&group_member_id).lease(config.group_lease);
+    // create group member using the group_member_id if configured, or the Session ID otherwise
+    let member_id = match config.group_member_id {
+        Some(ref id) => id.clone(),
+        None => zsession.id().into_keyexpr(),
+    };
+    let member = Member::new(member_id.clone())
+        .unwrap()
+        .lease(config.group_lease);
 
     // create DDS Participant
     let dp = unsafe { dds_create_participant(config.domain, std::ptr::null(), std::ptr::null()) };
     debug!(
-        "DDS plugin {} with group_member_id={} and using DDS Participant {}",
+        "DDS plugin {} with member_id={} and using DDS Participant {}",
         zsession.id(),
-        group_member_id,
+        member_id,
         get_guid(&dp).unwrap()
     );
 
@@ -166,6 +172,7 @@ pub async fn run(runtime: Runtime, config: Config) {
         config,
         zsession: &zsession,
         member,
+        member_id,
         dp,
         discovered_writers: HashMap::<String, DdsEntity>::new(),
         discovered_readers: HashMap::<String, DdsEntity>::new(),
@@ -262,6 +269,7 @@ struct DdsPluginRuntime<'a> {
     // and be able to store the publishers/subscribers it creates in this same struct.
     zsession: &'a Arc<Session>,
     member: Member,
+    member_id: OwnedKeyExpr,
     dp: dds_entity_t,
     // maps of all discovered DDS entities (indexed by DDS key)
     discovered_writers: HashMap<String, DdsEntity>,
@@ -401,7 +409,7 @@ impl<'a> DdsPluginRuntime<'a> {
 
     fn insert_route_from_dds(&mut self, ke: OwnedKeyExpr, r: FromDdsRoute<'a>) {
         // insert reference in admin_space
-        let admin_ke = KE_PREFIX_ROUTE_FROM_DDS.join(&ke).unwrap();
+        let admin_ke = *KE_PREFIX_ROUTE_FROM_DDS / &ke;
         self.admin_space
             .insert(admin_ke, AdminRef::FromDdsRoute(ke.clone()));
 
@@ -411,7 +419,7 @@ impl<'a> DdsPluginRuntime<'a> {
 
     fn insert_route_to_dds(&mut self, ke: OwnedKeyExpr, r: ToDdsRoute<'a>) {
         // insert reference in admin_space
-        let admin_ke: OwnedKeyExpr = KE_PREFIX_ROUTE_TO_DDS.join(&ke).unwrap();
+        let admin_ke: OwnedKeyExpr = *KE_PREFIX_ROUTE_TO_DDS / &ke;
         self.admin_space
             .insert(admin_ke, AdminRef::ToDdsRoute(ke.clone()));
 
@@ -491,7 +499,7 @@ impl<'a> DdsPluginRuntime<'a> {
                 .zsession
                 .publication_cache(&declared_ke)
                 .history(history)
-                .queryable_prefix(KE_PREFIX_PUB_CACHE.join(self.member.id()).unwrap())
+                .queryable_prefix(*KE_PREFIX_PUB_CACHE / &self.member_id)
                 .res()
                 .await
             {
@@ -660,20 +668,9 @@ impl<'a> DdsPluginRuntime<'a> {
                         "Querying historical data for TRANSIENT_LOCAL Reader on resource {}",
                         ke
                     );
-                    // query all PublicationCaches on "<KE_PREFIX_PUB_CACHE>/<all-member-ids>/<routing_keyexpr>"
-                    let query_selector: Selector = match KE_PREFIX_PUB_CACHE
-                        .join(&format!("*/{}", ke))
-                        .unwrap()
-                        .try_into()
-                    {
-                        Ok(s) => s,
-                        Err(e) => {
-                            return RouteStatus::CreationFailure(format!(
-                                "Failed create QueryingSubscriber for key {}: {}",
-                                ke, e
-                            ))
-                        }
-                    };
+                    // query all PublicationCaches on "<KE_PREFIX_PUB_CACHE>/*/<routing_keyexpr>"
+                    let query_selector: Selector =
+                        (*KE_PREFIX_PUB_CACHE / *KE_ANY_1_SEGMENT / &ke).into();
                     let sub = match self
                         .zsession
                         .subscribe_with_query(ke.clone())
@@ -804,7 +801,7 @@ impl<'a> DdsPluginRuntime<'a> {
 
         // send replies
         for (ke, v) in kvs.drain(..) {
-            let admin_keyexpr = admin_keyexpr_prefix.join(&ke).unwrap();
+            let admin_keyexpr = admin_keyexpr_prefix / &ke;
             if let Err(e) = query.reply(Ok(Sample::new(admin_keyexpr, v))).res().await {
                 warn!("Error replying to admin query {:?}: {}", query, e);
             }
@@ -813,7 +810,9 @@ impl<'a> DdsPluginRuntime<'a> {
 
     async fn run(&mut self) {
         // join DDS plugins group
-        let group = Group::join(self.zsession.clone(), GROUP_NAME, self.member.clone()).await;
+        let group = Group::join(self.zsession.clone(), GROUP_NAME, self.member.clone())
+            .await
+            .unwrap();
         let group_subscriber = group.subscribe().await;
 
         // run DDS discovery
@@ -821,10 +820,9 @@ impl<'a> DdsPluginRuntime<'a> {
         run_discovery(self.dp, tx);
 
         // declare admin space queryable
-        let admin_keyexpr_prefix = KE_PREFIX_ADMIN_SPACE
-            .join(&format!("{}/dds", self.zsession.id()))
-            .unwrap();
-        let admin_keyexpr_expr = admin_keyexpr_prefix.join("**").unwrap();
+        let admin_keyexpr_prefix =
+            *KE_PREFIX_ADMIN_SPACE / &self.zsession.id().into_keyexpr() / ke_for_sure!("dds");
+        let admin_keyexpr_expr = (&admin_keyexpr_prefix) / *KE_ANY_N_SEGMENT;
         debug!("Declare admin space on {}", admin_keyexpr_expr);
         let admin_queryable = self
             .zsession
@@ -946,7 +944,7 @@ impl<'a> DdsPluginRuntime<'a> {
                                                 "Remove unused route: DDS '{}' => zenoh '{}'",
                                                 e.topic_name, zkey
                                             );
-                                            let ke = KE_PREFIX_ROUTE_FROM_DDS.join(zkey).unwrap();
+                                            let ke = *KE_PREFIX_ROUTE_FROM_DDS / zkey;
                                             admin_space.remove(&ke);
                                             false
                                         } else {
@@ -1024,7 +1022,7 @@ impl<'a> DdsPluginRuntime<'a> {
                                                 "Remove unused route: zenoh '{}' => DDS '{}'",
                                                 zkey, e.topic_name
                                             );
-                                            let ke = KE_PREFIX_ROUTE_TO_DDS.join(zkey).unwrap();
+                                            let ke = *KE_PREFIX_ROUTE_TO_DDS / zkey;
                                             admin_space.remove(&ke);
                                             false
                                         } else {
@@ -1041,15 +1039,19 @@ impl<'a> DdsPluginRuntime<'a> {
                     match group_event {
                         Ok(GroupEvent::Join(JoinEvent{member})) => {
                             debug!("New zenoh_dds_plugin detected: {}", member.id());
-                            // make all QueryingSubscriber to query this new member
-                            for (zkey, zsub) in &mut self.routes_to_dds {
-                                if let ZSubscriber::QueryingSubscriber(sub) = &mut zsub.zenoh_subscriber {
-                                    let query_ke = KE_PREFIX_PUB_CACHE.join(&format!("{}/{}", member.id(), zkey)).unwrap();
-                                    debug!("Query for TRANSIENT_LOCAL topic on: {}", query_ke);
-                                    if let Err(e) = sub.query_on(Selector::from(&query_ke), QueryTarget::All, QueryConsolidation::none(), Duration::from_secs(5)).res().await {
-                                        warn!("Query on {} for TRANSIENT_LOCAL topic failed: {}", query_ke, e);
+                            if let Ok(member_id) = keyexpr::new(member.id()) {
+                                // make all QueryingSubscriber to query this new member
+                                for (zkey, zsub) in &mut self.routes_to_dds {
+                                    if let ZSubscriber::QueryingSubscriber(sub) = &mut zsub.zenoh_subscriber {
+                                        let query_ke = *KE_PREFIX_PUB_CACHE / member_id / zkey;
+                                        debug!("Query for TRANSIENT_LOCAL topic on: {}", query_ke);
+                                        if let Err(e) = sub.query_on(Selector::from(&query_ke), QueryTarget::All, QueryConsolidation::none(), Duration::from_secs(5)).res().await {
+                                            warn!("Query on {} for TRANSIENT_LOCAL topic failed: {}", query_ke, e);
+                                        }
                                     }
                                 }
+                            } else {
+                                error!("Can't convert member id '{}' into a KeyExpr", member.id());
                             }
                         }
                         Ok(_) => {} // ignore other GroupEvents
@@ -1077,28 +1079,27 @@ impl<'a> DdsPluginRuntime<'a> {
     ) {
         debug!(r#"Run in "forward discovery" mode"#);
 
-        // The admin keyexpr where discovery info will be forwarded to remote DDS plugins.
-        let uuid = self.zsession.id();
-        let scope_segment: Cow<str> = if let Some(scope) = &self.config.scope {
-            format!("/{}", scope).into()
+        // The data space where all discovery info are fowarded:
+        //   - writers discovery on <KE_PREFIX_FWD_DISCO>/<uuid>/[<scope>]/writer/<dds_entity_admin_key>
+        //   - readers discovery on <KE_PREFIX_FWD_DISCO>/<uuid>/[<scope>]/reader/<dds_entity_admin_key>
+        //   - ros_discovery_info on <KE_PREFIX_FWD_DISCO>/<uuid>/[<scope>]/ros_disco/<gid>
+        // The PublicationCache is declared on <KE_PREFIX_FWD_DISCO>/<uuid>/[<scope>]/**
+        // The QuerySubscriber is declared on  <KE_PREFIX_FWD_DISCO>/*/[<scope>]/**
+        let uuid: OwnedKeyExpr = self.zsession.id().try_into().unwrap();
+        let fwd_key_prefix = if let Some(scope) = &self.config.scope {
+            *KE_PREFIX_FWD_DISCO / &uuid / scope
         } else {
-            "".into()
+            *KE_PREFIX_FWD_DISCO / &uuid
         };
-        let fwd_writers_key_prefix = KE_PREFIX_FWD_DISCO
-            .join(&format!("{}{}/writer", uuid, scope_segment))
-            .unwrap();
-        let fwd_readers_key_prefix = KE_PREFIX_FWD_DISCO
-            .join(&format!("{}{}/reader", uuid, scope_segment))
-            .unwrap();
-        let fwd_ros_discovery_key = KE_PREFIX_FWD_DISCO
-            .join(&format!("{}{}/ros_disco", uuid, scope_segment))
-            .unwrap();
-        let fwd_publication_cache_key = KE_PREFIX_FWD_DISCO
-            .join(&format!("{}{}/**", uuid, scope_segment))
-            .unwrap();
-        let fwd_discovery_subscription_key = KE_PREFIX_FWD_DISCO
-            .join(&format!("*{}/**", scope_segment))
-            .unwrap();
+        let fwd_writers_key_prefix = &fwd_key_prefix / ke_for_sure!("writer");
+        let fwd_readers_key_prefix = &fwd_key_prefix / ke_for_sure!("reader");
+        let fwd_ros_discovery_key = &fwd_key_prefix / ke_for_sure!("ros_disco");
+        let fwd_publication_cache_key = &fwd_key_prefix / *KE_ANY_N_SEGMENT;
+        let fwd_discovery_subscription_key = if let Some(scope) = &self.config.scope {
+            *KE_PREFIX_FWD_DISCO / *KE_ANY_1_SEGMENT / scope / *KE_ANY_N_SEGMENT
+        } else {
+            *KE_PREFIX_FWD_DISCO / *KE_ANY_1_SEGMENT / *KE_ANY_N_SEGMENT
+        };
 
         // Register prefixes for optimization
         let fwd_writers_key_prefix_key = self
@@ -1163,7 +1164,7 @@ impl<'a> DdsPluginRuntime<'a> {
                             debug!("Discovered DDS Writer {} on {} with type '{}' and QoS: {:?} => advertise it", entity.key, entity.topic_name, entity.type_name, entity.qos);
                             // advertise the entity and its scope within admin space (bincode format)
                             let admin_keyexpr = DdsPluginRuntime::get_admin_keyexpr(&entity, true);
-                            let fwd_ke = fwd_writers_key_prefix_key.join(&admin_keyexpr).unwrap();
+                            let fwd_ke = &fwd_writers_key_prefix_key / &admin_keyexpr;
                             let msg = (&entity, &scope);
                             let ser_msg = match bincode::serialize(&msg) {
                                 Ok(s) => s,
@@ -1182,7 +1183,7 @@ impl<'a> DdsPluginRuntime<'a> {
                         } => {
                             debug!("Undiscovered DDS Writer {} => advertise it", key);
                             if let Some((admin_keyexpr, _)) = self.remove_dds_writer(&key) {
-                                let fwd_ke = fwd_writers_key_prefix_key.join(&admin_keyexpr).unwrap();
+                                let fwd_ke = &fwd_writers_key_prefix_key / &admin_keyexpr;
                                 // publish its deletion from admin space
                                 if let Err(e) = self.zsession.delete(&fwd_ke).congestion_control(CongestionControl::Block).res().await {
                                     error!("INTERNAL ERROR: failed to publish undiscovery message on {:?}: {}", fwd_ke, e);
@@ -1196,7 +1197,7 @@ impl<'a> DdsPluginRuntime<'a> {
                             debug!("Discovered DDS Reader {} on {} with type '{}' and QoS: {:?} => advertise it", entity.key, entity.topic_name, entity.type_name, entity.qos);
                             // advertise the entity and its scope within admin space (bincode format)
                             let admin_keyexpr = DdsPluginRuntime::get_admin_keyexpr(&entity, false);
-                            let fwd_ke = fwd_readers_key_prefix_key.join(&admin_keyexpr).unwrap();
+                            let fwd_ke = &fwd_readers_key_prefix_key / &admin_keyexpr;
                             let msg = (&entity, &scope);
                             let ser_msg = match bincode::serialize(&msg) {
                                 Ok(s) => s,
@@ -1215,7 +1216,7 @@ impl<'a> DdsPluginRuntime<'a> {
                         } => {
                             debug!("Undiscovered DDS Reader {} => advertise it", key);
                             if let Some((admin_keyexpr, _)) = self.remove_dds_reader(&key) {
-                                let fwd_ke = fwd_readers_key_prefix_key.join(&admin_keyexpr).unwrap();
+                                let fwd_ke = &fwd_readers_key_prefix_key / &admin_keyexpr;
                                 // publish its deletion from admin space
                                 if let Err(e) = self.zsession.delete(&fwd_ke).congestion_control(CongestionControl::Block).res().await {
                                     error!("INTERNAL ERROR: failed to publish undiscovery message on {:?}: {}", fwd_ke, e);
@@ -1230,13 +1231,13 @@ impl<'a> DdsPluginRuntime<'a> {
                     let fwd_ke = &sample.key_expr;
                     debug!("Received forwarded discovery message on {}", fwd_ke);
 
-                    // parse fwd_ke which have format: "/@dds_fwd_disco/<remote_uuid>[/scope/possibly/multiple]/<disco_kind>/<remaining_ke...>"
-                    if let Some((remote_uuid, disco_kind, remaining_ke)) = Self::parse_fwd_discovery_keyexpr(fwd_ke.as_str()) {
+                    // parse fwd_ke and extract the remote uuid, the discovery kind (reader|writer|ros_disco) and the remaining of the keyexpr
+                    if let Some((remote_uuid, disco_kind, remaining_ke)) = Self::parse_fwd_discovery_keyexpr(fwd_ke) {
                         match disco_kind {
                             // it's a writer discovery message
                             "writer" => {
                                 // reconstruct full admin keyexpr for this entity (i.e. with it's remote plugin's uuid)
-                                let full_admin_keyexpr = KE_PREFIX_ADMIN_SPACE.join(&format!("{}/dds/{}", remote_uuid, remaining_ke)).unwrap();
+                                let full_admin_keyexpr = *KE_PREFIX_ADMIN_SPACE / remote_uuid / ke_for_sure!("dds") / remaining_ke;
                                 if sample.kind != SampleKind::Delete {
                                     // deserialize payload
                                     let (entity, scope) = match bincode::deserialize::<(DdsEntity, Option<OwnedKeyExpr>)>(&sample.payload.contiguous()) {
@@ -1296,7 +1297,7 @@ impl<'a> DdsPluginRuntime<'a> {
                                                     "Remove unused route: zenoh '{}' => DDS '{}'",
                                                     zkey, zkey
                                                 );
-                                                let ke = KE_PREFIX_ROUTE_TO_DDS.join(zkey).unwrap();
+                                                let ke = *KE_PREFIX_ROUTE_TO_DDS / zkey;
                                                 admin_space.remove(&ke);
                                                 false
                                             } else {
@@ -1310,7 +1311,7 @@ impl<'a> DdsPluginRuntime<'a> {
                             // it's a reader discovery message
                             "reader" => {
                                 // reconstruct full admin keyexpr for this entity (i.e. with it's remote plugin's uuid)
-                                let full_admin_keyexpr = KE_PREFIX_ADMIN_SPACE.join(&format!("{}/dds/{}", remote_uuid, remaining_ke)).unwrap();
+                                let full_admin_keyexpr = *KE_PREFIX_ADMIN_SPACE / remote_uuid / ke_for_sure!("dds") / remaining_ke;
                                 if sample.kind != SampleKind::Delete {
                                     // deserialize payload
                                     let (entity, scope) = match bincode::deserialize::<(DdsEntity, Option<OwnedKeyExpr>)>(&sample.payload.contiguous()) {
@@ -1376,7 +1377,7 @@ impl<'a> DdsPluginRuntime<'a> {
                                                     "Remove unused route: DDS '{}' => zenoh '{}'",
                                                     zkey, zkey
                                                 );
-                                                let ke = KE_PREFIX_ROUTE_FROM_DDS.join(zkey).unwrap();
+                                                let ke = *KE_PREFIX_ROUTE_FROM_DDS / zkey;
                                                 admin_space.remove(&ke);
                                                 false
                                             } else {
@@ -1422,12 +1423,11 @@ impl<'a> DdsPluginRuntime<'a> {
                         Ok(GroupEvent::Join(JoinEvent{member})) => {
                             debug!("New zenoh_dds_plugin detected: {}", member.id());
                             // query for past publications of discocvery messages from this new member
-                            let scope_segment: Cow<str> = if let Some(scope) = &self.config.scope {
-                                format!("/{}", scope).into()
+                            let key = if let Some(scope) = &self.config.scope {
+                                *KE_PREFIX_FWD_DISCO / ke_for_sure!(member.id()) / scope / *KE_ANY_N_SEGMENT
                             } else {
-                                "".into()
+                                *KE_PREFIX_FWD_DISCO / ke_for_sure!(member.id()) / *KE_ANY_N_SEGMENT
                             };
-                            let key = KE_PREFIX_FWD_DISCO.join(&format!("{}{}/**", member.id(), scope_segment)).unwrap();
                             debug!("Query past discovery messages from {} on {}", member.id(), key);
                             if let Err(e) = fwd_disco_sub.query_on(Selector::from(&key), QueryTarget::All, QueryConsolidation::none(), Duration::from_secs(5)).res().await {
                                 warn!("Query on {} for discovery messages failed: {}", key, e);
@@ -1435,7 +1435,7 @@ impl<'a> DdsPluginRuntime<'a> {
                             // make all QueryingSubscriber to query this new member
                             for (zkey, zsub) in &mut self.routes_to_dds {
                                 if let ZSubscriber::QueryingSubscriber(sub) = &mut zsub.zenoh_subscriber {
-                                    let rkey = KE_PREFIX_PUB_CACHE.join(&format!("{}/{}", member.id(), zkey)).unwrap();
+                                    let rkey = *KE_PREFIX_PUB_CACHE / ke_for_sure!(member.id()) / zkey;
                                     debug!("Query for TRANSIENT_LOCAL topic on: {}", rkey);
                                     if let Err(e) = sub.query_on(Selector::from(&rkey), QueryTarget::All, QueryConsolidation::none(), Duration::from_secs(5)).res().await {
                                         warn!("Query on {} for TRANSIENT_LOCAL topic failed: {}", rkey, e);
@@ -1457,7 +1457,7 @@ impl<'a> DdsPluginRuntime<'a> {
                                         "Remove unused route: zenoh '{}' => DDS '{}'",
                                         zkey, zkey
                                     );
-                                    let ke = KE_PREFIX_ROUTE_TO_DDS.join(zkey).unwrap();
+                                    let ke = *KE_PREFIX_ROUTE_TO_DDS / zkey;
                                     admin_space.remove(&ke);
                                     if let Ok(guid) = get_guid(&route.serving_writer) {
                                         participant_info.remove_writer_gid(&guid);
@@ -1477,7 +1477,7 @@ impl<'a> DdsPluginRuntime<'a> {
                                         "Remove unused route: DDS '{}' => zenoh '{}'",
                                         zkey, zkey
                                     );
-                                    let ke = KE_PREFIX_ROUTE_FROM_DDS.join(zkey).unwrap();
+                                    let ke = *KE_PREFIX_ROUTE_FROM_DDS / zkey;
                                     admin_space.remove(&ke);
                                     if let Ok(guid) = get_guid(&route.serving_reader) {
                                         participant_info.remove_reader_gid(&guid);
@@ -1517,7 +1517,7 @@ impl<'a> DdsPluginRuntime<'a> {
                     for (gid, buf) in infos {
                         trace!("Received ros_discovery_info from DDS for {}, forward via zenoh: {}", gid, hex::encode(buf.contiguous()));
                         // forward the payload on zenoh
-                        let ke = fwd_ros_discovery_key_declared.join(&gid).unwrap();
+                        let ke = &fwd_ros_discovery_key_declared / ke_for_sure!(&gid);
                         if let Err(e) = self.zsession.put(ke, buf).res().await {
                             error!("Forward ROS discovery info failed: {}", e);
                         }
@@ -1527,14 +1527,16 @@ impl<'a> DdsPluginRuntime<'a> {
         }
     }
 
-    fn parse_fwd_discovery_keyexpr(fwd_ke: &str) -> Option<(&str, &str, String)> {
-        // parse fwd_ke which have format: "@dds_fwd_disco/<remote_uuid>[/scope/possibly/multiple]/<disco_kind>/<remaining_ke...>"
-        let mut split_it = fwd_ke.split('/');
-        if split_it.next() != Some("@dds_fwd_disco") {
+    fn parse_fwd_discovery_keyexpr(fwd_ke: &keyexpr) -> Option<(&keyexpr, &str, &keyexpr)> {
+        // parse fwd_ke which have format: "KE_PREFIX_FWD_DISCO/<uuid>[/scope/possibly/multiple]/<disco_kind>/<remaining_ke...>"
+        if !fwd_ke.starts_with(KE_PREFIX_FWD_DISCO.as_str()) {
             // publication on a key expression matching the fwd_ke: ignore it
             return None;
         }
-        let remote_uuid = if let Some(uuid) = split_it.next() {
+        let mut remaining = &fwd_ke[KE_PREFIX_FWD_DISCO.len() + 1..];
+        let uuid = if let Some(i) = remaining.find('/') {
+            let uuid = ke_for_sure!(&remaining[..i]);
+            remaining = &remaining[i + 1..];
             uuid
         } else {
             error!(
@@ -1543,16 +1545,20 @@ impl<'a> DdsPluginRuntime<'a> {
             );
             return None;
         };
-        let disco_kind = if let Some(kind) = split_it
-            .find(|segment| *segment == "reader" || *segment == "writer" || *segment == "ros_disco")
-        {
-            kind
+        let kind = if let Some(i) = remaining.find("/reader/") {
+            remaining = &remaining[i + 8..];
+            "reader"
+        } else if let Some(i) = remaining.find("/writer/") {
+            remaining = &remaining[i + 8..];
+            "writer"
+        } else if let Some(i) = remaining.find("/ros_disco/") {
+            remaining = &remaining[i + 11..];
+            "ros_disco"
         } else {
             error!("Unexpected forwarded discovery message received on invalid key: {} (no expected kind 'reader', 'writer' or 'ros_disco')", fwd_ke);
             return None;
         };
-        let remaining_ke = split_it.collect::<Vec<&str>>().join("/");
-        Some((remote_uuid, disco_kind, remaining_ke))
+        Some((uuid, kind, ke_for_sure!(remaining)))
     }
 
     fn remap_entities_info(&self, entities_info: &mut HashMap<String, NodeEntitiesInfo>) {
