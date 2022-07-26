@@ -1536,7 +1536,7 @@ impl<'a> DdsPluginRuntime<'a> {
         let mut remaining = &fwd_ke[KE_PREFIX_FWD_DISCO.len() + 1..];
         let uuid = if let Some(i) = remaining.find('/') {
             let uuid = ke_for_sure!(&remaining[..i]);
-            remaining = &remaining[i + 1..];
+            remaining = &remaining[i..];
             uuid
         } else {
             error!(
@@ -1555,7 +1555,7 @@ impl<'a> DdsPluginRuntime<'a> {
             remaining = &remaining[i + 11..];
             "ros_disco"
         } else {
-            error!("Unexpected forwarded discovery message received on invalid key: {} (no expected kind 'reader', 'writer' or 'ros_disco')", fwd_ke);
+            error!("Unexpected forwarded discovery message received on invalid key: {} (no expected kind '/reader/', '/writer/' or '/ros_disco/')", fwd_ke);
             return None;
         };
         Some((uuid, kind, ke_for_sure!(remaining)))
