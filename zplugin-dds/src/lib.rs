@@ -1103,7 +1103,7 @@ impl<'a> DdsPluginRuntime<'a> {
             Duration::from_millis(ROS_DISCOVERY_INFO_POLL_INTERVAL_MS),
             ChannelEvent { tx },
         );
-        let _ = timer.add_async(ros_disco_timer_event).await;
+        timer.add_async(ros_disco_timer_event).await;
 
         // The ParticipantEntitiesInfo to be re-published on ros_discovery_info (with this bridge's participant gid)
         let mut participant_info = ParticipantEntitiesInfo::new(
