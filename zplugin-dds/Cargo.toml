@@ -42,7 +42,7 @@ zenoh-core = { git = "https://github.com/eclipse-zenoh/zenoh", branch ="api-chan
 zenoh-buffers = { git = "https://github.com/eclipse-zenoh/zenoh", branch ="api-changes" }
 zenoh-collections = { git = "https://github.com/eclipse-zenoh/zenoh", branch ="api-changes" }
 zenoh-plugin-trait = { git = "https://github.com/eclipse-zenoh/zenoh", branch ="api-changes", default-features = false }
-cyclors = "0.1.3"
+cyclors = "0.1.4"
 log = "0.4.14"
 async-trait = "0.1.42"
 futures = "0.3.12"
