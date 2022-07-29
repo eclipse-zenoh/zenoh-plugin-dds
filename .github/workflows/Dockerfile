@@ -28,9 +28,9 @@ RUN apk add --no-cache libgcc libstdc++
 
 COPY docker/$TARGETPLATFORM/zenoh-bridge-dds /
 
-RUN echo '#!/bin/bash' > /entrypoint.sh
-RUN echo 'echo " * Starting: zenoh-bridge-dds $*"' >> /entrypoint.sh
-RUN echo 'exec zenoh-bridge-dds $*' >> /entrypoint.sh
+RUN echo '#!/bin/ash' > /entrypoint.sh
+RUN echo 'echo " * Starting: /zenoh-bridge-dds $*"' >> /entrypoint.sh
+RUN echo 'exec /zenoh-bridge-dds $*' >> /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
 EXPOSE 7447/udp
