@@ -131,9 +131,6 @@ jobs:
               arch: arm64,
               os: ubuntu-20.04,
               use-cross: true,
-              # NOTE: as the rustembedded/cross:aarch64-unknown-linux-musl already defines RUSTFLAGS env var,
-              #       the 'rustflags' setting in .cargo/config is ignored. Thus, we need to set the flags as env var.
-              rustflags: "-Ctarget-feature=-crt-static",
             }
           ##
           ## NOTE: cannot build for Windows since cyclocut was not ported to Windows.
@@ -180,8 +177,6 @@ jobs:
 
       - name: zplugin-dds > Build
         uses: actions-rs/cargo@v1
-        env:
-          RUSTFLAGS: ${{ matrix.job.rustflags }}
         with:
           use-cross: ${{ matrix.job.use-cross }}
           command: build
@@ -189,8 +184,6 @@ jobs:
 
       - name: zenoh-bridge-dds > Build
         uses: actions-rs/cargo@v1
-        env:
-          RUSTFLAGS: ${{ matrix.job.rustflags }}
         with:
           use-cross: ${{ matrix.job.use-cross }}
           command: build
