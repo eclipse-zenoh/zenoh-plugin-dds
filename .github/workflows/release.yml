@@ -180,6 +180,8 @@ jobs:
 
       - name: zplugin-dds > Build
         uses: actions-rs/cargo@v1
+        env:
+          RUSTFLAGS: ${{ matrix.job.rustflags }}
         with:
           use-cross: ${{ matrix.job.use-cross }}
           command: build
@@ -197,8 +199,6 @@ jobs:
       - name: zplugin-dds > Debian package
         if: contains(matrix.job.target, '-linux-gnu')
         uses: actions-rs/cargo@v1
-        env:
-          RUSTFLAGS: ${{ matrix.job.rustflags }}
         with:
           command: deb
           args: --no-build --target=${{ matrix.job.target }} -p zplugin-dds
