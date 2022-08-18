@@ -201,7 +201,7 @@ async fn main() {
     let rest_plugin = config.plugin("rest").is_some();
 
     // create a zenoh Runtime (to share with plugins)
-    let runtime = zenoh::net::runtime::Runtime::new(config).await.unwrap();
+    let runtime = zenoh::runtime::Runtime::new(config).await.unwrap();
 
     // start REST plugin
     if rest_plugin {

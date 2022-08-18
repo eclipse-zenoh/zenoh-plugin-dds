@@ -26,21 +26,20 @@ use std::ffi::CString;
 use std::mem::ManuallyDrop;
 use std::sync::Arc;
 use std::time::Duration;
-use zenoh::net::protocol::io::SplitBuffer;
-use zenoh::net::runtime::Runtime;
-use zenoh::plugins::{Plugin, RunningPluginTrait, ZenohPlugin};
+use zenoh::buffers::SplitBuffer;
+use zenoh::plugins::{Plugin, RunningPluginTrait, Runtime, ZenohPlugin};
 use zenoh::prelude::r#async::AsyncResolve;
 use zenoh::prelude::*;
 use zenoh::publication::CongestionControl;
-use zenoh::query::{QueryConsolidation, QueryTarget};
-use zenoh::queryable::{FlumeQueryable, Query};
-use zenoh::subscriber::CallbackSubscriber;
+use zenoh::query::{ConsolidationMode, QueryTarget};
+use zenoh::queryable::{Query, Queryable};
+use zenoh::subscriber::Subscriber;
 use zenoh::Result as ZResult;
 use zenoh::Session;
 use zenoh_collections::{Timed, TimedEvent, Timer};
 use zenoh_core::{bail, zerror};
 use zenoh_ext::group::{Group, GroupEvent, JoinEvent, LeaseExpiredEvent, LeaveEvent, Member};
-use zenoh_ext::{CallbackQueryingSubscriber, PublicationCache, SessionExt};
+use zenoh_ext::{PublicationCache, QueryingSubscriber, SessionExt};
 
 pub mod config;
 mod dds_mgt;
@@ -225,8 +224,8 @@ impl Drop for FromDdsRoute<'_> {
 }
 
 enum ZSubscriber<'a> {
-    Subscriber(CallbackSubscriber<'a>),
-    QueryingSubscriber(CallbackQueryingSubscriber<'a>),
+    Subscriber(Subscriber<'a, ()>),
+    QueryingSubscriber(QueryingSubscriber<'a, ()>),
 }
 
 // a route to DDS
@@ -876,7 +875,7 @@ impl<'a> DdsPluginRuntime<'a> {
         group_subscriber: &Receiver<GroupEvent>,
         dds_disco_rcv: &Receiver<DiscoveryEvent>,
         admin_keyexpr_prefix: OwnedKeyExpr,
-        admin_queryable: &FlumeQueryable<'_>,
+        admin_queryable: &Queryable<'_, flume::Receiver<Query>>,
     ) {
         debug!(r#"Run in "local discovery" mode"#);
 
@@ -1045,7 +1044,7 @@ impl<'a> DdsPluginRuntime<'a> {
                                     if let ZSubscriber::QueryingSubscriber(sub) = &mut zsub.zenoh_subscriber {
                                         let query_ke = *KE_PREFIX_PUB_CACHE / member_id / zkey;
                                         debug!("Query for TRANSIENT_LOCAL topic on: {}", query_ke);
-                                        if let Err(e) = sub.query_on(Selector::from(&query_ke), QueryTarget::All, QueryConsolidation::none(), Duration::from_secs(5)).res().await {
+                                        if let Err(e) = sub.query_on(Selector::from(&query_ke), QueryTarget::All, ConsolidationMode::None, Duration::from_secs(5)).res().await {
                                             warn!("Query on {} for TRANSIENT_LOCAL topic failed: {}", query_ke, e);
                                         }
                                     }
@@ -1075,7 +1074,7 @@ impl<'a> DdsPluginRuntime<'a> {
         group_subscriber: &Receiver<GroupEvent>,
         dds_disco_rcv: &Receiver<DiscoveryEvent>,
         admin_keyexpr_prefix: OwnedKeyExpr,
-        admin_queryable: &FlumeQueryable<'_>,
+        admin_queryable: &Queryable<'_, flume::Receiver<Query>>,
     ) {
         debug!(r#"Run in "forward discovery" mode"#);
 
@@ -1429,7 +1428,7 @@ impl<'a> DdsPluginRuntime<'a> {
                                 *KE_PREFIX_FWD_DISCO / ke_for_sure!(member.id()) / *KE_ANY_N_SEGMENT
                             };
                             debug!("Query past discovery messages from {} on {}", member.id(), key);
-                            if let Err(e) = fwd_disco_sub.query_on(Selector::from(&key), QueryTarget::All, QueryConsolidation::none(), Duration::from_secs(5)).res().await {
+                            if let Err(e) = fwd_disco_sub.query_on(Selector::from(&key), QueryTarget::All, ConsolidationMode::None, Duration::from_secs(5)).res().await {
                                 warn!("Query on {} for discovery messages failed: {}", key, e);
                             }
                             // make all QueryingSubscriber to query this new member
@@ -1437,7 +1436,7 @@ impl<'a> DdsPluginRuntime<'a> {
                                 if let ZSubscriber::QueryingSubscriber(sub) = &mut zsub.zenoh_subscriber {
                                     let rkey = *KE_PREFIX_PUB_CACHE / ke_for_sure!(member.id()) / zkey;
                                     debug!("Query for TRANSIENT_LOCAL topic on: {}", rkey);
-                                    if let Err(e) = sub.query_on(Selector::from(&rkey), QueryTarget::All, QueryConsolidation::none(), Duration::from_secs(5)).res().await {
+                                    if let Err(e) = sub.query_on(Selector::from(&rkey), QueryTarget::All, ConsolidationMode::None, Duration::from_secs(5)).res().await {
                                         warn!("Query on {} for TRANSIENT_LOCAL topic failed: {}", rkey, e);
                                     }
                                 }

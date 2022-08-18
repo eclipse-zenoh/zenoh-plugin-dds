@@ -23,7 +23,7 @@ use std::mem::MaybeUninit;
 use std::os::raw;
 use std::sync::Arc;
 use std::time::Duration;
-use zenoh::buf::ZBuf;
+use zenoh::buffers::ZBuf;
 use zenoh::prelude::r#async::AsyncResolve;
 use zenoh::prelude::*;
 use zenoh::publication::CongestionControl;
