@@ -26,7 +26,7 @@ pub const DDS_INFINITE_TIME: i64 = 0x7FFFFFFFFFFFFFFF;
 pub const DDS_100MS_DURATION: i64 = 100 * 1_000_000;
 pub const DDS_1S_DURATION: i64 = 1_000_000_000;
 
-#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 pub struct Qos {
     pub durability: Durability,
     pub durability_service: DurabilityService,
@@ -303,14 +303,14 @@ impl Default for Qos {
     }
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Derivative)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq, Derivative)]
 #[derivative(Default)]
 pub struct Durability {
     #[derivative(Default(value = "DurabilityKind::VOLATILE"))]
     pub kind: DurabilityKind,
 }
 
-#[derive(Debug, Copy, Clone, Deserialize, Serialize, PartialEq)]
+#[derive(Debug, Copy, Clone, Deserialize, Serialize, PartialEq, Eq)]
 #[allow(non_camel_case_types, clippy::upper_case_acronyms)]
 pub enum DurabilityKind {
     VOLATILE = dds_durability_kind_DDS_DURABILITY_VOLATILE as isize,
@@ -332,7 +332,7 @@ impl From<&dds_durability_kind_t> for DurabilityKind {
     }
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Derivative)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq, Derivative)]
 #[derivative(Default)]
 pub struct DurabilityService {
     #[derivative(Default(value = "0"))]
@@ -349,13 +349,13 @@ pub struct DurabilityService {
     pub max_samples_per_instance: i32,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 pub struct Reliability {
     pub kind: ReliabilityKind,
     pub max_blocking_time: dds_duration_t,
 }
 
-#[derive(Debug, Copy, Clone, Deserialize, Serialize, PartialEq)]
+#[derive(Debug, Copy, Clone, Deserialize, Serialize, PartialEq, Eq)]
 #[allow(non_camel_case_types, clippy::upper_case_acronyms)]
 pub enum ReliabilityKind {
     BEST_EFFORT = dds_reliability_kind_DDS_RELIABILITY_BEST_EFFORT as isize,
@@ -373,28 +373,28 @@ impl From<&dds_reliability_kind_t> for ReliabilityKind {
     }
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Derivative)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq, Derivative)]
 #[derivative(Default)]
 pub struct Deadline {
     #[derivative(Default(value = "DDS_INFINITE_TIME"))]
     pub period: dds_duration_t,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Derivative)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq, Derivative)]
 #[derivative(Default)]
 pub struct LatencyBudget {
     #[derivative(Default(value = "0"))]
     pub duration: dds_duration_t,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Derivative)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq, Derivative)]
 #[derivative(Default)]
 pub struct DestinationOrder {
     #[derivative(Default(value = "DestinationOrderKind::BY_RECEPTION_TIMESTAMP"))]
     pub kind: DestinationOrderKind,
 }
 
-#[derive(Debug, Copy, Clone, Deserialize, Serialize, PartialEq)]
+#[derive(Debug, Copy, Clone, Deserialize, Serialize, PartialEq, Eq)]
 #[allow(non_camel_case_types, clippy::upper_case_acronyms)]
 pub enum DestinationOrderKind {
     BY_RECEPTION_TIMESTAMP =
@@ -418,7 +418,7 @@ impl From<&dds_destination_order_kind_t> for DestinationOrderKind {
     }
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Derivative)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq, Derivative)]
 #[derivative(Default)]
 pub struct Liveliness {
     #[derivative(Default(value = "LivelinessKind::AUTOMATIC"))]
@@ -427,7 +427,7 @@ pub struct Liveliness {
     pub lease_duration: dds_duration_t,
 }
 
-#[derive(Debug, Copy, Clone, Deserialize, Serialize, PartialEq)]
+#[derive(Debug, Copy, Clone, Deserialize, Serialize, PartialEq, Eq)]
 #[allow(non_camel_case_types, clippy::upper_case_acronyms)]
 pub enum LivelinessKind {
     AUTOMATIC = dds_liveliness_kind_DDS_LIVELINESS_AUTOMATIC as isize,
@@ -449,14 +449,14 @@ impl From<&dds_liveliness_kind_t> for LivelinessKind {
     }
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Derivative)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq, Derivative)]
 #[derivative(Default)]
 pub struct Ownership {
     #[derivative(Default(value = "OwnershipKind::SHARED"))]
     pub kind: OwnershipKind,
 }
 
-#[derive(Debug, Copy, Clone, Deserialize, Serialize, PartialEq)]
+#[derive(Debug, Copy, Clone, Deserialize, Serialize, PartialEq, Eq)]
 #[allow(non_camel_case_types, clippy::upper_case_acronyms)]
 pub enum OwnershipKind {
     SHARED = dds_ownership_kind_DDS_OWNERSHIP_SHARED as isize,
@@ -474,7 +474,7 @@ impl From<&dds_ownership_kind_t> for OwnershipKind {
     }
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Derivative)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq, Derivative)]
 #[derivative(Default)]
 pub struct History {
     #[derivative(Default(value = "HistoryKind::KEEP_LAST"))]
@@ -483,7 +483,7 @@ pub struct History {
     pub depth: i32,
 }
 
-#[derive(Debug, Copy, Clone, Deserialize, Serialize, PartialEq)]
+#[derive(Debug, Copy, Clone, Deserialize, Serialize, PartialEq, Eq)]
 #[allow(non_camel_case_types, clippy::upper_case_acronyms)]
 pub enum HistoryKind {
     KEEP_LAST = dds_history_kind_DDS_HISTORY_KEEP_LAST as isize,
