@@ -110,11 +110,11 @@ impl RosDiscoveryInfoMgr {
             let qos_native = qos.to_qos_native();
             let writer = dds_create_writer(participant, t, qos_native, std::ptr::null());
             Qos::delete_qos_native(qos_native);
-            if reader < 0 {
+            if writer < 0 {
                 return Err(format!(
                     "Error creating DDS Writer on {}: {}",
                     ROS_DISCOVERY_INFO_TOPIC_NAME,
-                    CStr::from_ptr(dds_strretcode(-reader))
+                    CStr::from_ptr(dds_strretcode(-writer))
                         .to_str()
                         .unwrap_or("unrecoverable DDS retcode")
                 ));
