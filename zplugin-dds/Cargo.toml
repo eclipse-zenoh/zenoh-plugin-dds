@@ -39,7 +39,6 @@ default = ["no_mangle"]
 zenoh = { git = "https://github.com/eclipse-zenoh/zenoh", branch ="api-changes" }
 zenoh-ext = { git = "https://github.com/eclipse-zenoh/zenoh", branch ="api-changes" }
 zenoh-core = { git = "https://github.com/eclipse-zenoh/zenoh", branch ="api-changes" }
-zenoh-buffers = { git = "https://github.com/eclipse-zenoh/zenoh", branch ="api-changes" }
 zenoh-collections = { git = "https://github.com/eclipse-zenoh/zenoh", branch ="api-changes" }
 zenoh-plugin-trait = { git = "https://github.com/eclipse-zenoh/zenoh", branch ="api-changes", default-features = false }
 cyclors = "0.1.4"
