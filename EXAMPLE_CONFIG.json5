@@ -15,7 +15,7 @@
       ////        This should be used to avoid conflicts when several distinct DDS systems using
       ////        the same topics names are routed via zenoh.
       ////
-      // scope: "/robot-1",
+      // scope: "robot-1",
 
       ////
       //// domain: The DDS Domain ID (if using with ROS this should be the same as ROS_DOMAIN_ID).
