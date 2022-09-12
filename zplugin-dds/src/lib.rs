@@ -138,16 +138,21 @@ pub async fn run(runtime: Runtime, config: Config) {
     debug!("DDS plugin {:?}", config);
 
     // open zenoh-net Session (with local routing disabled to avoid loops)
-    let zsession = Arc::new(
-        Session::init(
-            runtime,
-            false,
-            config.generalise_subs.clone(),
-            config.generalise_pubs.clone(),
-        )
+
+    let zsession = match zenoh::init(runtime)
+        .queriables_allowed_origin(Locality::Remote)
+        .subscribers_allowed_origin(Locality::Remote)
+        .aggregated_subscribers(config.generalise_subs.clone())
+        .aggregated_publishers(config.generalise_pubs.clone())
         .res()
-        .await,
-    );
+        .await
+    {
+        Ok(session) => Arc::new(session),
+        Err(e) => {
+            log::error!("Unable to init zenoh session for DDS plugin : {:?}", e);
+            return;
+        }
+    };
 
     // create group member using the group_member_id if configured, or the Session ID otherwise
     let member_id = match config.group_member_id {

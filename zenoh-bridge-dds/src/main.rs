@@ -193,7 +193,6 @@ r#"-f, --fwd-discovery   'When set, rather than creating a local route when disc
 
 #[async_std::main]
 async fn main() {
-    use zenoh_plugin_trait::Plugin;
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("z=info")).init();
     log::info!("zenoh-bridge-dds {}", *zplugin_dds::LONG_VERSION);
 
@@ -210,6 +209,7 @@ async fn main() {
     }
 
     // start DDS plugin
+    use zenoh_plugin_trait::Plugin;
     zplugin_dds::DDSPlugin::start("dds", &runtime).unwrap();
     async_std::task::block_on(async_std::future::pending::<()>());
 }
