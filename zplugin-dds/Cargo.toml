@@ -36,7 +36,7 @@ no_mangle = ["zenoh-plugin-trait/no_mangle"]
 default = ["no_mangle"]
 
 [dependencies]
-zenoh = { git = "https://github.com/eclipse-zenoh/zenoh", branch = "local-routing" }
+zenoh = { git = "https://github.com/eclipse-zenoh/zenoh", branch = "local-routing", features = ["unstable"] }
 zenoh-ext = { git = "https://github.com/eclipse-zenoh/zenoh", branch = "local-routing" }
 zenoh-core = { git = "https://github.com/eclipse-zenoh/zenoh", branch = "local-routing" }
 zenoh-collections = { git = "https://github.com/eclipse-zenoh/zenoh", branch = "local-routing" }
