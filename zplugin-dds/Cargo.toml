@@ -36,8 +36,8 @@ no_mangle = ["zenoh-plugin-trait/no_mangle"]
 default = ["no_mangle"]
 
 [dependencies]
-zenoh = { git = "https://github.com/eclipse-zenoh/zenoh", branch ="api-changes" }
-zenoh-ext = { git = "https://github.com/eclipse-zenoh/zenoh", branch ="api-changes" }
+zenoh = { git = "https://github.com/eclipse-zenoh/zenoh", branch ="api-changes", features = ["unstable"] }
+zenoh-ext = { git = "https://github.com/eclipse-zenoh/zenoh", branch ="api-changes", features = ["unstable"] }
 zenoh-core = { git = "https://github.com/eclipse-zenoh/zenoh", branch ="api-changes" }
 zenoh-collections = { git = "https://github.com/eclipse-zenoh/zenoh", branch ="api-changes" }
 zenoh-plugin-trait = { git = "https://github.com/eclipse-zenoh/zenoh", branch ="api-changes", default-features = false }

@@ -137,11 +137,8 @@ pub async fn run(runtime: Runtime, config: Config) {
     debug!("DDS plugin {}", LONG_VERSION.as_str());
     debug!("DDS plugin {:?}", config);
 
-    // open zenoh-net Session (with local routing disabled to avoid loops)
-
+    // open zenoh-net Session
     let zsession = match zenoh::init(runtime)
-        .queriables_allowed_origin(Locality::Remote)
-        .subscribers_allowed_origin(Locality::Remote)
         .aggregated_subscribers(config.generalise_subs.clone())
         .aggregated_publishers(config.generalise_pubs.clone())
         .res()
@@ -501,9 +498,10 @@ impl<'a> DdsPluginRuntime<'a> {
             );
             match self
                 .zsession
-                .publication_cache(&declared_ke)
+                .declare_publication_cache(&declared_ke)
                 .history(history)
                 .queryable_prefix(*KE_PREFIX_PUB_CACHE / &self.member_id)
+                .queryable_allowed_origin(Locality::Remote)   // Note: don't reply to queries from local QueryingSubscribers
                 .res()
                 .await
             {
@@ -669,7 +667,7 @@ impl<'a> DdsPluginRuntime<'a> {
                 // create zenoh subscriber
                 let zenoh_subscriber = if is_transient_local {
                     debug!(
-                        "Querying historical data for TRANSIENT_LOCAL Reader on resource {}",
+                        "Query historical data from everybody for TRANSIENT_LOCAL Reader on resource {}",
                         ke
                     );
                     // query all PublicationCaches on "<KE_PREFIX_PUB_CACHE>/*/<routing_keyexpr>"
@@ -677,8 +675,9 @@ impl<'a> DdsPluginRuntime<'a> {
                         (*KE_PREFIX_PUB_CACHE / *KE_ANY_1_SEGMENT / &ke).into();
                     let sub = match self
                         .zsession
-                        .subscribe_with_query(ke.clone())
+                        .declare_querying_subscriber(ke.clone())
                         .callback(subscriber_callback)
+                        .allowed_origin(Locality::Remote) // Allow only remote publications to avoid loops
                         .reliable()
                         .query_selector(query_selector)
                         .res()
@@ -698,6 +697,7 @@ impl<'a> DdsPluginRuntime<'a> {
                         .zsession
                         .declare_subscriber(ke.clone())
                         .callback(subscriber_callback)
+                        .allowed_origin(Locality::Remote) // Allow only remote publications to avoid loops
                         .reliable()
                         .res()
                         .await
@@ -1048,7 +1048,7 @@ impl<'a> DdsPluginRuntime<'a> {
                                 for (zkey, zsub) in &mut self.routes_to_dds {
                                     if let ZSubscriber::QueryingSubscriber(sub) = &mut zsub.zenoh_subscriber {
                                         let query_ke = *KE_PREFIX_PUB_CACHE / member_id / zkey;
-                                        debug!("Query for TRANSIENT_LOCAL topic on: {}", query_ke);
+                                        debug!("Query historical data from {} for TRANSIENT_LOCAL topic on: {}", member_id, query_ke);
                                         if let Err(e) = sub.query_on(Selector::from(&query_ke), QueryTarget::All, ConsolidationMode::None, Duration::from_secs(5)).res().await {
                                             warn!("Query on {} for TRANSIENT_LOCAL topic failed: {}", query_ke, e);
                                         }
@@ -1098,7 +1098,7 @@ impl<'a> DdsPluginRuntime<'a> {
         let fwd_writers_key_prefix = &fwd_key_prefix / ke_for_sure!("writer");
         let fwd_readers_key_prefix = &fwd_key_prefix / ke_for_sure!("reader");
         let fwd_ros_discovery_key = &fwd_key_prefix / ke_for_sure!("ros_disco");
-        let fwd_publication_cache_key = &fwd_key_prefix / *KE_ANY_N_SEGMENT;
+        let fwd_declare_publication_cache_key = &fwd_key_prefix / *KE_ANY_N_SEGMENT;
         let fwd_discovery_subscription_key = if let Some(scope) = &self.config.scope {
             *KE_PREFIX_FWD_DISCO / *KE_ANY_1_SEGMENT / scope / *KE_ANY_N_SEGMENT
         } else {
@@ -1128,7 +1128,8 @@ impl<'a> DdsPluginRuntime<'a> {
         // Cache the publications on admin space for late joiners DDS plugins
         let _fwd_disco_pub_cache = self
             .zsession
-            .publication_cache(fwd_publication_cache_key)
+            .declare_publication_cache(fwd_declare_publication_cache_key)
+            .queryable_allowed_origin(Locality::Remote)   // Note: don't reply to queries from local QueryingSubscribers
             .res()
             .await
             .expect("Failed to declare PublicationCache for Fwd Discovery");
@@ -1136,7 +1137,8 @@ impl<'a> DdsPluginRuntime<'a> {
         // Subscribe to remote DDS plugins publications of new Readers/Writers on admin space
         let mut fwd_disco_sub = self
             .zsession
-            .subscribe_with_query(fwd_discovery_subscription_key)
+            .declare_querying_subscriber(fwd_discovery_subscription_key)
+            .allowed_origin(Locality::Remote)  // Note: ignore my own publications
             .res()
             .await
             .expect("Failed to declare QueryingSubscriber for Fwd Discovery");
@@ -1440,7 +1442,7 @@ impl<'a> DdsPluginRuntime<'a> {
                             for (zkey, zsub) in &mut self.routes_to_dds {
                                 if let ZSubscriber::QueryingSubscriber(sub) = &mut zsub.zenoh_subscriber {
                                     let rkey = *KE_PREFIX_PUB_CACHE / ke_for_sure!(member.id()) / zkey;
-                                    debug!("Query for TRANSIENT_LOCAL topic on: {}", rkey);
+                                    debug!("Query historical data from {} for TRANSIENT_LOCAL topic on: {}", member.id(), rkey);
                                     if let Err(e) = sub.query_on(Selector::from(&rkey), QueryTarget::All, ConsolidationMode::None, Duration::from_secs(5)).res().await {
                                         warn!("Query on {} for TRANSIENT_LOCAL topic failed: {}", rkey, e);
                                     }
