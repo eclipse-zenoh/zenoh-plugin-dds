@@ -501,7 +501,7 @@ impl<'a> DdsPluginRuntime<'a> {
                 .declare_publication_cache(&declared_ke)
                 .history(history)
                 .queryable_prefix(*KE_PREFIX_PUB_CACHE / &self.member_id)
-                .queryable_allowed_origin(Locality::Remote)   // Note: don't reply to queries from local QueryingSubscribers
+                .queryable_allowed_origin(Locality::Remote) // Note: don't reply to queries from local QueryingSubscribers
                 .res()
                 .await
             {
@@ -1129,7 +1129,7 @@ impl<'a> DdsPluginRuntime<'a> {
         let _fwd_disco_pub_cache = self
             .zsession
             .declare_publication_cache(fwd_declare_publication_cache_key)
-            .queryable_allowed_origin(Locality::Remote)   // Note: don't reply to queries from local QueryingSubscribers
+            .queryable_allowed_origin(Locality::Remote) // Note: don't reply to queries from local QueryingSubscribers
             .res()
             .await
             .expect("Failed to declare PublicationCache for Fwd Discovery");
@@ -1138,7 +1138,7 @@ impl<'a> DdsPluginRuntime<'a> {
         let mut fwd_disco_sub = self
             .zsession
             .declare_querying_subscriber(fwd_discovery_subscription_key)
-            .allowed_origin(Locality::Remote)  // Note: ignore my own publications
+            .allowed_origin(Locality::Remote) // Note: ignore my own publications
             .res()
             .await
             .expect("Failed to declare QueryingSubscriber for Fwd Discovery");
