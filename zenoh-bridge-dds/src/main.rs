@@ -22,6 +22,11 @@ lazy_static::lazy_static!(
 );
 
 macro_rules! insert_json5 {
+    ($config: expr, $args: expr, $key: expr, if $name: expr) => {
+        if $args.occurrences_of($name) > 0 {
+            $config.insert_json5($key, "true").unwrap();
+        }
+    };
     ($config: expr, $args: expr, $key: expr, if $name: expr, $($t: tt)*) => {
         if $args.occurrences_of($name) > 0 {
             $config.insert_json5($key, &serde_json::to_string(&$args.value_of($name).unwrap()$($t)*).unwrap()).unwrap();
@@ -85,9 +90,13 @@ r#"--rest-http-port=[PORT | IP:PORT] \
 r#"-s, --scope=[String]   'A string added as prefix to all routed DDS topics when mapped to a zenoh resource. This should be used to avoid conflicts when several distinct DDS systems using the same topics names are routed via zenoh'"#
         ))
         .arg(Arg::from_usage(
-r#"-d, --domain=[ID]   'The DDS Domain ID (if using with ROS this should be the same as ROS_DOMAIN_ID).'"#)
+r#"-d, --domain=[ID]   'The DDS Domain ID. If not set this defaults to the value of "ROS_DOMAIN_ID" environment variable or to 0 if unset.'"#)
             .default_value(&*DEFAULT_DOMAIN_STR)
         )
+        .arg(Arg::from_usage(
+r#"--dds-localhost-only \
+'Configure CycloneDDS to use only the localhost interface. If the "ROS_LOCALHOST_ONLY" environement variable is set to "1", this option is active by default.'"#
+        ))
         .arg(Arg::from_usage(
 r#"--group-member-id=[ID]   'A custom identifier for the bridge, that will be used in group management (if not specified, the zenoh UUID is used).'"#
         ))
@@ -176,6 +185,7 @@ r#"-f, --fwd-discovery   'When set, rather than creating a local route when disc
     // apply DDS related arguments over config
     insert_json5!(config, args, "plugins/dds/scope", if "scope",);
     insert_json5!(config, args, "plugins/dds/domain", if "domain", .parse::<u64>().unwrap());
+    insert_json5!(config, args, "plugins/dds/localhost_only", if "dds-localhost-only");
     insert_json5!(config, args, "plugins/dds/group_member_id", if "group-member-id", );
     insert_json5!(config, args, "plugins/dds/group_lease", if "group-lease", .parse::<f64>().unwrap());
     insert_json5!(config, args, "plugins/dds/allow", if "allow", );

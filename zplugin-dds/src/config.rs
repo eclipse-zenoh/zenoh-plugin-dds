@@ -13,6 +13,7 @@
 //
 use regex::Regex;
 use serde::{de, Deserialize, Deserializer};
+use std::env;
 use std::time::Duration;
 use zenoh::prelude::*;
 
@@ -20,6 +21,7 @@ pub const DEFAULT_DOMAIN: u32 = 0;
 pub const DEFAULT_GROUP_LEASE_SEC: f64 = 3.0;
 pub const DEFAULT_FORWARD_DISCOVERY: bool = false;
 pub const DEFAULT_RELIABLE_ROUTES_BLOCKING: bool = true;
+pub const DEFAULT_DDS_LOCALHOST_ONLY: bool = false;
 
 #[derive(Deserialize, Debug)]
 #[serde(deny_unknown_fields)]
@@ -49,6 +51,8 @@ pub struct Config {
     pub forward_discovery: bool,
     #[serde(default = "default_reliable_routes_blocking")]
     pub reliable_routes_blocking: bool,
+    #[serde(default = "default_localhost_only")]
+    pub localhost_only: bool,
     #[serde(default)]
     __required__: bool,
     #[serde(default, deserialize_with = "deserialize_paths")]
@@ -149,4 +153,8 @@ fn default_forward_discovery() -> bool {
 
 fn default_reliable_routes_blocking() -> bool {
     DEFAULT_RELIABLE_ROUTES_BLOCKING
+}
+
+fn default_localhost_only() -> bool {
+    env::var("ROS_LOCALHOST_ONLY").as_deref() == Ok("1")
 }
