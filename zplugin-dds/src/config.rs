@@ -56,7 +56,11 @@ pub struct Config {
 }
 
 fn default_domain() -> u32 {
-    DEFAULT_DOMAIN
+    if let Ok(s) = env::var("ROS_DOMAIN_ID") {
+        s.parse::<u32>().unwrap_or(DEFAULT_DOMAIN)
+    } else {
+        DEFAULT_DOMAIN
+    }
 }
 
 fn default_group_lease() -> Duration {
