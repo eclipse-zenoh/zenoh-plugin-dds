@@ -90,12 +90,13 @@ r#"--rest-http-port=[PORT | IP:PORT] \
 r#"-s, --scope=[String]   'A string added as prefix to all routed DDS topics when mapped to a zenoh resource. This should be used to avoid conflicts when several distinct DDS systems using the same topics names are routed via zenoh'"#
         ))
         .arg(Arg::from_usage(
-r#"-d, --domain=[ID]   'The DDS Domain ID. If not set this defaults to the value of "ROS_DOMAIN_ID" environment variable or to 0 if unset.'"#)
+r#"-d, --domain=[ID]   'The DDS Domain ID. The default value is "$ROS_DOMAIN_ID" if defined, or "0" otherwise.'"#)
             .default_value(&*DEFAULT_DOMAIN_STR)
         )
         .arg(Arg::from_usage(
 r#"--dds-localhost-only \
-'Configure CycloneDDS to use only the localhost interface. If the "ROS_LOCALHOST_ONLY" environement variable is set to "1", this option is active by default.'"#
+'Configure CycloneDDS to use only the localhost interface. If not set, CycloneDDS will pick the interface defined in "$CYCLONEDDS_URI" configuration, or automatically choose one.
+This option is not active by default, unless the "ROS_LOCALHOST_ONLY" environement variable is set to "1".'"#
         ))
         .arg(Arg::from_usage(
 r#"--group-member-id=[ID]   'A custom identifier for the bridge, that will be used in group management (if not specified, the zenoh UUID is used).'"#
