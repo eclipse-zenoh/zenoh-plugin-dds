@@ -1,13 +1,12 @@
 ////
-//// This file is an example of configuration for zenoh-bridge-dds.
-//// The "dds" JSON5 object below can be used as such in the "plugins" part
-//// of a config file for the zenoh router (zenohd).
+//// This file presents the default configuration used by both the `zplugin-dds` plugin and the `zenoh-bridge-dds` standalone executable.
+//// The "dds" JSON5 object below can be used as such in the "plugins" part of a config file for the zenoh router (zenohd).
 ////
 {
   plugins: {
     ////
     //// DDS related configuration
-    //// All settings are optional - uncomment the ones you want to set
+    //// All settings are optional and are unset by default - uncomment the ones you want to set
     ////
     dds: {
       ////
