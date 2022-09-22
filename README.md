@@ -176,9 +176,9 @@ See in details how to achieve that in [this blog](https://zenoh.io/blog/2021-04-
 
 ## Configuration
 
-`zenoh-bridge-dds` can be configured via a JSON5 file passed via the `-c`argument. You can see a commented example of such configuration file: [`EXAMPLE_CONFIG.json5`](EXAMPLE_CONFIG.json5).
+`zenoh-bridge-dds` can be configured via a JSON5 file passed via the `-c`argument. You can see a commented example of such configuration file: [`DEFAULT_CONFIG.json5`](DEFAULT_CONFIG.json5).
 
-The `"dds"` part of this configuration file can also be used in the configuration file for the zenoh router (within its `"plugins"` part). The router will automatically try to load the plugin library (`zplugin_dds`) at startup and apply its configuration.
+The `"dds"` part of this same configuration file can also be used in the configuration file for the zenoh router (within its `"plugins"` part). The router will automatically try to load the plugin library (`zplugin_dds`) at startup and apply its configuration.
 
 `zenoh-bridge-dds` also accepts the following arguments. If set, each argument will override the similar setting from the configuration file:
  * zenoh-related arguments:
