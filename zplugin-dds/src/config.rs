@@ -13,23 +13,25 @@
 //
 use regex::Regex;
 use serde::{de, Deserialize, Deserializer};
+use std::env;
 use std::time::Duration;
+use zenoh::prelude::*;
 
-pub const DEFAULT_SCOPE: &str = "";
 pub const DEFAULT_DOMAIN: u32 = 0;
 pub const DEFAULT_GROUP_LEASE_SEC: f64 = 3.0;
 pub const DEFAULT_FORWARD_DISCOVERY: bool = false;
 pub const DEFAULT_RELIABLE_ROUTES_BLOCKING: bool = true;
+pub const DEFAULT_DDS_LOCALHOST_ONLY: bool = false;
 
 #[derive(Deserialize, Debug)]
 #[serde(deny_unknown_fields)]
 pub struct Config {
-    #[serde(default = "default_scope", deserialize_with = "deserialize_scope")]
-    pub scope: String,
+    #[serde(default)]
+    pub scope: Option<OwnedKeyExpr>,
     #[serde(default = "default_domain")]
     pub domain: u32,
     #[serde(default)]
-    pub group_member_id: Option<String>,
+    pub group_member_id: Option<OwnedKeyExpr>,
     #[serde(
         default = "default_group_lease",
         deserialize_with = "deserialize_group_lease"
@@ -42,37 +44,27 @@ pub struct Config {
     #[serde(default, deserialize_with = "deserialize_max_frequencies")]
     pub max_frequencies: Vec<(Regex, f32)>,
     #[serde(default)]
-    pub generalise_subs: Vec<String>,
+    pub generalise_subs: Vec<OwnedKeyExpr>,
     #[serde(default)]
-    pub generalise_pubs: Vec<String>,
+    pub generalise_pubs: Vec<OwnedKeyExpr>,
     #[serde(default = "default_forward_discovery")]
     pub forward_discovery: bool,
     #[serde(default = "default_reliable_routes_blocking")]
     pub reliable_routes_blocking: bool,
+    #[serde(default = "default_localhost_only")]
+    pub localhost_only: bool,
     #[serde(default)]
     __required__: bool,
     #[serde(default, deserialize_with = "deserialize_paths")]
     __path__: Vec<String>,
 }
 
-fn default_scope() -> String {
-    DEFAULT_SCOPE.to_string()
-}
-
-fn deserialize_scope<'de, D>(deserializer: D) -> Result<String, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    let s: String = Deserialize::deserialize(deserializer)?;
-    if s.is_empty() || s.starts_with('/') {
-        Ok(s)
-    } else {
-        Ok(format!("/{}", s))
-    }
-}
-
 fn default_domain() -> u32 {
-    DEFAULT_DOMAIN
+    if let Ok(s) = env::var("ROS_DOMAIN_ID") {
+        s.parse::<u32>().unwrap_or(DEFAULT_DOMAIN)
+    } else {
+        DEFAULT_DOMAIN
+    }
 }
 
 fn default_group_lease() -> Duration {
@@ -161,4 +153,8 @@ fn default_forward_discovery() -> bool {
 
 fn default_reliable_routes_blocking() -> bool {
     DEFAULT_RELIABLE_ROUTES_BLOCKING
+}
+
+fn default_localhost_only() -> bool {
+    env::var("ROS_LOCALHOST_ONLY").as_deref() == Ok("1")
 }

@@ -36,30 +36,29 @@ no_mangle = ["zenoh-plugin-trait/no_mangle"]
 default = ["no_mangle"]
 
 [dependencies]
-zenoh = { git = "https://github.com/eclipse-zenoh/zenoh" }
-zenoh-ext = { git = "https://github.com/eclipse-zenoh/zenoh" }
-zenoh-core = { git = "https://github.com/eclipse-zenoh/zenoh" }
-zenoh-buffers = { git = "https://github.com/eclipse-zenoh/zenoh" }
-zenoh-collections = { git = "https://github.com/eclipse-zenoh/zenoh" }
-zenoh-plugin-trait = { git = "https://github.com/eclipse-zenoh/zenoh", default-features = false }
+async-trait = "0.1.57"
+bincode = "1.3.3"
+cdr = "0.2.4"
 cyclors = "0.1.4"
-log = "0.4.14"
-async-trait = "0.1.42"
-futures = "0.3.12"
-flume = "0.10.8"
-env_logger = "0.9.0"
-git-version = "0.3.4"
-regex = "1.4.3"
+derivative = "2.2.0"
+env_logger = "0.9.1"
+flume = "0.10.14"
+futures = "0.3.24"
+git-version = "0.3.5"
 hex = "0.4.3"
 lazy_static = "1.4.0"
-serde = "1.0.125"
-serde_json = "1.0.64"
-bincode = "1.3.3"
-derivative = "2.2.0"
-cdr = "0.2.4"
+log = "0.4.17"
+regex = "1.6.0"
+serde = "1.0.144"
+serde_json = "1.0.85"
+zenoh = { git = "https://github.com/eclipse-zenoh/zenoh", branch = "master", features = ["unstable"] }
+zenoh-collections = { git = "https://github.com/eclipse-zenoh/zenoh", branch = "master" }
+zenoh-core = { git = "https://github.com/eclipse-zenoh/zenoh", branch = "master" }
+zenoh-ext = { git = "https://github.com/eclipse-zenoh/zenoh", branch = "master", features = ["unstable"] }
+zenoh-plugin-trait = { git = "https://github.com/eclipse-zenoh/zenoh", branch = "master", default-features = false }
 
 [dependencies.async-std]
-version = "=1.11.0"
+version = "=1.12.0"
 features = ["unstable", "attributes"]
 
 [build-dependencies]

@@ -12,7 +12,8 @@
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 use clap::{App, Arg};
-use zenoh::config::Config;
+use std::str::FromStr;
+use zenoh::config::{Config, ModeDependentValue};
 use zenoh::prelude::*;
 
 lazy_static::lazy_static!(
@@ -21,6 +22,11 @@ lazy_static::lazy_static!(
 );
 
 macro_rules! insert_json5 {
+    ($config: expr, $args: expr, $key: expr, if $name: expr) => {
+        if $args.occurrences_of($name) > 0 {
+            $config.insert_json5($key, "true").unwrap();
+        }
+    };
     ($config: expr, $args: expr, $key: expr, if $name: expr, $($t: tt)*) => {
         if $args.occurrences_of($name) > 0 {
             $config.insert_json5($key, &serde_json::to_string(&$args.value_of($name).unwrap()$($t)*).unwrap()).unwrap();
@@ -84,9 +90,14 @@ r#"--rest-http-port=[PORT | IP:PORT] \
 r#"-s, --scope=[String]   'A string added as prefix to all routed DDS topics when mapped to a zenoh resource. This should be used to avoid conflicts when several distinct DDS systems using the same topics names are routed via zenoh'"#
         ))
         .arg(Arg::from_usage(
-r#"-d, --domain=[ID]   'The DDS Domain ID (if using with ROS this should be the same as ROS_DOMAIN_ID).'"#)
+r#"-d, --domain=[ID]   'The DDS Domain ID. The default value is "$ROS_DOMAIN_ID" if defined, or "0" otherwise.'"#)
             .default_value(&*DEFAULT_DOMAIN_STR)
         )
+        .arg(Arg::from_usage(
+r#"--dds-localhost-only \
+'Configure CycloneDDS to use only the localhost interface. If not set, CycloneDDS will pick the interface defined in "$CYCLONEDDS_URI" configuration, or automatically choose one.
+This option is not active by default, unless the "ROS_LOCALHOST_ONLY" environement variable is set to "1".'"#
+        ))
         .arg(Arg::from_usage(
 r#"--group-member-id=[ID]   'A custom identifier for the bridge, that will be used in group management (if not specified, the zenoh UUID is used).'"#
         ))
@@ -137,7 +148,7 @@ r#"-f, --fwd-discovery   'When set, rather than creating a local route when disc
     // NOTE: only if args.occurrences_of()>0 to avoid overriding config with the default arg value
     if args.occurrences_of("id") > 0 {
         config
-            .set_id(args.value_of("id").map(|s| s.to_string()))
+            .set_id(ZenohId::from_str(args.value_of("id").unwrap()).unwrap())
             .unwrap();
     }
     if args.occurrences_of("mode") > 0 {
@@ -167,11 +178,15 @@ r#"-f, --fwd-discovery   'When set, rather than creating a local route when disc
     }
 
     // Always add timestamps to publications (required for PublicationCache used in case of TRANSIENT_LOCAL topics)
-    config.set_add_timestamp(Some(true)).unwrap();
+    config
+        .timestamping
+        .set_enabled(Some(ModeDependentValue::Unique(true)))
+        .unwrap();
 
     // apply DDS related arguments over config
     insert_json5!(config, args, "plugins/dds/scope", if "scope",);
     insert_json5!(config, args, "plugins/dds/domain", if "domain", .parse::<u64>().unwrap());
+    insert_json5!(config, args, "plugins/dds/localhost_only", if "dds-localhost-only");
     insert_json5!(config, args, "plugins/dds/group_member_id", if "group-member-id", );
     insert_json5!(config, args, "plugins/dds/group_lease", if "group-lease", .parse::<f64>().unwrap());
     insert_json5!(config, args, "plugins/dds/allow", if "allow", );
@@ -189,7 +204,6 @@ r#"-f, --fwd-discovery   'When set, rather than creating a local route when disc
 
 #[async_std::main]
 async fn main() {
-    use zenoh_plugin_trait::Plugin;
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("z=info")).init();
     log::info!("zenoh-bridge-dds {}", *zplugin_dds::LONG_VERSION);
 
@@ -197,14 +211,16 @@ async fn main() {
     let rest_plugin = config.plugin("rest").is_some();
 
     // create a zenoh Runtime (to share with plugins)
-    let runtime = zenoh::net::runtime::Runtime::new(config).await.unwrap();
+    let runtime = zenoh::runtime::Runtime::new(config).await.unwrap();
 
     // start REST plugin
     if rest_plugin {
+        use zenoh_plugin_trait::Plugin;
         zplugin_rest::RestPlugin::start("rest", &runtime).unwrap();
     }
 
     // start DDS plugin
+    use zenoh_plugin_trait::Plugin;
     zplugin_dds::DDSPlugin::start("dds", &runtime).unwrap();
     async_std::task::block_on(async_std::future::pending::<()>());
 }

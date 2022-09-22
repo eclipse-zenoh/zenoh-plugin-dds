@@ -12,9 +12,9 @@
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 use crate::qos::{HistoryKind, Qos};
-use async_std::channel::Sender;
 use async_std::task;
 use cyclors::*;
+use flume::Sender;
 use log::{debug, error, warn};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -23,18 +23,20 @@ use std::mem::MaybeUninit;
 use std::os::raw;
 use std::sync::Arc;
 use std::time::Duration;
-use zenoh::buf::ZBuf;
+use zenoh::buffers::ZBuf;
+use zenoh::prelude::r#async::AsyncResolve;
+use zenoh::prelude::*;
 use zenoh::publication::CongestionControl;
-use zenoh::{prelude::*, Session};
+use zenoh::Session;
 
 const MAX_SAMPLES: u32 = 32;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub(crate) enum RouteStatus {
-    Routed(String), // Routing is active, String is the zenoh zenoh resource key used for the route
-    NotAllowed,     // Routing was not allowed per configuration
+    Routed(OwnedKeyExpr), // Routing is active, with the zenoh key expression used for the route
+    NotAllowed,           // Routing was not allowed per configuration
     CreationFailure(String), // The route creation failed
-    _QoSConflict,   // A route was already established but with conflicting QoS
+    _QoSConflict,         // A route was already established but with conflicting QoS
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -100,6 +102,11 @@ unsafe extern "C" fn on_data(dr: dds_entity_t, arg: *mut std::os::raw::c_void) {
                 }
             };
 
+            if (*sample).participant_instance_handle == dpih {
+                // Ignore discovery of entities created by our own participant
+                continue;
+            }
+
             debug!(
                 "{} DDS {} {} from Participant {} on {} with type {} (keyless: {})",
                 if is_alive {
@@ -119,9 +126,9 @@ unsafe extern "C" fn on_data(dr: dds_entity_t, arg: *mut std::os::raw::c_void) {
                 keyless
             );
 
-            if topic_name.contains("DCPS") || (*sample).participant_instance_handle == dpih {
+            if topic_name.starts_with("DCPS") {
                 debug!(
-                    "Ignoring discovery of {} ({}) from local participant",
+                    "Ignoring discovery of {} ({} is a builtin topic)",
                     key, topic_name
                 );
                 continue;
@@ -224,6 +231,7 @@ unsafe extern "C" fn data_forwarder_listener(dr: dds_entity_t, arg: *mut std::os
                     .2
                     .put(&(*pa).1, rbuf)
                     .congestion_control((*pa).3)
+                    .res()
                     .await
             });
             (*zp).payload = std::ptr::null_mut();
@@ -252,7 +260,7 @@ pub fn create_forwarding_dds_reader(
 
         match read_period {
             None => {
-                // Use a Listener to route data as soon as it arraives
+                // Use a Listener to route data as soon as it arrives
                 let arg = Box::new((topic_name, z_key, z, congestion_ctrl));
                 let sub_listener =
                     dds_create_listener(Box::into_raw(arg) as *mut std::os::raw::c_void);
@@ -287,7 +295,7 @@ pub fn create_forwarding_dds_reader(
                 qos.history.depth = 1;
                 let qos_native = qos.to_qos_native();
                 let reader = dds_create_reader(dp, t, qos_native, std::ptr::null());
-                let z_key = z_key.to_owned();
+                let z_key = z_key.into_owned();
                 task::spawn(async move {
                     // loop while reader's instance handle remain the same
                     // (if reader was deleted, its dds_entity_t value might have been
@@ -325,6 +333,7 @@ pub fn create_forwarding_dds_reader(
                                 let _ = task::block_on(async {
                                     z.put(&z_key, rbuf)
                                         .congestion_control(congestion_ctrl)
+                                        .res()
                                         .await
                                 });
                                 (*zp).payload = std::ptr::null_mut();

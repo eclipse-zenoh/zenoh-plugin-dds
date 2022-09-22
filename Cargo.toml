@@ -13,8 +13,8 @@
 #
 [workspace]
 members = [
-  "zplugin-dds",
   "zenoh-bridge-dds",
+  "zplugin-dds",
 ]
 
 [profile.release]
