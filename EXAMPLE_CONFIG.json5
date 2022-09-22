@@ -18,9 +18,15 @@
       // scope: "robot-1",
 
       ////
-      //// domain: The DDS Domain ID (if using with ROS this should be the same as ROS_DOMAIN_ID).
+      //// domain: The DDS Domain ID. By default set to 0, or to "$ROS_DOMAIN_ID" is this environment variable is defined.
       ////
-      // domain: 1,
+      // domain: 0,
+
+      ////
+      //// localhost_only: If set to true, the DDS discovery and traffic will occur only on the localhost interface (127.0.0.1).
+      ////                 By default set to false, unless the "ROS_LOCALHOST_ONLY=1" environment variable is defined.
+      ////
+      // localhost_only: true,
 
       ////
       //// group_member_id: A custom identifier for the bridge, that will be used in group management

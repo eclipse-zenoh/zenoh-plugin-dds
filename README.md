@@ -194,7 +194,9 @@ The `"dds"` part of this configuration file can also be used in the configuratio
    - **`--rest-plugin`** : activate the [zenoh REST API](https://zenoh.io/docs/apis/apis/#rest-api), available by default on port 8000.
    - **`--rest-http-port <rest-http-port>`** : set the REST API http port (default: 8000)
  * DDS-related arguments:
-   - **`-d, --domain <ID>`** : The DDS Domain ID (if using with ROS this should be the same as `ROS_DOMAIN_ID`)
+   - **`-d, --domain <ID>`** : The DDS Domain ID. By default set to `0`, or to `"$ROS_DOMAIN_ID"` is this environment variable is defined.
+   - **`dds-localhost-only`** : If set, the DDS discovery and traffic will occur only on the localhost interface (127.0.0.1).
+     By default set to false, unless the "ROS_LOCALHOST_ONLY=1" environment variable is defined.
    - **`-f, --fwd-discovery`** : When set, rather than creating a local route when discovering a local DDS entity, this discovery info is forwarded to the remote plugins/bridges. Those will create the routes, including a replica of the discovered entity. More details [here](#full-support-of-ros-graph-and-topic-lists-via-the-forward-discovery-mode)
    - **`-s, --scope <String>`** : A string used as prefix to scope DDS traffic when mapped to zenoh keys.
    - **`-a, --allow <String>`** :  A regular expression matching the set of 'partition/topic-name' that must be routed via zenoh.

@@ -22,6 +22,7 @@ use serde::{Serialize, Serializer};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::convert::TryInto;
+use std::env;
 use std::ffi::CString;
 use std::mem::ManuallyDrop;
 use std::sync::Arc;
@@ -74,6 +75,11 @@ lazy_static::lazy_static!(
     static ref KE_ANY_1_SEGMENT: &'static keyexpr = ke_for_sure!("*");
     static ref KE_ANY_N_SEGMENT: &'static keyexpr = ke_for_sure!("**");
 );
+
+// CycloneDDS' localhost-only: set network interface address (shortened form of config would be
+// possible, too, but I think it is clearer to spell it out completely).
+// Empty configuration fragments are ignored, so it is safe to unconditionally append a comma.
+const CYCLONEDDS_CONFIG_LOCALHOST_ONLY: &str = r#"<CycloneDDS><Domain><General><NetworkInterfaceAddress>127.0.0.1</NetworkInterfaceAddress></General></Domain></CycloneDDS>,"#;
 
 const GROUP_NAME: &str = "zenoh-plugin-dds";
 
@@ -160,7 +166,23 @@ pub async fn run(runtime: Runtime, config: Config) {
         .unwrap()
         .lease(config.group_lease);
 
+    // if "localhost_only" is set, configure CycloneDDS to use only localhost interface
+    if config.localhost_only {
+        env::set_var(
+            "CYCLONEDDS_URI",
+            format!(
+                "{}{}",
+                CYCLONEDDS_CONFIG_LOCALHOST_ONLY,
+                env::var("CYCLONEDDS_URI").unwrap_or_default()
+            ),
+        );
+    }
+
     // create DDS Participant
+    debug!(
+        "Create DDS Participant with CYCLONEDDS_URI='{}'",
+        env::var("CYCLONEDDS_URI").unwrap_or_default()
+    );
     let dp = unsafe { dds_create_participant(config.domain, std::ptr::null(), std::ptr::null()) };
     debug!(
         "DDS plugin {} with member_id={} and using DDS Participant {}",
