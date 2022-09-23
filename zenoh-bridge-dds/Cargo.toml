@@ -63,7 +63,7 @@ assets = [
     ],
     # config file
     [
-        "../EXAMPLE_CONFIG.json5",
+        "../DEFAULT_CONFIG.json5",
         "/etc/zenoh-bridge-dds/conf.json5",
         "644",
     ],
