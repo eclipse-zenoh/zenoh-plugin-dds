@@ -13,7 +13,7 @@
 #
 [package]
 name = "zplugin-dds"
-version = "0.6.0-dev.0"
+version = "0.6.0-beta.1"
 authors = [
 	"kydos <angelo@icorsaro.net>",
 	"Esteve Fernandez <esteve.fernandez@gmail.com>",
@@ -51,11 +51,11 @@ log = "0.4.17"
 regex = "1.6.0"
 serde = "1.0.144"
 serde_json = "1.0.85"
-zenoh = { git = "https://github.com/eclipse-zenoh/zenoh", branch = "master", features = ["unstable"] }
-zenoh-collections = { git = "https://github.com/eclipse-zenoh/zenoh", branch = "master" }
-zenoh-core = { git = "https://github.com/eclipse-zenoh/zenoh", branch = "master" }
-zenoh-ext = { git = "https://github.com/eclipse-zenoh/zenoh", branch = "master", features = ["unstable"] }
-zenoh-plugin-trait = { git = "https://github.com/eclipse-zenoh/zenoh", branch = "master", default-features = false }
+zenoh = { version = "0.6.0-beta.1", features = ["unstable"] }
+zenoh-collections = { version = "0.6.0-beta.1" }
+zenoh-core = { version = "0.6.0-beta.1" }
+zenoh-ext = { version = "0.6.0-beta.1", features = ["unstable"] }
+zenoh-plugin-trait = { version = "0.6.0-beta.1", default-features = false }
 
 [dependencies.async-std]
 version = "=1.12.0"
