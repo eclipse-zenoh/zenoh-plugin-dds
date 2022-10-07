@@ -169,15 +169,11 @@ impl RosDiscoveryInfoMgr {
             let buf = cdr::serialize::<_, _, CdrLe>(info, Infinite)
                 .map_err(|e| format!("Error serializing ParticipantEntitiesInfo: {}", e))?;
 
-            // create sertopic (Unfortunatelly cdds_ddsi_payload_create() takes *mut ddsi_sertopic. And keeping it in Self would make it not Send)
-            let cton = CString::new(ROS_DISCOVERY_INFO_TOPIC_NAME)
-                .unwrap()
-                .into_raw();
+            // create sertype (Unfortunatelly cdds_ddsi_payload_create() takes *mut ddsi_sertype. And keeping it in Self would make it not Send)
             let ctyn = CString::new(ROS_DISCOVERY_INFO_TOPIC_TYPE)
                 .unwrap()
                 .into_raw();
-            let sertopic = cdds_create_blob_sertopic(self.participant, cton, ctyn, true);
-            drop(CString::from_raw(cton));
+            let sertype = cdds_create_blob_sertype(self.participant, ctyn, true);
             drop(CString::from_raw(ctyn));
 
             // As per the Vec documentation (see https://doc.rust-lang.org/std/vec/struct.Vec.html#method.into_raw_parts)
@@ -188,7 +184,7 @@ impl RosDiscoveryInfoMgr {
             // TODO replace when stable https://github.com/rust-lang/rust/issues/65816
             let (ptr, len, capacity) = crate::vec_into_raw_parts(buf);
             let fwdp = cdds_ddsi_payload_create(
-                sertopic,
+                sertype,
                 ddsi_serdata_kind_SDK_DATA,
                 ptr,
                 len.try_into().map_err(|e| {
@@ -197,7 +193,7 @@ impl RosDiscoveryInfoMgr {
             );
             dds_writecdr(self.writer, fwdp as *mut ddsi_serdata);
             drop(Vec::from_raw_parts(ptr, len, capacity));
-            cdds_sertopic_unref(sertopic);
+            cdds_sertype_unref(sertype);
             Ok(())
         }
     }
