@@ -191,7 +191,6 @@ The `"dds"` part of this same configuration file can also be used in the configu
    - **`-i, --id <hex_string>`** : The identifier (as an hexadecimal string - e.g.: 0A0B23...) that the zenoh bridge must use. **WARNING: this identifier must be unique in the system!** If not set, a random UUIDv4 will be used.
    - **`--group-member-id <ID>`** : The bridges are supervising each other via a group membership algorithm implemented over zenoh. This option allows to set a custom identifier for the bridge, that will be used in group membership algorithm (if not specified, the zenoh UUID is used).
    - **`--group-lease <Duration>`** : The lease duration (in seconds) used in group membership algorithm (default: 3 seconds)
-   - **`--rest-plugin`** : activate the [zenoh REST API](https://zenoh.io/docs/apis/apis/#rest-api), available by default on port 8000.
    - **`--rest-http-port <rest-http-port>`** : set the REST API http port (default: 8000)
  * DDS-related arguments:
    - **`-d, --domain <ID>`** : The DDS Domain ID. By default set to `0`, or to `"$ROS_DOMAIN_ID"` is this environment variable is defined.
@@ -223,8 +222,8 @@ The `"dds"` part of this same configuration file can also be used in the configu
 
 ## Admin space
 
-The zenoh bridge for DDS exposes and administration space allowing to browse the DDS entities that have been discovered (with their QoS), and the routes that have been established between DDS and zenoh.
-This administration space is accessible via any zenoh API, including the REST API that you can activate at `zenoh-bridge-dds` startup using the `--rest-plugin` argument.
+The zenoh bridge for DDS exposes an administration space allowing to browse the DDS entities that have been discovered (with their QoS), and the routes that have been established between DDS and zenoh.
+This administration space is accessible via any zenoh API, including the REST API that you can activate at `zenoh-bridge-dds` startup using the `--rest-http-port` argument.
 
 The `zenoh-bridge-dds` exposes this administration space with paths prefixed by `@/service/<uuid>/dds` (where `<uuid>` is the unique identifier of the bridge instance). The informations are then organized with such paths:
  - `@/service/<uuid>/dds/version` : the bridge version
@@ -234,7 +233,7 @@ The `zenoh-bridge-dds` exposes this administration space with paths prefixed by 
  - `@/service/<uuid>/dds/route/from_dds/<zenoh-resource>` : a route established from a DDS writer to a zenoh key named `<zenoh-resource>` (see [mapping rules](#mapping-dds-topics-to-zenoh-resources)).
  - `@/service/<uuid>/dds/route/to_dds/<zenoh-resource>` : a route established from a zenoh key named `<zenoh-resource>` (see [mapping rules](#mapping-dds-topics-to-zenoh-resources))..
 
-Example of queries on administration space using the REST API with the `curl` command line tool (don't forget to activate the REST API with `--rest-plugin` argument):
+Example of queries on administration space using the REST API with the `curl` command line tool (don't forget to activate the REST API with `--rest-http-port 8000` argument):
  - List all the DDS entities that have been discovered:
     ```bash
     curl http://localhost:8000:/@/service/**/participant/**
