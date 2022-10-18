@@ -661,15 +661,12 @@ impl<'a> DdsPluginRuntime<'a> {
                         // that is not necessarily safe or guaranteed to be leak free.
                         // TODO replace when stable https://github.com/rust-lang/rust/issues/65816
                         let (ptr, len, capacity) = vec_into_raw_parts(bs);
-                        let cton = CString::new(ton.clone()).unwrap().into_raw();
                         let ctyn = CString::new(tyn.clone()).unwrap().into_raw();
-                        let st = cdds_create_blob_sertopic(
+                        let st = cdds_create_blob_sertype(
                             dp,
-                            cton as *mut std::os::raw::c_char,
                             ctyn as *mut std::os::raw::c_char,
                             keyless,
                         );
-                        drop(CString::from_raw(cton));
                         drop(CString::from_raw(ctyn));
                         let size: size_t = match len.try_into() {
                             Ok(s) => s,
@@ -682,7 +679,7 @@ impl<'a> DdsPluginRuntime<'a> {
                             cdds_ddsi_payload_create(st, ddsi_serdata_kind_SDK_DATA, ptr, size);
                         dds_writecdr(dw, fwdp as *mut ddsi_serdata);
                         drop(Vec::from_raw_parts(ptr, len, capacity));
-                        cdds_sertopic_unref(st);
+                        cdds_sertype_unref(st);
                     };
                 };
 
