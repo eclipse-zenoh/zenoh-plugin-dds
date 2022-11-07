@@ -145,7 +145,7 @@ But using the **`--fwd-discovery`** (or `-f`) option for all bridges make them b
 ### _Limiting the ROS2 topics, services, parameters or actions to be routed_
 By default 2 zenoh bridges will route all ROS2 topics and services for which they detect a Writer on one side and a Reader on the other side. But you might want to avoid some topics and services to be routed by the bridge.
 
-Starting `zenoh-bridge-dds` you can use the `--allow` argument to specify the subset of topics and services that will be routed by the bridge. This argument accepts a string wich is a regular expression that must match a substring of an allowed zenoh key (see details of [mapping of ROS2 names to zenoh keys](#mapping-ros2-names-to-zenoh-resources)).
+Starting `zenoh-bridge-dds` you can use the `--allow` argument to specify the subset of topics and services that will be routed by the bridge. This argument accepts a string wich is a regular expression that must match a substring of an allowed zenoh key (see details of [mapping of ROS2 names to zenoh keys](#mapping-ros2-names-to-zenoh-keys)).
 
 Here are some examples of usage:
 | `--allow` value | allowed ROS2 communication |
@@ -167,7 +167,7 @@ A simple way to address this issue using the zenoh bridge is to:
  - have each bridge started with the `--scope "/<id>"` argument, each robot having its own id.
  - make sure each robot cannot directly communicate via DDS with another robot by setting a distinct domain per robot, or configuring its network interface to not route UDP multicast outside the host.
 
-Using the `--scope` option, a prefix is added to each zenoh key published/subscribed by the bridge (more details in [mapping of ROS2 names to zenoh keys](#mapping-ros2-names-to-zenoh-resources)). To interact with a robot, a remote ROS2 application must use a zenoh bridge configured with the same scope than the robot.  
+Using the `--scope` option, a prefix is added to each zenoh key published/subscribed by the bridge (more details in [mapping of ROS2 names to zenoh keys](#mapping-ros2-names-to-zenoh-keys)). To interact with a robot, a remote ROS2 application must use a zenoh bridge configured with the same scope than the robot.  
 
 ### _Closer integration of ROS2 with zenoh_
 As you understood, using the zenoh bridge, each ROS2 publications and subscriptions are mapped to a zenoh key. Therefore, its relatively easy to develop an application using one of the [zenoh APIs](https://zenoh.io/docs/apis/apis/) to interact with one or more robot at the same time.
