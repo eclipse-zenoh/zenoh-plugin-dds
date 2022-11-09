@@ -54,7 +54,7 @@ If not set, a random UUIDv4 will be used.'"#,
             ))
         .arg(Arg::from_usage(
 r#"-m, --mode=[MODE]  'The zenoh session mode.'"#)
-            .possible_values(&["peer", "client"])
+            .possible_values(["peer", "client"])
             .default_value("peer")
         )
         .arg(Arg::from_usage(
@@ -91,7 +91,7 @@ r#"-s, --scope=[String]   'A string added as prefix to all routed DDS topics whe
         ))
         .arg(Arg::from_usage(
 r#"-d, --domain=[ID]   'The DDS Domain ID. The default value is "$ROS_DOMAIN_ID" if defined, or "0" otherwise.'"#)
-            .default_value(&*DEFAULT_DOMAIN_STR)
+            .default_value(&DEFAULT_DOMAIN_STR)
         )
         .arg(Arg::from_usage(
 r#"--dds-localhost-only \
@@ -103,7 +103,7 @@ r#"--group-member-id=[ID]   'A custom identifier for the bridge, that will be us
         ))
         .arg(Arg::from_usage(
 r#"--group-lease=[Duration]   'The lease duration (in seconds) used in group management for all DDS plugins.'"#)
-            .default_value(&*DEFAULT_GROUP_LEASE_STR)
+            .default_value(&DEFAULT_GROUP_LEASE_STR)
         )
         .arg(Arg::from_usage(
 r#"-a, --allow=[String]   'A regular expression matching the set of 'partition/topic-name' that must be routed via zenoh. By default, all partitions and topics are allowed.
