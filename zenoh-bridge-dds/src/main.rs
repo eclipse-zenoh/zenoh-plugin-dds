@@ -249,12 +249,19 @@ fn run_watchdog(period: f32) {
     // 2nd threshold of duration since last report => debug warn if exceeded
     let report_threshold_2 = Duration::from_millis(100);
 
-    assert!(sleep_time > report_threshold_2, "Watchdog period must be greater than {} seconds", report_threshold_2.as_secs_f32());
+    assert!(
+        sleep_time > report_threshold_2,
+        "Watchdog period must be greater than {} seconds",
+        report_threshold_2.as_secs_f32()
+    );
 
     // Start a Liveliness Monitor thread for async_std Runtime
     let (_task, monitor) = LivelinessMonitor::start(async_std::task::spawn);
     std::thread::spawn(move || {
-        log::debug!("Watchdog started with period {} sec", sleep_time.as_secs_f32());
+        log::debug!(
+            "Watchdog started with period {} sec",
+            sleep_time.as_secs_f32()
+        );
         loop {
             let before = SystemTime::now();
             std::thread::sleep(sleep_time);
@@ -262,7 +269,10 @@ fn run_watchdog(period: f32) {
 
             // Monitor watchdog thread itself
             if elapsed > sleep_time + max_sleep_delta {
-                log::warn!("Watchdog thread slept more than configured: {} seconds", elapsed.as_secs_f32());
+                log::warn!(
+                    "Watchdog thread slept more than configured: {} seconds",
+                    elapsed.as_secs_f32()
+                );
             }
             // check last LivelinessMonitor's report
             let report = monitor.latest_report();
