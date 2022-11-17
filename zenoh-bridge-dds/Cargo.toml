@@ -33,6 +33,7 @@ env_logger = "0.9.0"
 lazy_static = "1.4.0"
 log = "0.4"
 serde_json = "1.0.71"
+async-liveliness-monitor = "0.1.1"
 zenoh = { git = "https://github.com/eclipse-zenoh/zenoh", branch = "master", features = ["unstable"] }
 zenoh-plugin-rest = { git = "https://github.com/eclipse-zenoh/zenoh", branch = "master", default-features = false }
 zenoh-plugin-trait = { git = "https://github.com/eclipse-zenoh/zenoh", branch = "master", default-features = false }

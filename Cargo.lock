@@ -207,6 +207,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "async-liveliness-monitor"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "902174b1c1b8b63ed4d522448fd639c45ab86d78d75575b39e3946d465183c72"
+
+[[package]]
 name = "async-lock"
 version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3205,6 +3211,7 @@ dependencies = [
 name = "zenoh-bridge-dds"
 version = "0.6.0-beta.1"
 dependencies = [
+ "async-liveliness-monitor",
  "async-std",
  "clap",
  "env_logger",
