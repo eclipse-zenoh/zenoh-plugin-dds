@@ -1,3 +1,4 @@
+use async_liveliness_monitor::LivelinessMonitor;
 //
 // Copyright (c) 2022 ZettaScale Technology
 //
@@ -13,6 +14,7 @@
 //
 use clap::{App, Arg};
 use std::str::FromStr;
+use std::time::{Duration, SystemTime};
 use zenoh::config::{Config, ModeDependentValue};
 use zenoh::prelude::*;
 
@@ -39,7 +41,7 @@ macro_rules! insert_json5 {
     };
 }
 
-fn parse_args() -> Config {
+fn parse_args() -> (Config, Option<f32>) {
     let app = App::new("zenoh bridge for DDS")
         .version(zplugin_dds::GIT_VERSION)
         .long_version(zplugin_dds::LONG_VERSION.as_str())
@@ -131,7 +133,10 @@ r#"-w, --generalise-pub=[String]...   'A list of key expression to use for gener
         .arg(Arg::from_usage(
 r#"-f, --fwd-discovery   'When set, rather than creating a local route when discovering a local DDS entity, this discovery info is forwarded to the remote plugins/bridges. Those will create the routes, including a replica of the discovered entity.'"#
             ).alias("forward-discovery")
-        );
+        )
+        .arg(Arg::from_usage(
+r#"--watchdog=[PERIOD]   'Experimental!! Run a watchdog thread that monitors the bridge's async executor and reports as error log any stalled status during the specified period (default: 1.0 second)'"#
+        ).default_missing_value("1.0"));
     let args = app.get_matches();
 
     // load config file at first
@@ -176,7 +181,6 @@ r#"-f, --fwd-discovery   'When set, rather than creating a local route when disc
             .insert_json5("plugins/rest/http_port", &format!(r#""{}""#, port))
             .unwrap();
     }
-
     // Always add timestamps to publications (required for PublicationCache used in case of TRANSIENT_LOCAL topics)
     config
         .timestamping
@@ -199,7 +203,14 @@ r#"-f, --fwd-discovery   'When set, rather than creating a local route when disc
             .insert_json5("plugins/dds/forward_discovery", "true")
             .unwrap();
     }
-    config
+
+    let watchdog_period = if args.is_present("watchdog") {
+        args.value_of("watchdog").map(|s| s.parse::<f32>().unwrap())
+    } else {
+        None
+    };
+
+    (config, watchdog_period)
 }
 
 #[async_std::main]
@@ -207,8 +218,12 @@ async fn main() {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("z=info")).init();
     log::info!("zenoh-bridge-dds {}", *zplugin_dds::LONG_VERSION);
 
-    let config = parse_args();
+    let (config, watchdog_period) = parse_args();
     let rest_plugin = config.plugin("rest").is_some();
+
+    if let Some(period) = watchdog_period {
+        run_watchdog(period);
+    }
 
     // create a zenoh Runtime (to share with plugins)
     let runtime = zenoh::runtime::Runtime::new(config).await.unwrap();
@@ -223,4 +238,43 @@ async fn main() {
     use zenoh_plugin_trait::Plugin;
     zplugin_dds::DDSPlugin::start("dds", &runtime).unwrap();
     async_std::task::block_on(async_std::future::pending::<()>());
+}
+
+fn run_watchdog(period: f32) {
+    let sleep_time = Duration::from_secs_f32(period);
+    // max delta accepted for watchdog thread sleep period
+    let max_sleep_delta = Duration::from_millis(50);
+    // 1st threshold of duration since last report => debug info if exceeded
+    let report_threshold_1 = Duration::from_millis(10);
+    // 2nd threshold of duration since last report => debug warn if exceeded
+    let report_threshold_2 = Duration::from_millis(100);
+
+    assert!(sleep_time > report_threshold_2, "Watchdog period must be greater than {} seconds", report_threshold_2.as_secs_f32());
+
+    // Start a Liveliness Monitor thread for async_std Runtime
+    let (_task, monitor) = LivelinessMonitor::start(async_std::task::spawn);
+    std::thread::spawn(move || {
+        log::debug!("Watchdog started with period {} sec", sleep_time.as_secs_f32());
+        loop {
+            let before = SystemTime::now();
+            std::thread::sleep(sleep_time);
+            let elapsed = SystemTime::now().duration_since(before).unwrap();
+
+            // Monitor watchdog thread itself
+            if elapsed > sleep_time + max_sleep_delta {
+                log::warn!("Watchdog thread slept more than configured: {} seconds", elapsed.as_secs_f32());
+            }
+            // check last LivelinessMonitor's report
+            let report = monitor.latest_report();
+            if report.elapsed() > report_threshold_1 {
+                if report.elapsed() > sleep_time {
+                    log::error!("Watchdog detecting async_std is stalled! No task scheduling since {} seconds", report.elapsed().as_secs_f32());
+                } else if report.elapsed() > report_threshold_2 {
+                    log::warn!("Watchdog detecting async_std was not scheduling tasks during the last {} ms", report.elapsed().as_micros());
+                } else {
+                    log::info!("Watchdog detecting async_std was not scheduling tasks during the last {} ms", report.elapsed().as_micros());
+                }
+            }
+        }
+    });
 }
