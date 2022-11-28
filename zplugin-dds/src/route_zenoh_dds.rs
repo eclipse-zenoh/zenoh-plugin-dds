@@ -256,15 +256,37 @@ impl RouteZenohDDS<'_> {
         data_participant: dds_entity_t,
         writer_qos: Qos,
     ) -> Result<(), String> {
-        log::debug!("{}: create DDS Writer", self);
-        let dw = create_forwarding_dds_writer(
-            data_participant,
-            self.topic_name.clone(),
-            self.topic_type.clone(),
-            self.keyless,
-            writer_qos,
-        )?;
-        self.dds_writer.swap(dw, Ordering::Relaxed);
+        // check if dds_writer was already set
+        let old = self.dds_writer.load(Ordering::SeqCst);
+
+        if old == DDS_ENTITY_NULL {
+            log::debug!("{}: create DDS Writer", self);
+            let dw = create_forwarding_dds_writer(
+                data_participant,
+                self.topic_name.clone(),
+                self.topic_type.clone(),
+                self.keyless,
+                writer_qos,
+            )?;
+            if self
+                .dds_writer
+                .compare_exchange(DDS_ENTITY_NULL, dw, Ordering::SeqCst, Ordering::SeqCst)
+                .is_err()
+            {
+                // another task managed to create the DDS Writer before this task
+                // delete the DDS Writer created here
+                log::debug!(
+                    "{}: delete DDS Writer since another task created one concurrently",
+                    self
+                );
+                if let Err(e) = delete_dds_entity(dw) {
+                    log::warn!(
+                        "{}: failed to delete DDS Writer created in concurrence of another task: {}",
+                        self, e
+                    )
+                }
+            }
+        }
         Ok(())
     }
 
