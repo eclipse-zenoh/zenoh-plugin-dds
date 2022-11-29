@@ -154,7 +154,7 @@ unsafe extern "C" fn on_data(dr: dds_entity_t, arg: *mut std::os::raw::c_void) {
         } else if pub_discovery {
             send_discovery_event(&btx.1, DiscoveryEvent::UndiscoveredPublication { key });
         } else {
-                send_discovery_event(&btx.1, DiscoveryEvent::UndiscoveredSubscription { key });
+            send_discovery_event(&btx.1, DiscoveryEvent::UndiscoveredSubscription { key });
         }
     }
     dds_return_loan(
