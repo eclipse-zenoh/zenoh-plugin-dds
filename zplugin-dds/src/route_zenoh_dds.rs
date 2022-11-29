@@ -76,14 +76,7 @@ pub(crate) struct RouteZenohDDS<'a> {
 
 impl Drop for RouteZenohDDS<'_> {
     fn drop(&mut self) {
-        let dds_entity = self
-            .dds_writer
-            .swap(DDS_ENTITY_NULL, std::sync::atomic::Ordering::Relaxed);
-        if dds_entity != DDS_ENTITY_NULL {
-            if let Err(e) = delete_dds_entity(dds_entity) {
-                log::warn!("{}: error deleting DDS Writer:  {}", self, e);
-            }
-        }
+        self.delete_dds_writer();
     }
 }
 
@@ -262,6 +255,17 @@ impl RouteZenohDDS<'_> {
             }
         }
         Ok(())
+    }
+
+    pub(crate) fn delete_dds_writer(&self) {
+        let dds_entity = self
+            .dds_writer
+            .swap(DDS_ENTITY_NULL, std::sync::atomic::Ordering::Relaxed);
+        if dds_entity != DDS_ENTITY_NULL {
+            if let Err(e) = delete_dds_entity(dds_entity) {
+                log::warn!("{}: error deleting DDS Writer:  {}", self, e);
+            }
+        }
     }
 
     /// If this route uses a QueryingSubscriber, query for historical publications
