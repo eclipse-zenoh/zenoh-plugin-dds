@@ -135,64 +135,38 @@ impl RouteZenohDDS<'_> {
         let typ = topic_type.clone();
         let data_participant = plugin.dp;
         let subscriber_callback = move |s: Sample| {
-            if *LOG_PAYLOAD {
-                log::trace!(
-                    "Route Zenoh->DDS ({} -> {}): routing data - payload: {:?}",
-                    s.key_expr,
-                    &ton,
-                    s.value.payload
-                );
+            let dw = arc_dw.load(Ordering::Relaxed);
+            if dw != DDS_ENTITY_NULL {
+                do_route_data(s, &ton, &typ, dw, data_participant, keyless);
             } else {
-                log::trace!(
-                    "Route Zenoh->DDS ({} -> {}): routing data",
+                // delay the routing of data for few ms in case this publication arrived
+                // before the discovery message provoking the creation of the Data Writer
+                log::debug!(
+                    "Route Zenoh->DDS ({} -> {}): data arrived but no DDS Writer yet to route it... wait 3s for discovery forarding msg",
                     s.key_expr,
                     &ton
                 );
-            }
-
-            let mut dw = arc_dw.load(Ordering::Relaxed);
-            if dw == DDS_ENTITY_NULL {
-                // wait few ms in case this publication arrived before the discovery message provoking the creation of the Data Writer
-                std::thread::sleep(Duration::from_millis(100));
-                dw = arc_dw.load(Ordering::Relaxed);
-                if dw == DDS_ENTITY_NULL {
-                    log::warn!(
-                        "Route Zenoh->DDS ({} -> {}): no DDS Writer yet - drop incoming data!",
-                        s.key_expr,
-                        &ton
-                    );
-                    return;
-                }
-            }
-
-            unsafe {
-                let bs = s.value.payload.contiguous().into_owned();
-                // As per the Vec documentation (see https://doc.rust-lang.org/std/vec/struct.Vec.html#method.into_raw_parts)
-                // the only way to correctly releasing it is to create a vec using from_raw_parts
-                // and then have its destructor do the cleanup.
-                // Thus, while tempting to just pass the raw pointer to cyclone and then free it from C,
-                // that is not necessarily safe or guaranteed to be leak free.
-                // TODO replace when stable https://github.com/rust-lang/rust/issues/65816
-                let (ptr, len, capacity) = vec_into_raw_parts(bs);
-                let ctyn = CString::new(typ.clone()).unwrap().into_raw();
-                let st = cdds_create_blob_sertype(
-                    data_participant,
-                    ctyn as *mut std::os::raw::c_char,
-                    keyless,
-                );
-                drop(CString::from_raw(ctyn));
-                let size: size_t = match len.try_into() {
-                    Ok(s) => s,
-                    Err(_) => {
-                        log::warn!("Route Zenoh->DDS ({} -> {}): can't route data; excessive payload size ({})", s.key_expr, &ton, len);
-                        return;
+                let arc_dw2 = arc_dw.clone();
+                let ton2 = ton.clone();
+                let typ2 = typ.clone();
+                let ke = s.key_expr.clone();
+                async_std::task::spawn(async move {
+                    for _ in 1..30 {
+                        async_std::task::sleep(Duration::from_millis(100)).await;
+                        let dw = arc_dw2.load(Ordering::Relaxed);
+                        if dw != DDS_ENTITY_NULL {
+                            do_route_data(s, &ton2, &typ2, dw, data_participant, keyless);
+                            break;
+                        } else {
+                            log::warn!(
+                                "Route Zenoh->DDS ({} -> {}): still no DDS Writer after 3s - drop incoming data!",
+                                ke,
+                                &ton2
+                            );
+                        }
                     }
-                };
-                let fwdp = cdds_ddsi_payload_create(st, ddsi_serdata_kind_SDK_DATA, ptr, size);
-                dds_writecdr(dw, fwdp as *mut ddsi_serdata);
-                drop(Vec::from_raw_parts(ptr, len, capacity));
-                cdds_sertype_unref(st);
-            };
+                });
+            }
         };
 
         // create zenoh subscriber
@@ -361,5 +335,60 @@ impl RouteZenohDDS<'_> {
 
     pub(crate) fn has_local_routed_reader(&self) -> bool {
         !self.local_routed_readers.is_empty()
+    }
+}
+
+fn do_route_data(
+    s: Sample,
+    topic_name: &str,
+    topic_type: &str,
+    data_writer: dds_entity_t,
+    data_participant: dds_entity_t,
+    keyless: bool,
+) {
+    if *LOG_PAYLOAD {
+        log::trace!(
+            "Route Zenoh->DDS ({} -> {}): routing data - payload: {:?}",
+            s.key_expr,
+            &topic_name,
+            s.value.payload
+        );
+    } else {
+        log::trace!(
+            "Route Zenoh->DDS ({} -> {}): routing data",
+            s.key_expr,
+            &topic_name
+        );
+    }
+
+    unsafe {
+        let bs = s.value.payload.contiguous().into_owned();
+        // As per the Vec documentation (see https://doc.rust-lang.org/std/vec/struct.Vec.html#method.into_raw_parts)
+        // the only way to correctly releasing it is to create a vec using from_raw_parts
+        // and then have its destructor do the cleanup.
+        // Thus, while tempting to just pass the raw pointer to cyclone and then free it from C,
+        // that is not necessarily safe or guaranteed to be leak free.
+        // TODO replace when stable https://github.com/rust-lang/rust/issues/65816
+        let (ptr, len, capacity) = vec_into_raw_parts(bs);
+        let ctyn = CString::new(topic_type).unwrap().into_raw();
+        let st =
+            cdds_create_blob_sertype(data_participant, ctyn as *mut std::os::raw::c_char, keyless);
+        drop(CString::from_raw(ctyn));
+        let size: size_t = match len.try_into() {
+            Ok(s) => s,
+            Err(_) => {
+                log::warn!(
+                    "Route Zenoh->DDS ({} -> {}): can't route data; excessive payload size ({})",
+                    s.key_expr,
+                    topic_name,
+                    len
+                );
+                return;
+            }
+        };
+        let fwdp = cdds_ddsi_payload_create(st, ddsi_serdata_kind_SDK_DATA, ptr, size);
+        dds_writecdr(data_writer, fwdp as *mut ddsi_serdata);
+        drop(Vec::from_raw_parts(ptr, len, capacity));
+        cdds_sertype_unref(st);
     }
 }
