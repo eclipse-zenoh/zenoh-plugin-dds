@@ -16,7 +16,7 @@ use async_std::task;
 use cyclors::*;
 use flume::Sender;
 use log::{debug, error, warn};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, Serializer};
 use std::collections::HashMap;
 use std::ffi::{CStr, CString};
 use std::mem::MaybeUninit;
@@ -388,5 +388,15 @@ pub fn get_guid(entity: &dds_entity_t) -> Result<String, String> {
         } else {
             Err(format!("Error getting GUID of DDS entity - retcode={}", r))
         }
+    }
+}
+
+pub fn serialize_entity_guid<S>(entity: &dds_entity_t, s: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    match get_guid(entity) {
+        Ok(guid) => s.serialize_str(&guid),
+        Err(_) => s.serialize_str("UNKOWN_GUID"),
     }
 }
