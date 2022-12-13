@@ -24,8 +24,9 @@ edition = "2018"
 repository = "https://github.com/eclipse-zenoh/zenoh-plugin-dds"
 homepage = "http://zenoh.io"
 license = " EPL-2.0 OR Apache-2.0"
-categories = ["network-programming"]
+categories = ["network-programming", "science::robotics"]
 description = "Zenoh plugin for ROS2 and DDS in general"
+readme = "../README.md"
 
 [lib]
 name = "zplugin_dds"

@@ -25,7 +25,7 @@ repository = "https://github.com/eclipse-zenoh/zenoh-plugin-dds"
 homepage = "http://zenoh.io"
 license = " EPL-2.0 OR Apache-2.0"
 categories = ["network-programming"]
-description = "Zenoh plugin for ROS2 and DDS in general"
+description = "Zenoh bridge for ROS2 and DDS in general"
 
 [dependencies]
 clap = "3.2.12"
