@@ -13,7 +13,7 @@
 #
 [package]
 name = "zplugin-dds"
-version = "0.6.0-beta.1"
+version = "0.7.0-rc"
 authors = [
 	"kydos <angelo@icorsaro.net>",
 	"Esteve Fernandez <esteve.fernandez@gmail.com>",
@@ -71,4 +71,4 @@ maintainer = "zenoh-dev@eclipse.org"
 copyright = "2017, 2022 ZettaScale Technology Inc."
 section = "net"
 license-file = ["../LICENSE", "0"]
-depends = "zenohd (=0.6.0~dev.0)"
+depends = "zenohd (=0.7.0-rc)"
