@@ -105,7 +105,7 @@ In such cases, deploying the `zenoh-bridge-dds` on both hosts will make it to:
 Here are the commands to test this configuration with turtlesim:
   - on host 1:
     - `ROS_DOMAIN_ID=1 ros2 run turtlesim turtlesim_node`
-    - `./target/release/zenoh-bridge-dds -d 1`
+    - `./target/release/zenoh-bridge-dds -d 1 -l tcp/0.0.0.0:7447`
   - on host 2:
     - `ROS_DOMAIN_ID=2 ros2 run turtlesim turtle_teleop_key`
     - `./target/release/zenoh-bridge-dds -d 2 -e tcp/<host-1-ip>:7447` - where `<host-1-ip>` is the IP of host 1
