@@ -759,7 +759,7 @@ impl<'a> DdsPluginRuntime<'a> {
                             }
                             // Workaround for the DDS Writer to correctly match with a FastRTPS Reader declaring a Reliability max_blocking_time < infinite
                             if qos.reliability.max_blocking_time < DDS_INFINITE_TIME {
-                                qos.reliability.max_blocking_time += 1;
+                                qos.reliability.max_blocking_time = qos.reliability.max_blocking_time.saturating_add(1);
                             }
                             //
 
