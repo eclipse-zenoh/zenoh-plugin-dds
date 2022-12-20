@@ -41,6 +41,35 @@ Thus, the main motivations to have a **DDS plugin** for **Eclipse zenoh** are:
 As any plugin for Eclipse zenoh, it can be dynamically loaded by a zenoh router, at startup or at runtime.  
 In addition, this project also provides a standalone version of this plugin as an executable binary named `zenoh-bridge-dds`.
 
+## How to install it
+
+To install the latest release of either the DDS plugin for the Zenoh router, either the `zenoh-bridge-dds` standalone executable, you can do as follows:
+
+### Manual installation (all platforms)
+
+All release packages can be downloaded from:  
+ - https://download.eclipse.org/zenoh/zenoh-plugin-dds/latest/   
+
+Each subdirectory has the name of the Rust target. See the platforms each target corresponds to on https://doc.rust-lang.org/stable/rustc/platform-support.html
+
+Choose your platform and download:
+ - the `zplugin-dds-<version>-<platform>.zip` file for the plugin.  
+   Then unzip it in the same directory than `zenohd` or to any directory where it can find the plugin library (e.g. /usr/lib)
+ - the `zenoh-bridge-dds-<version>-<platform>.zip` file for the standalone executable.  
+   Then unzip it where you want, and run the extracted `zenoh-bridge-dds` binary.
+
+### Linux Debian
+
+Add Eclipse Zenoh private repository to the sources list:
+
+```bash
+echo "deb [trusted=yes] https://download.eclipse.org/zenoh/debian-repo/ /" | sudo tee -a /etc/apt/sources.list > /dev/null
+sudo apt update
+```
+Then either:
+  - install the plugin with: `sudo apt install zenoh-plugin-dds`.
+  - install the standalone executable with: `sudo apt install zenoh-bridge-dds`.
+
 ## How to build it
 
 > :warning: **WARNING** :warning: : Zenoh and its ecosystem are under active development. When you build from git, make sure you also build from git any other Zenoh repository you plan to use (e.g. binding, plugin, backend, etc.). It may happen that some changes in git are not compatible with the most recent packaged Zenoh release (e.g. deb, docker, pip). We put particular effort in mantaining compatibility between the various git repositories in the Zenoh project.
