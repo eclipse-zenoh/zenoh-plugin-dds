@@ -757,11 +757,8 @@ impl<'a> DdsPluginRuntime<'a> {
                                 qos.durability_service.max_instances = DDS_LENGTH_UNLIMITED;
                                 qos.durability_service.max_samples_per_instance = DDS_LENGTH_UNLIMITED;
                             }
-                            // Workaround for the DDS Writer to correctly match with a FastRTPS Reader declaring a Reliability max_blocking_time < infinite
-                            if qos.reliability.max_blocking_time < DDS_INFINITE_TIME {
-                                qos.reliability.max_blocking_time += 1;
-                            }
-                            //
+                            // Workaround for the DDS Writer to correctly match with a FastRTPS Reader
+                            qos.reliability.max_blocking_time = qos.reliability.max_blocking_time.saturating_add(1);
 
                             // create 1 route per partition, or just 1 if no partition
                             if entity.qos.partitions.is_empty() {
