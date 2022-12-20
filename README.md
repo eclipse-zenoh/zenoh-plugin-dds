@@ -18,7 +18,7 @@ Check the website [zenoh.io](http://zenoh.io) and the [roadmap](https://github.c
 -------------------------------
 # DDS plugin and standalone `zenoh-bridge-dds`
 
-:point_right: **Download stable versions:** https://download.eclipse.org/zenoh/zenoh-plugin-dds/
+:point_right: **Install latest release:** see [below](#How-to-install-it)
 
 :point_right: **Docker image:** see [below](#Docker-image)
 
