@@ -113,7 +113,8 @@ The `rosdep` command will automatically install *Rust* and *clang* as build depe
 
 ## Docker image
 The **`zenoh-bridge-dds`** standalone executable is also available as a [Docker images](https://hub.docker.com/r/eclipse/zenoh-bridge-dds/tags?page=1&ordering=last_updated) for both amd64 and arm64. To get it, do:
-  - `docker pull eclipse/zenoh-bridge-dds:master` for the master branch version
+  - `docker pull eclipse/zenoh-bridge-dds:latest` for the latest release
+  - `docker pull eclipse/zenoh-bridge-dds:master` for the master branch version (nightly build)
 
 :warning: **However, notice that it's usage is limited to Docker on Linux and using the `--net host` option.**  
 The cause being that DDS uses UDP multicast and Docker doesn't support UDP multicast between a container and its host (see cases [moby/moby#23659](https://github.com/moby/moby/issues/23659), [moby/libnetwork#2397](https://github.com/moby/libnetwork/issues/2397) or [moby/libnetwork#552](https://github.com/moby/libnetwork/issues/552)). The only known way to make it work is to use the `--net host` option that is [only supported on Linux hosts](https://docs.docker.com/network/host/).
