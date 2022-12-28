@@ -13,7 +13,7 @@
 #
 [package]
 name = "zenoh-bridge-dds"
-version = "0.6.0-beta.1"
+version = "0.7.0-rc"
 authors = [
     "kydos <angelo@icorsaro.net>",
     "Esteve Fernandez <esteve.fernandez@gmail.com>",
@@ -25,16 +25,16 @@ repository = "https://github.com/eclipse-zenoh/zenoh-plugin-dds"
 homepage = "http://zenoh.io"
 license = " EPL-2.0 OR Apache-2.0"
 categories = ["network-programming"]
-description = "Zenoh plugin for ROS2 and DDS in general"
+description = "Zenoh bridge for ROS2 and DDS in general"
 
 [dependencies]
+async-liveliness-monitor = "0.1.1"
 clap = "3.2.12"
-env_logger = "0.9.0"
+env_logger = "0.10.0"
 lazy_static = "1.4.0"
 log = "0.4"
 serde_json = "1.0.71"
-async-liveliness-monitor = "0.1.1"
-zenoh = { git = "https://github.com/eclipse-zenoh/zenoh", branch = "new-buffers", features = ["unstable"] }
+zenoh = { git = "https://github.com/eclipse-zenoh/zenoh", branch = "new-buffers", features = [ "unstable" ] }
 zenoh-plugin-rest = { git = "https://github.com/eclipse-zenoh/zenoh", branch = "new-buffers", default-features = false }
 zenoh-plugin-trait = { git = "https://github.com/eclipse-zenoh/zenoh", branch = "new-buffers", default-features = false }
 zplugin-dds = { path = "../zplugin-dds", default-features = false }

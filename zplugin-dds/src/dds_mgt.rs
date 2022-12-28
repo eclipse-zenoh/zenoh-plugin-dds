@@ -16,7 +16,7 @@ use async_std::task;
 use cyclors::*;
 use flume::Sender;
 use log::{debug, error, warn};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, Serializer};
 use std::collections::HashMap;
 use std::ffi::{CStr, CString};
 use std::mem::MaybeUninit;
@@ -81,12 +81,15 @@ unsafe extern "C" fn on_data(dr: dds_entity_t, arg: *mut std::os::raw::c_void) {
     let si = si.assume_init();
 
     for i in 0..n {
-        if si[i as usize].valid_data {
-            let sample = samples[i as usize] as *mut dds_builtintopic_endpoint_t;
-            let is_alive = si[i as usize].instance_state == dds_instance_state_DDS_IST_ALIVE;
-            let key = hex::encode((*sample).key.v);
-            let participant_key = hex::encode((*sample).participant_key.v);
-            let keyless = (*sample).key.v[15] == 3 || (*sample).key.v[15] == 4;
+        let sample = samples[i as usize] as *mut dds_builtintopic_endpoint_t;
+        if (*sample).participant_instance_handle == dpih {
+            // Ignore discovery of entities created by our own participant
+            continue;
+        }
+        let is_alive = si[i as usize].instance_state == dds_instance_state_DDS_IST_ALIVE;
+        let key = hex::encode((*sample).key.v);
+
+        if is_alive {
             let topic_name = match CStr::from_ptr((*sample).topic_name).to_str() {
                 Ok(s) => s,
                 Err(e) => {
@@ -94,6 +97,14 @@ unsafe extern "C" fn on_data(dr: dds_entity_t, arg: *mut std::os::raw::c_void) {
                     continue;
                 }
             };
+            if topic_name.starts_with("DCPS") {
+                debug!(
+                    "Ignoring discovery of {} ({} is a builtin topic)",
+                    key, topic_name
+                );
+                continue;
+            }
+
             let type_name = match CStr::from_ptr((*sample).type_name).to_str() {
                 Ok(s) => s,
                 Err(e) => {
@@ -101,19 +112,11 @@ unsafe extern "C" fn on_data(dr: dds_entity_t, arg: *mut std::os::raw::c_void) {
                     continue;
                 }
             };
-
-            if (*sample).participant_instance_handle == dpih {
-                // Ignore discovery of entities created by our own participant
-                continue;
-            }
+            let participant_key = hex::encode((*sample).participant_key.v);
+            let keyless = (*sample).key.v[15] == 3 || (*sample).key.v[15] == 4;
 
             debug!(
-                "{} DDS {} {} from Participant {} on {} with type {} (keyless: {})",
-                if is_alive {
-                    "Discovered"
-                } else {
-                    "Undiscovered"
-                },
+                "Discovered DDS {} {} from Participant {} on {} with type {} (keyless: {})",
                 if pub_discovery {
                     "publication"
                 } else {
@@ -126,42 +129,32 @@ unsafe extern "C" fn on_data(dr: dds_entity_t, arg: *mut std::os::raw::c_void) {
                 keyless
             );
 
-            if topic_name.starts_with("DCPS") {
-                debug!(
-                    "Ignoring discovery of {} ({} is a builtin topic)",
-                    key, topic_name
-                );
-                continue;
-            }
+            let qos = if pub_discovery {
+                Qos::from_writer_qos_native((*sample).qos)
+            } else {
+                Qos::from_reader_qos_native((*sample).qos)
+            };
 
             // send a DiscoveryEvent
-            if si[i as usize].instance_state == dds_instance_state_DDS_IST_ALIVE {
-                let qos = if pub_discovery {
-                    Qos::from_writer_qos_native((*sample).qos)
-                } else {
-                    Qos::from_reader_qos_native((*sample).qos)
-                };
+            let entity = DdsEntity {
+                key: key.clone(),
+                participant_key: participant_key.clone(),
+                topic_name: String::from(topic_name),
+                type_name: String::from(type_name),
+                keyless,
+                qos,
+                routes: HashMap::<String, RouteStatus>::new(),
+            };
 
-                let entity = DdsEntity {
-                    key: key.clone(),
-                    participant_key: participant_key.clone(),
-                    topic_name: String::from(topic_name),
-                    type_name: String::from(type_name),
-                    keyless,
-                    qos,
-                    routes: HashMap::<String, RouteStatus>::new(),
-                };
-
-                if pub_discovery {
-                    send_discovery_event(&btx.1, DiscoveryEvent::DiscoveredPublication { entity });
-                } else {
-                    send_discovery_event(&btx.1, DiscoveryEvent::DiscoveredSubscription { entity });
-                }
-            } else if pub_discovery {
-                send_discovery_event(&btx.1, DiscoveryEvent::UndiscoveredPublication { key });
+            if pub_discovery {
+                send_discovery_event(&btx.1, DiscoveryEvent::DiscoveredPublication { entity });
             } else {
-                send_discovery_event(&btx.1, DiscoveryEvent::UndiscoveredSubscription { key });
+                send_discovery_event(&btx.1, DiscoveryEvent::DiscoveredSubscription { entity });
             }
+        } else if pub_discovery {
+            send_discovery_event(&btx.1, DiscoveryEvent::UndiscoveredPublication { key });
+        } else {
+            send_discovery_event(&btx.1, DiscoveryEvent::UndiscoveredSubscription { key });
         }
     }
     dds_return_loan(
@@ -395,5 +388,15 @@ pub fn get_guid(entity: &dds_entity_t) -> Result<String, String> {
         } else {
             Err(format!("Error getting GUID of DDS entity - retcode={}", r))
         }
+    }
+}
+
+pub fn serialize_entity_guid<S>(entity: &dds_entity_t, s: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    match get_guid(entity) {
+        Ok(guid) => s.serialize_str(&guid),
+        Err(_) => s.serialize_str("UNKOWN_GUID"),
     }
 }

@@ -8,9 +8,17 @@
 [![License](https://img.shields.io/badge/License-EPL%202.0-blue)](https://choosealicense.com/licenses/epl-2.0/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
-# DDS plugin for Eclipse zenoh, and standalone `zenoh-bridge-dds`
+# Eclipse Zenoh
+The Eclipse Zenoh: Zero Overhead Pub/sub, Store/Query and Compute.
 
-:point_right: **Download stable versions:** https://download.eclipse.org/zenoh/zenoh-plugin-dds/
+Zenoh (pronounce _/zeno/_) unifies data in motion, data at rest and computations. It carefully blends traditional pub/sub with geo-distributed storages, queries and computations, while retaining a level of time and space efficiency that is well beyond any of the mainstream stacks.
+
+Check the website [zenoh.io](http://zenoh.io) and the [roadmap](https://github.com/eclipse-zenoh/roadmap) for more detailed information.
+
+-------------------------------
+# DDS plugin and standalone `zenoh-bridge-dds`
+
+:point_right: **Install latest release:** see [below](#How-to-install-it)
 
 :point_right: **Docker image:** see [below](#Docker-image)
 
@@ -33,7 +41,39 @@ Thus, the main motivations to have a **DDS plugin** for **Eclipse zenoh** are:
 As any plugin for Eclipse zenoh, it can be dynamically loaded by a zenoh router, at startup or at runtime.  
 In addition, this project also provides a standalone version of this plugin as an executable binary named `zenoh-bridge-dds`.
 
+## How to install it
+
+To install the latest release of either the DDS plugin for the Zenoh router, either the `zenoh-bridge-dds` standalone executable, you can do as follows:
+
+### Manual installation (all platforms)
+
+All release packages can be downloaded from:  
+ - https://download.eclipse.org/zenoh/zenoh-plugin-dds/latest/   
+
+Each subdirectory has the name of the Rust target. See the platforms each target corresponds to on https://doc.rust-lang.org/stable/rustc/platform-support.html
+
+Choose your platform and download:
+ - the `zplugin-dds-<version>-<platform>.zip` file for the plugin.  
+   Then unzip it in the same directory than `zenohd` or to any directory where it can find the plugin library (e.g. /usr/lib)
+ - the `zenoh-bridge-dds-<version>-<platform>.zip` file for the standalone executable.  
+   Then unzip it where you want, and run the extracted `zenoh-bridge-dds` binary.
+
+### Linux Debian
+
+Add Eclipse Zenoh private repository to the sources list:
+
+```bash
+echo "deb [trusted=yes] https://download.eclipse.org/zenoh/debian-repo/ /" | sudo tee -a /etc/apt/sources.list > /dev/null
+sudo apt update
+```
+Then either:
+  - install the plugin with: `sudo apt install zenoh-plugin-dds`.
+  - install the standalone executable with: `sudo apt install zenoh-bridge-dds`.
+
 ## How to build it
+
+> :warning: **WARNING** :warning: : Zenoh and its ecosystem are under active development. When you build from git, make sure you also build from git any other Zenoh repository you plan to use (e.g. binding, plugin, backend, etc.). It may happen that some changes in git are not compatible with the most recent packaged Zenoh release (e.g. deb, docker, pip). We put particular effort in mantaining compatibility between the various git repositories in the Zenoh project.
+
 In order to build the zenoh bridge for DDS you need first to install the following dependencies:
 
 - [Rust](https://www.rust-lang.org/tools/install)
@@ -73,7 +113,8 @@ The `rosdep` command will automatically install *Rust* and *clang* as build depe
 
 ## Docker image
 The **`zenoh-bridge-dds`** standalone executable is also available as a [Docker images](https://hub.docker.com/r/eclipse/zenoh-bridge-dds/tags?page=1&ordering=last_updated) for both amd64 and arm64. To get it, do:
-  - `docker pull eclipse/zenoh-bridge-dds:master` for the master branch version
+  - `docker pull eclipse/zenoh-bridge-dds:latest` for the latest release
+  - `docker pull eclipse/zenoh-bridge-dds:master` for the master branch version (nightly build)
 
 :warning: **However, notice that it's usage is limited to Docker on Linux and using the `--net host` option.**  
 The cause being that DDS uses UDP multicast and Docker doesn't support UDP multicast between a container and its host (see cases [moby/moby#23659](https://github.com/moby/moby/issues/23659), [moby/libnetwork#2397](https://github.com/moby/libnetwork/issues/2397) or [moby/libnetwork#552](https://github.com/moby/libnetwork/issues/552)). The only known way to make it work is to use the `--net host` option that is [only supported on Linux hosts](https://docs.docker.com/network/host/).
@@ -105,7 +146,7 @@ In such cases, deploying the `zenoh-bridge-dds` on both hosts will make it to:
 Here are the commands to test this configuration with turtlesim:
   - on host 1:
     - `ROS_DOMAIN_ID=1 ros2 run turtlesim turtlesim_node`
-    - `./target/release/zenoh-bridge-dds -d 1`
+    - `./target/release/zenoh-bridge-dds -d 1 -l tcp/0.0.0.0:7447`
   - on host 2:
     - `ROS_DOMAIN_ID=2 ros2 run turtlesim turtle_teleop_key`
     - `./target/release/zenoh-bridge-dds -d 2 -e tcp/<host-1-ip>:7447` - where `<host-1-ip>` is the IP of host 1
