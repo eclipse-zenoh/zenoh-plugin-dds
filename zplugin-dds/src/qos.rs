@@ -38,6 +38,7 @@ pub struct Qos {
     pub destination_order: DestinationOrder,
     pub history: History,
     pub partitions: Vec<String>,
+    pub userdata: Vec<u8>,
     #[serde(skip)]
     pub ignore_local_participant: bool,
 }
@@ -152,16 +153,37 @@ impl Qos {
             // partitions
             let mut n = 0u32;
             let mut ps: *mut *mut ::std::os::raw::c_char = std::ptr::null_mut();
-            let _ = dds_qget_partition(
+            let partitions = if dds_qget_partition(
                 qos,
                 &mut n as *mut u32,
                 &mut ps as *mut *mut *mut ::std::os::raw::c_char,
-            );
-            let mut partitions: Vec<String> = Vec::with_capacity(n as usize);
-            for k in 0..n {
-                let p = CStr::from_ptr(*(ps.offset(k as isize))).to_str().unwrap();
-                partitions.push(String::from(p));
-            }
+            ) {
+                let mut partitions: Vec<String> = Vec::with_capacity(n as usize);
+                for k in 0..n {
+                    let p = CStr::from_ptr(*(ps.offset(k as isize))).to_str().unwrap();
+                    partitions.push(String::from(p));
+                }
+                partitions
+            } else {
+                Vec::new()
+            };
+
+            // userdata
+            let mut sz: size_t = 0;
+            let mut value: *mut ::std::os::raw::c_void = std::ptr::null_mut();
+            let userdata = if dds_qget_userdata(
+                qos,
+                &mut value as *mut *mut ::std::os::raw::c_void,
+                &mut sz as *mut size_t,
+            ) {
+                Vec::from_raw_parts(
+                    value as *mut ::std::os::raw::c_uchar,
+                    sz as usize,
+                    sz as usize,
+                )
+            } else {
+                Vec::new()
+            };
 
             Self {
                 durability,
@@ -174,6 +196,7 @@ impl Qos {
                 destination_order,
                 history,
                 partitions,
+                userdata,
                 ignore_local_participant: false,
             }
         }
@@ -278,6 +301,11 @@ impl Qos {
                 let (ptr, len, cap) = vec_into_raw_parts(vptr);
                 dds_qset_partition(qos, len as u32, ptr);
                 drop(Vec::from_raw_parts(ptr, len, cap));
+            }
+            // userdata
+            if !self.userdata.is_empty() {
+                let (ptr, len, _) = vec_into_raw_parts(self.userdata.clone());
+                dds_qset_userdata(qos, ptr as *const ::std::os::raw::c_void, len as size_t);
             }
             // ignore_local_participant
             if self.ignore_local_participant {
