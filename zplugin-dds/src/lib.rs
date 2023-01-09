@@ -36,10 +36,10 @@ use zenoh::query::{ConsolidationMode, QueryTarget};
 use zenoh::queryable::{Query, Queryable};
 use zenoh::Result as ZResult;
 use zenoh::Session;
-use zenoh_collections::{Timed, TimedEvent, Timer};
 use zenoh_core::{bail, zerror};
 use zenoh_ext::group::{Group, GroupEvent, JoinEvent, LeaseExpiredEvent, LeaveEvent, Member};
 use zenoh_ext::SessionExt;
+use zenoh_util::{Timed, TimedEvent, Timer};
 
 pub mod config;
 mod dds_mgt;

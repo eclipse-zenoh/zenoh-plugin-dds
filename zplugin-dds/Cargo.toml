@@ -56,6 +56,7 @@ zenoh-collections = { git = "https://github.com/eclipse-zenoh/zenoh", branch = "
 zenoh-core = { git = "https://github.com/eclipse-zenoh/zenoh", branch = "new-buffers" }
 zenoh-ext = { git = "https://github.com/eclipse-zenoh/zenoh", branch = "new-buffers", features = ["unstable"] }
 zenoh-plugin-trait = { git = "https://github.com/eclipse-zenoh/zenoh", branch = "new-buffers", default-features = false }
+zenoh-util = { git = "https://github.com/eclipse-zenoh/zenoh", branch = "new-buffers", default-features = false }
 
 [dependencies.async-std]
 version = "=1.12.0"
