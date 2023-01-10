@@ -34,9 +34,9 @@ env_logger = "0.10.0"
 lazy_static = "1.4.0"
 log = "0.4"
 serde_json = "1.0.71"
-zenoh = { git = "https://github.com/eclipse-zenoh/zenoh", branch = "new-buffers", features = [ "unstable" ] }
-zenoh-plugin-rest = { git = "https://github.com/eclipse-zenoh/zenoh", branch = "new-buffers", default-features = false }
-zenoh-plugin-trait = { git = "https://github.com/eclipse-zenoh/zenoh", branch = "new-buffers", default-features = false }
+zenoh = { git = "https://github.com/eclipse-zenoh/zenoh", branch = "master", features = [ "unstable" ] }
+zenoh-plugin-rest = { git = "https://github.com/eclipse-zenoh/zenoh", branch = "master", default-features = false }
+zenoh-plugin-trait = { git = "https://github.com/eclipse-zenoh/zenoh", branch = "master", default-features = false }
 zplugin-dds = { path = "../zplugin-dds", default-features = false }
 
 [dependencies.async-std]
