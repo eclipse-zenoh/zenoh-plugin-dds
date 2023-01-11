@@ -13,35 +13,27 @@
 #
 [package]
 name = "zenoh-bridge-dds"
-version = "0.7.0-rc"
-authors = [
-    "kydos <angelo@icorsaro.net>",
-    "Esteve Fernandez <esteve.fernandez@gmail.com>",
-    "Julien Enoch <julien@enoch.fr>",
-    "Pierre Avital <pierre.avital@adlinktech.com>",
-]
-edition = "2018"
-repository = "https://github.com/eclipse-zenoh/zenoh-plugin-dds"
-homepage = "http://zenoh.io"
-license = " EPL-2.0 OR Apache-2.0"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+repository.workspace = true
+homepage.workspace = true
+license.workspace = true
 categories = ["network-programming"]
 description = "Zenoh bridge for ROS2 and DDS in general"
 
 [dependencies]
-async-liveliness-monitor = "0.1.1"
-clap = "3.2.12"
-env_logger = "0.10.0"
-lazy_static = "1.4.0"
-log = "0.4"
-serde_json = "1.0.71"
-zenoh = { git = "https://github.com/eclipse-zenoh/zenoh", branch = "master", features = [ "unstable" ] }
-zenoh-plugin-rest = { git = "https://github.com/eclipse-zenoh/zenoh", branch = "master", default-features = false }
-zenoh-plugin-trait = { git = "https://github.com/eclipse-zenoh/zenoh", branch = "master", default-features = false }
-zplugin-dds = { path = "../zplugin-dds", default-features = false }
-
-[dependencies.async-std]
-version = "=1.12.0"
-features = ["unstable", "attributes"]
+async-std = { workspace = true, features = ["unstable", "attributes"] }
+async-liveliness-monitor.workspace = true
+clap.workspace = true
+env_logger.workspace = true
+lazy_static.workspace = true
+log.workspace = true
+serde_json.workspace = true
+zenoh .workspace = true
+zenoh-plugin-rest.workspace = true
+zenoh-plugin-trait.workspace = true
+zplugin-dds = { path = "../zplugin-dds/", default-features = false }
 
 [[bin]]
 name = "zenoh-bridge-dds"
