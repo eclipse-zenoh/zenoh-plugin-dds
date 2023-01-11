@@ -13,26 +13,26 @@
 #
 [package]
 name = "zenoh-bridge-dds"
-version.workspace = true
-authors.workspace = true
-edition.workspace = true
-repository.workspace = true
-homepage.workspace = true
-license.workspace = true
+version = { workspace = true }
+authors = { workspace = true }
+edition = { workspace = true }
+repository = { workspace = true }
+homepage = { workspace = true }
+license = { workspace = true }
 categories = ["network-programming"]
 description = "Zenoh bridge for ROS2 and DDS in general"
 
 [dependencies]
 async-std = { workspace = true, features = ["unstable", "attributes"] }
-async-liveliness-monitor.workspace = true
-clap.workspace = true
-env_logger.workspace = true
-lazy_static.workspace = true
-log.workspace = true
-serde_json.workspace = true
-zenoh .workspace = true
-zenoh-plugin-rest.workspace = true
-zenoh-plugin-trait.workspace = true
+async-liveliness-monitor = { workspace = true }
+clap = { workspace = true }
+env_logger = { workspace = true }
+lazy_static = { workspace = true }
+log = { workspace = true }
+serde_json = { workspace = true }
+zenoh  = { workspace = true }
+zenoh-plugin-rest = { workspace = true }
+zenoh-plugin-trait = { workspace = true }
 zplugin-dds = { path = "../zplugin-dds/", default-features = false }
 
 [[bin]]
