@@ -20,9 +20,6 @@ on:
     - cron: "0 1 * * 1-5"
   workflow_dispatch:
 
-env:
-  cargo-deb-version: 1.35.0
-
 jobs:
   checks:
     name: Code checks
