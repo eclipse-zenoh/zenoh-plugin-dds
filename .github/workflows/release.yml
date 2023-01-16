@@ -146,7 +146,7 @@ jobs:
         shell: bash
         run: |
           case ${{ matrix.job.target }} in
-            *-linux-gnu*) cargo install cargo-deb --version ${{ env.cargo-deb-version }};;
+            *-linux-gnu*) cargo install cargo-deb;;
           esac
 
           case ${{ matrix.job.target }} in
