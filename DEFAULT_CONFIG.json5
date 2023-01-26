@@ -34,11 +34,6 @@
       // group_member_id: "robot-1",
 
       ////
-      //// group_lease: The lease duration (in seconds) used in group management for all DDS plugins.
-      ////
-      // group_lease: 2.5,
-
-      ////
       //// allow: A regular expression matching the set of 'partition/topic-name' that must be routed via zenoh.
       ////        By default, all partitions and topics are allowed.
       ////        If both 'allow' and 'deny' are set a partition and/or topic will be allowed if it matches only the 'allow' expression.
