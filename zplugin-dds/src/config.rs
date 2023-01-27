@@ -120,7 +120,7 @@ where
     let s: String = Deserialize::deserialize(deserializer)?;
     Regex::new(&s)
         .map(Some)
-        .map_err(|e| de::Error::custom(format!("Invalid regex 'allow={}': {}", s, e)))
+        .map_err(|e| de::Error::custom(format!("Invalid regex 'allow={s}': {e}")))
 }
 
 fn deserialize_max_frequencies<'de, D>(deserializer: D) -> Result<Vec<(Regex, f32)>, D::Error>
@@ -132,14 +132,13 @@ where
     for s in strs {
         let i = s
             .find('=')
-            .ok_or_else(|| de::Error::custom(format!("Invalid 'max_frequency': {}", s)))?;
+            .ok_or_else(|| de::Error::custom(format!("Invalid 'max_frequency': {s}")))?;
         let regex = Regex::new(&s[0..i]).map_err(|e| {
-            de::Error::custom(format!("Invalid regex for 'max_frequency': '{}': {}", s, e))
+            de::Error::custom(format!("Invalid regex for 'max_frequency': '{s}': {e}"))
         })?;
         let frequency: f32 = s[i + 1..].parse().map_err(|e| {
             de::Error::custom(format!(
-                "Invalid float value for 'max_frequency': '{}': {}",
-                s, e
+                "Invalid float value for 'max_frequency': '{s}': {e}"
             ))
         })?;
         result.push((regex, frequency));

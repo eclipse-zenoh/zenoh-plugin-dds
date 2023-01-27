@@ -184,8 +184,7 @@ impl RouteZenohDDS<'_> {
                 .await
                 .map_err(|e| {
                     format!(
-                        "Route Zenoh->DDS ({} -> {}): failed to create QueryingSubscriber: {}",
-                        ke, topic_name, e
+                        "Route Zenoh->DDS ({ke} -> {topic_name}): failed to create QueryingSubscriber: {e}"
                     )
                 })?;
             ZSubscriber::QueryingSubscriber(sub)
@@ -200,8 +199,7 @@ impl RouteZenohDDS<'_> {
                 .await
                 .map_err(|e| {
                     format!(
-                        "Route Zenoh->DDS ({} -> {}): failed to create Subscriber: {}",
-                        ke, topic_name, e
+                        "Route Zenoh->DDS ({ke} -> {topic_name}): failed to create Subscriber: {e}"
                     )
                 })?;
             ZSubscriber::Subscriber(sub)

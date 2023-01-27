@@ -270,7 +270,7 @@ impl Serialize for DdsPluginRuntime<'_> {
                 .config
                 .max_frequencies
                 .iter()
-                .map(|(re, freq)| format!("{}={}", re, freq))
+                .map(|(re, freq)| format!("{re}={freq}"))
                 .collect::<Vec<String>>(),
         )?;
         s.serialize_field("forward_discovery", &self.config.forward_discovery)?;
@@ -646,9 +646,9 @@ impl<'a> DdsPluginRuntime<'a> {
     ) -> ZResult<OwnedKeyExpr> {
         // key_expr for a topic is: "<scope>/<partition>/<topic_name>" with <scope> and <partition> being optional
         match (scope, partition) {
-            (Some(scope), Some(part)) => scope.join(&format!("{}/{}", part, topic_name)),
+            (Some(scope), Some(part)) => scope.join(&format!("{part}/{topic_name}")),
             (Some(scope), None) => scope.join(topic_name),
-            (None, Some(part)) => format!("{}/{}", part, topic_name).try_into(),
+            (None, Some(part)) => format!("{part}/{topic_name}").try_into(),
             (None, None) => topic_name.try_into(),
         }
     }
@@ -1272,7 +1272,7 @@ impl<'a> DdsPluginRuntime<'a> {
                             // remove all the references to the plugin's enities, removing no longer used routes
                             // and updating/re-publishing ParticipantEntitiesInfo
                             let admin_space = &mut self.admin_space;
-                            let admin_subke = format!("@/service/{}/dds/", mid);
+                            let admin_subke = format!("@/service/{mid}/dds/");
                             let mut participant_info_changed = false;
                             self.routes_to_dds.retain(|zkey, route| {
                                 route.remove_remote_routed_writers_containing(&admin_subke);

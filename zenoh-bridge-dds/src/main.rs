@@ -178,7 +178,7 @@ r#"--watchdog=[PERIOD]   'Experimental!! Run a watchdog thread that monitors the
     }
     if let Some(port) = args.value_of("rest-http-port") {
         config
-            .insert_json5("plugins/rest/http_port", &format!(r#""{}""#, port))
+            .insert_json5("plugins/rest/http_port", &format!(r#""{port}""#))
             .unwrap();
     }
     // Always add timestamps to publications (required for PublicationCache used in case of TRANSIENT_LOCAL topics)

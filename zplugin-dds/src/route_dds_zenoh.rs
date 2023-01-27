@@ -104,10 +104,7 @@ impl RouteDDSZenoh<'_> {
             .res()
             .await
             .map_err(|e| {
-                format!(
-                    "Route Zenoh->DDS ({} -> {}): failed to declare KeyExpr: {}",
-                    topic_name, ke, e
-                )
+                format!("Route Zenoh->DDS ({topic_name} -> {ke}): failed to declare KeyExpr: {e}")
             })?;
 
         // declare the zenoh Publisher
@@ -152,10 +149,7 @@ impl RouteDDSZenoh<'_> {
                 .res()
                 .await
                 .map_err(|e| {
-                    format!(
-                        "Failed create PublicationCache for key {} (rid={}): {}",
-                        ke, declared_ke, e
-                    )
+                    format!("Failed create PublicationCache for key {ke} (rid={declared_ke}): {e}")
                 })?;
             ZPublisher::PublicationCache(pub_cache)
         } else {
