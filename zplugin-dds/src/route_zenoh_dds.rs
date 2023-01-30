@@ -34,8 +34,6 @@ use crate::{
 type AtomicDDSEntity = AtomicI32;
 const DDS_ENTITY_NULL: dds_entity_t = 0;
 
-const TIMEOUT_HISTORICAL_PUB_QUERY: f32 = 5.0;
-
 enum ZSubscriber<'a> {
     Subscriber(Subscriber<'a, ()>),
     QueryingSubscriber(QueryingSubscriber<'a, ()>),
@@ -179,6 +177,7 @@ impl RouteZenohDDS<'_> {
                 .callback(subscriber_callback)
                 .allowed_origin(Locality::Remote) // Allow only remote publications to avoid loops
                 .reliable()
+                .query_timeout(plugin.config.queries_timeout)
                 .query_selector(query_selector)
                 .res()
                 .await
@@ -268,8 +267,11 @@ impl RouteZenohDDS<'_> {
 
     /// If this route uses a QueryingSubscriber, query for historical publications
     /// using the specified Selector. Otherwise, do nothing.
-    pub(crate) async fn query_historical_publications<'a, F>(&mut self, selector: F)
-    where
+    pub(crate) async fn query_historical_publications<'a, F>(
+        &mut self,
+        selector: F,
+        query_timeout: Duration,
+    ) where
         F: Fn() -> Selector<'a>,
     {
         if let ZSubscriber::QueryingSubscriber(sub) = &mut self.zenoh_subscriber {
@@ -281,12 +283,7 @@ impl RouteZenohDDS<'_> {
                 s
             );
             if let Err(e) = sub
-                .query_on(
-                    &s,
-                    QueryTarget::All,
-                    ConsolidationMode::None,
-                    Duration::from_secs_f32(TIMEOUT_HISTORICAL_PUB_QUERY),
-                )
+                .query_on(&s, QueryTarget::All, ConsolidationMode::None, query_timeout)
                 .res()
                 .await
             {

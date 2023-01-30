@@ -135,6 +135,11 @@ r#"-f, --fwd-discovery   'When set, rather than creating a local route when disc
             ).alias("forward-discovery")
         )
         .arg(Arg::from_usage(
+r#"--queries-timeout=[float]... 'A float in seconds (default: 5.0 sec) that will be used as a timeout when the bridge
+queries any other remote bridge for discovery information and for historical data for TRANSIENT_LOCAL DDS Readers it serves
+(i.e. if the query to the remote bridge exceed the timeout, some historical samples might be not routed to the Readers, but the route will not be blocked forever)."#
+        ))
+        .arg(Arg::from_usage(
 r#"--watchdog=[PERIOD]   'Experimental!! Run a watchdog thread that monitors the bridge's async executor and reports as error log any stalled status during the specified period (default: 1.0 second)'"#
         ).default_missing_value("1.0"));
     let args = app.get_matches();
@@ -198,6 +203,7 @@ r#"--watchdog=[PERIOD]   'Experimental!! Run a watchdog thread that monitors the
     insert_json5!(config, args, "plugins/dds/max_frequencies", for "max-frequency", .collect::<Vec<_>>());
     insert_json5!(config, args, "plugins/dds/generalise_pubs", for "generalise-pub", .collect::<Vec<_>>());
     insert_json5!(config, args, "plugins/dds/generalise_subs", for "generalise-sub", .collect::<Vec<_>>());
+    insert_json5!(config, args, "plugins/dds/queries_timeout", if "queries-timeout", .parse::<f64>().unwrap());
     if args.is_present("fwd-discovery") {
         config
             .insert_json5("plugins/dds/forward_discovery", "true")

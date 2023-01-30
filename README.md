@@ -235,7 +235,7 @@ The `"dds"` part of this same configuration file can also be used in the configu
    - **`--rest-http-port <rest-http-port>`** : set the REST API http port (default: 8000)
  * DDS-related arguments:
    - **`-d, --domain <ID>`** : The DDS Domain ID. By default set to `0`, or to `"$ROS_DOMAIN_ID"` is this environment variable is defined.
-   - **`dds-localhost-only`** : If set, the DDS discovery and traffic will occur only on the localhost interface (127.0.0.1).
+   - **`--dds-localhost-only`** : If set, the DDS discovery and traffic will occur only on the localhost interface (127.0.0.1).
      By default set to false, unless the "ROS_LOCALHOST_ONLY=1" environment variable is defined.
    - **`-f, --fwd-discovery`** : When set, rather than creating a local route when discovering a local DDS entity, this discovery info is forwarded to the remote plugins/bridges. Those will create the routes, including a replica of the discovered entity. More details [here](#full-support-of-ros-graph-and-topic-lists-via-the-forward-discovery-mode)
    - **`-s, --scope <String>`** : A string used as prefix to scope DDS traffic when mapped to zenoh keys.
@@ -254,6 +254,10 @@ The `"dds"` part of this same configuration file can also be used in the configu
        - `"float"` is the maximum frequency in Hertz; if publication rate is higher, downsampling will occur when routing.
 
        (usable multiple times)
+   - **`--queries-timeout <Duration>`**: A duration in seconds (default: 5.0 sec) that will be used as a timeout when the bridge
+     queries any other remote bridge for discovery information and for historical data for TRANSIENT_LOCAL DDS Readers it serves
+     (i.e. if the query to the remote bridge exceed the timeout, some historical samples might be not routed to the Readers,
+     but the route will not be blocked forever).
    - **`-w, --generalise-pub <String>`** :  A list of key expressions to use for generalising the declaration of
      the zenoh publications, and thus minimizing the discovery traffic (usable multiple times).
      See [this blog](https://zenoh.io/blog/2021-03-23-discovery/#leveraging-resource-generalisation) for more details.
