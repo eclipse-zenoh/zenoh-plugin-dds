@@ -21,6 +21,7 @@ pub const DEFAULT_DOMAIN: u32 = 0;
 pub const DEFAULT_GROUP_LEASE_SEC: f64 = 3.0;
 pub const DEFAULT_FORWARD_DISCOVERY: bool = false;
 pub const DEFAULT_RELIABLE_ROUTES_BLOCKING: bool = true;
+pub const DEFAULT_QUERIES_TIMEOUT: f32 = 5.0;
 pub const DEFAULT_DDS_LOCALHOST_ONLY: bool = false;
 
 #[derive(Deserialize, Debug)]
@@ -53,6 +54,11 @@ pub struct Config {
     pub reliable_routes_blocking: bool,
     #[serde(default = "default_localhost_only")]
     pub localhost_only: bool,
+    #[serde(
+        default = "default_queries_timeout",
+        deserialize_with = "deserialize_duration"
+    )]
+    pub queries_timeout: Duration,
     #[serde(default)]
     __required__: bool,
     #[serde(default, deserialize_with = "deserialize_paths")]
@@ -144,6 +150,18 @@ where
         result.push((regex, frequency));
     }
     Ok(result)
+}
+
+fn default_queries_timeout() -> Duration {
+    Duration::from_secs_f32(DEFAULT_QUERIES_TIMEOUT)
+}
+
+fn deserialize_duration<'de, D>(deserializer: D) -> Result<Duration, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let seconds: f32 = Deserialize::deserialize(deserializer)?;
+    Ok(Duration::from_secs_f32(seconds))
 }
 
 fn default_forward_discovery() -> bool {

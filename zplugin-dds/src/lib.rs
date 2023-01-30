@@ -823,7 +823,7 @@ impl<'a> DdsPluginRuntime<'a> {
                             if let Ok(member_id) = keyexpr::new(member.id()) {
                                 // make all QueryingSubscriber to query this new member
                                 for (zkey, route) in &mut self.routes_to_dds {
-                                    route.query_historical_publications(|| (*KE_PREFIX_PUB_CACHE / member_id / zkey).into()).await;
+                                    route.query_historical_publications(|| (*KE_PREFIX_PUB_CACHE / member_id / zkey).into(), self.config.queries_timeout).await;
                                 }
                             } else {
                                 error!("Can't convert member id '{}' into a KeyExpr", member.id());
@@ -910,6 +910,7 @@ impl<'a> DdsPluginRuntime<'a> {
             .zsession
             .declare_querying_subscriber(fwd_discovery_subscription_key)
             .allowed_origin(Locality::Remote) // Note: ignore my own publications
+            .query_timeout(self.config.queries_timeout)
             .res()
             .await
             .expect("Failed to declare QueryingSubscriber for Fwd Discovery");
@@ -1259,12 +1260,12 @@ impl<'a> DdsPluginRuntime<'a> {
                                 *KE_PREFIX_FWD_DISCO / ke_for_sure!(member.id()) / *KE_ANY_N_SEGMENT
                             };
                             debug!("Query past discovery messages from {} on {}", member.id(), key);
-                            if let Err(e) = fwd_disco_sub.query_on(Selector::from(&key), QueryTarget::All, ConsolidationMode::None, Duration::from_secs(5)).res().await {
+                            if let Err(e) = fwd_disco_sub.query_on(Selector::from(&key), QueryTarget::All, ConsolidationMode::None, self.config.queries_timeout).res().await {
                                 warn!("Query on {} for discovery messages failed: {}", key, e);
                             }
                             // make all QueryingSubscriber to query this new member
                             for (zkey, route) in &mut self.routes_to_dds {
-                                route.query_historical_publications(|| (*KE_PREFIX_PUB_CACHE / ke_for_sure!(member.id()) / zkey).into()).await;
+                                route.query_historical_publications(|| (*KE_PREFIX_PUB_CACHE / ke_for_sure!(member.id()) / zkey).into(), self.config.queries_timeout).await;
                             }
                         }
                         Ok(GroupEvent::Leave(LeaveEvent{mid})) | Ok(GroupEvent::LeaseExpired(LeaseExpiredEvent{mid})) => {
