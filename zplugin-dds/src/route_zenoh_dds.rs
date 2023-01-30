@@ -283,12 +283,7 @@ impl RouteZenohDDS<'_> {
                 s
             );
             if let Err(e) = sub
-                .query_on(
-                    &s,
-                    QueryTarget::All,
-                    ConsolidationMode::None,
-                    query_timeout,
-                )
+                .query_on(&s, QueryTarget::All, ConsolidationMode::None, query_timeout)
                 .res()
                 .await
             {

@@ -90,6 +90,14 @@
       ////                           is used, meaning the route might drop some data in case of congestion.
       ////
       // reliable_routes_blocking: true,
+
+      ////
+      //// queries_timeout: A duration in seconds (default: 5.0 sec) that will be used as a timeout when the bridge
+      ////                  queries any other remote bridge for discovery information and for historical data for TRANSIENT_LOCAL DDS Readers it serves
+      ////                  (i.e. if the query to the remote bridge exceed the timeout, some historical samples might be not routed to the Readers,
+      ////                  but the route will not be blocked forever).
+      ////
+      // queries_timeout: 5.0,
     },
 
     ////
