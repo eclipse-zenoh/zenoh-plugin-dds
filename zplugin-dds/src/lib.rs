@@ -81,7 +81,7 @@ lazy_static::lazy_static!(
 // CycloneDDS' localhost-only: set network interface address (shortened form of config would be
 // possible, too, but I think it is clearer to spell it out completely).
 // Empty configuration fragments are ignored, so it is safe to unconditionally append a comma.
-const CYCLONEDDS_CONFIG_LOCALHOST_ONLY: &str = r#"<CycloneDDS><Domain><General><NetworkInterfaceAddress>127.0.0.1</NetworkInterfaceAddress></General></Domain></CycloneDDS>,"#;
+const CYCLONEDDS_CONFIG_LOCALHOST_ONLY: &str = r#"<CycloneDDS><Domain><General><Interfaces><NetworkInterface address="127.0.0.1" multicast="true"/></Interfaces></General></Domain></CycloneDDS>,"#;
 
 const GROUP_NAME: &str = "zenoh-plugin-dds";
 
