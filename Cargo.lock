@@ -68,6 +68,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "ahash"
+version = "0.8.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2c99f64d1e06488f620f932677e24bc6e2897582980441ae90a671415bd7ec2f"
+dependencies = [
+ "cfg-if 1.0.0",
+ "once_cell",
+ "version_check",
+]
+
+[[package]]
 name = "aho-corasick"
 version = "0.7.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1198,6 +1209,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8a9ee70c43aaf417c914396645a0fa852624801b24ebb7ae78fe8272889ac888"
 
 [[package]]
+name = "hashbrown"
+version = "0.13.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "43a3c133739dddd0d2990f9a4bdf8eb4b21ef50e4851ca85ab661199821d510e"
+dependencies = [
+ "ahash",
+]
+
+[[package]]
 name = "hermit-abi"
 version = "0.1.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1367,7 +1387,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1885e79c1fc4b10f0e172c475f458b7f7b93061064d98c3293e98c5ba0c8b399"
 dependencies = [
  "autocfg",
- "hashbrown",
+ "hashbrown 0.12.3",
 ]
 
 [[package]]
@@ -1458,6 +1478,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3afef3b6eff9ce9d8ff9b3601125eec7f0c8cbac7abd14f355d053fa56c98768"
 dependencies = [
  "cpufeatures",
+]
+
+[[package]]
+name = "keyed-set"
+version = "0.4.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5e4be799ab6c1006138054745f5043b726d8bbb526ebaa7f15d44ff4d399d71c"
+dependencies = [
+ "hashbrown 0.13.2",
 ]
 
 [[package]]
@@ -2863,6 +2892,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cda74da7e1a664f795bb1f8a87ec406fb89a02522cf6e50620d016add6dbbf5c"
 
 [[package]]
+name = "token-cell"
+version = "1.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "59a3bf80fcc7b38f8fe4032a779e5bb31daff5edbab41d37954c2ef44d35f81b"
+dependencies = [
+ "paste",
+]
+
+[[package]]
 name = "tokio"
 version = "1.24.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3402,7 +3440,7 @@ checksum = "447660ad36a13288b1db4d4248e857b510e8c3a225c822ba4fb748c0aafecffd"
 [[package]]
 name = "zenoh"
 version = "0.7.0-rc"
-source = "git+https://github.com/eclipse-zenoh/zenoh?branch=liveliness#d8819b0f72c29d9ddb8aeec8cc182126a88177b6"
+source = "git+https://github.com/eclipse-zenoh/zenoh?branch=liveliness2#f3ca7b94195724a58abc41f90fc8a6b67acdb798"
 dependencies = [
  "async-global-executor",
  "async-std",
@@ -3466,7 +3504,7 @@ dependencies = [
 [[package]]
 name = "zenoh-buffers"
 version = "0.7.0-rc"
-source = "git+https://github.com/eclipse-zenoh/zenoh?branch=liveliness#d8819b0f72c29d9ddb8aeec8cc182126a88177b6"
+source = "git+https://github.com/eclipse-zenoh/zenoh?branch=liveliness2#f3ca7b94195724a58abc41f90fc8a6b67acdb798"
 dependencies = [
  "zenoh-collections",
 ]
@@ -3474,7 +3512,7 @@ dependencies = [
 [[package]]
 name = "zenoh-cfg-properties"
 version = "0.7.0-rc"
-source = "git+https://github.com/eclipse-zenoh/zenoh?branch=liveliness#d8819b0f72c29d9ddb8aeec8cc182126a88177b6"
+source = "git+https://github.com/eclipse-zenoh/zenoh?branch=liveliness2#f3ca7b94195724a58abc41f90fc8a6b67acdb798"
 dependencies = [
  "zenoh-macros",
  "zenoh-result",
@@ -3483,7 +3521,7 @@ dependencies = [
 [[package]]
 name = "zenoh-codec"
 version = "0.7.0-rc"
-source = "git+https://github.com/eclipse-zenoh/zenoh?branch=liveliness#d8819b0f72c29d9ddb8aeec8cc182126a88177b6"
+source = "git+https://github.com/eclipse-zenoh/zenoh?branch=liveliness2#f3ca7b94195724a58abc41f90fc8a6b67acdb798"
 dependencies = [
  "uhlc",
  "zenoh-buffers",
@@ -3494,12 +3532,12 @@ dependencies = [
 [[package]]
 name = "zenoh-collections"
 version = "0.7.0-rc"
-source = "git+https://github.com/eclipse-zenoh/zenoh?branch=liveliness#d8819b0f72c29d9ddb8aeec8cc182126a88177b6"
+source = "git+https://github.com/eclipse-zenoh/zenoh?branch=liveliness2#f3ca7b94195724a58abc41f90fc8a6b67acdb798"
 
 [[package]]
 name = "zenoh-config"
 version = "0.7.0-rc"
-source = "git+https://github.com/eclipse-zenoh/zenoh?branch=liveliness#d8819b0f72c29d9ddb8aeec8cc182126a88177b6"
+source = "git+https://github.com/eclipse-zenoh/zenoh?branch=liveliness2#f3ca7b94195724a58abc41f90fc8a6b67acdb798"
 dependencies = [
  "flume",
  "json5",
@@ -3518,7 +3556,7 @@ dependencies = [
 [[package]]
 name = "zenoh-core"
 version = "0.7.0-rc"
-source = "git+https://github.com/eclipse-zenoh/zenoh?branch=liveliness#d8819b0f72c29d9ddb8aeec8cc182126a88177b6"
+source = "git+https://github.com/eclipse-zenoh/zenoh?branch=liveliness2#f3ca7b94195724a58abc41f90fc8a6b67acdb798"
 dependencies = [
  "async-std",
  "lazy_static",
@@ -3529,7 +3567,7 @@ dependencies = [
 [[package]]
 name = "zenoh-crypto"
 version = "0.7.0-rc"
-source = "git+https://github.com/eclipse-zenoh/zenoh?branch=liveliness#d8819b0f72c29d9ddb8aeec8cc182126a88177b6"
+source = "git+https://github.com/eclipse-zenoh/zenoh?branch=liveliness2#f3ca7b94195724a58abc41f90fc8a6b67acdb798"
 dependencies = [
  "aes 0.8.2",
  "hmac 0.12.1",
@@ -3542,7 +3580,7 @@ dependencies = [
 [[package]]
 name = "zenoh-ext"
 version = "0.7.0-rc"
-source = "git+https://github.com/eclipse-zenoh/zenoh?branch=liveliness#d8819b0f72c29d9ddb8aeec8cc182126a88177b6"
+source = "git+https://github.com/eclipse-zenoh/zenoh?branch=liveliness2#f3ca7b94195724a58abc41f90fc8a6b67acdb798"
 dependencies = [
  "async-std",
  "bincode",
@@ -3561,7 +3599,7 @@ dependencies = [
 [[package]]
 name = "zenoh-link"
 version = "0.7.0-rc"
-source = "git+https://github.com/eclipse-zenoh/zenoh?branch=liveliness#d8819b0f72c29d9ddb8aeec8cc182126a88177b6"
+source = "git+https://github.com/eclipse-zenoh/zenoh?branch=liveliness2#f3ca7b94195724a58abc41f90fc8a6b67acdb798"
 dependencies = [
  "async-std",
  "async-trait",
@@ -3581,7 +3619,7 @@ dependencies = [
 [[package]]
 name = "zenoh-link-commons"
 version = "0.7.0-rc"
-source = "git+https://github.com/eclipse-zenoh/zenoh?branch=liveliness#d8819b0f72c29d9ddb8aeec8cc182126a88177b6"
+source = "git+https://github.com/eclipse-zenoh/zenoh?branch=liveliness2#f3ca7b94195724a58abc41f90fc8a6b67acdb798"
 dependencies = [
  "async-std",
  "async-trait",
@@ -3598,7 +3636,7 @@ dependencies = [
 [[package]]
 name = "zenoh-link-quic"
 version = "0.7.0-rc"
-source = "git+https://github.com/eclipse-zenoh/zenoh?branch=liveliness#d8819b0f72c29d9ddb8aeec8cc182126a88177b6"
+source = "git+https://github.com/eclipse-zenoh/zenoh?branch=liveliness2#f3ca7b94195724a58abc41f90fc8a6b67acdb798"
 dependencies = [
  "async-std",
  "async-trait",
@@ -3622,7 +3660,7 @@ dependencies = [
 [[package]]
 name = "zenoh-link-tcp"
 version = "0.7.0-rc"
-source = "git+https://github.com/eclipse-zenoh/zenoh?branch=liveliness#d8819b0f72c29d9ddb8aeec8cc182126a88177b6"
+source = "git+https://github.com/eclipse-zenoh/zenoh?branch=liveliness2#f3ca7b94195724a58abc41f90fc8a6b67acdb798"
 dependencies = [
  "async-std",
  "async-trait",
@@ -3638,7 +3676,7 @@ dependencies = [
 [[package]]
 name = "zenoh-link-tls"
 version = "0.7.0-rc"
-source = "git+https://github.com/eclipse-zenoh/zenoh?branch=liveliness#d8819b0f72c29d9ddb8aeec8cc182126a88177b6"
+source = "git+https://github.com/eclipse-zenoh/zenoh?branch=liveliness2#f3ca7b94195724a58abc41f90fc8a6b67acdb798"
 dependencies = [
  "async-rustls",
  "async-std",
@@ -3661,7 +3699,7 @@ dependencies = [
 [[package]]
 name = "zenoh-link-udp"
 version = "0.7.0-rc"
-source = "git+https://github.com/eclipse-zenoh/zenoh?branch=liveliness#d8819b0f72c29d9ddb8aeec8cc182126a88177b6"
+source = "git+https://github.com/eclipse-zenoh/zenoh?branch=liveliness2#f3ca7b94195724a58abc41f90fc8a6b67acdb798"
 dependencies = [
  "async-std",
  "async-trait",
@@ -3680,7 +3718,7 @@ dependencies = [
 [[package]]
 name = "zenoh-link-unixsock_stream"
 version = "0.7.0-rc"
-source = "git+https://github.com/eclipse-zenoh/zenoh?branch=liveliness#d8819b0f72c29d9ddb8aeec8cc182126a88177b6"
+source = "git+https://github.com/eclipse-zenoh/zenoh?branch=liveliness2#f3ca7b94195724a58abc41f90fc8a6b67acdb798"
 dependencies = [
  "async-std",
  "async-trait",
@@ -3698,7 +3736,7 @@ dependencies = [
 [[package]]
 name = "zenoh-link-ws"
 version = "0.7.0-rc"
-source = "git+https://github.com/eclipse-zenoh/zenoh?branch=liveliness#d8819b0f72c29d9ddb8aeec8cc182126a88177b6"
+source = "git+https://github.com/eclipse-zenoh/zenoh?branch=liveliness2#f3ca7b94195724a58abc41f90fc8a6b67acdb798"
 dependencies = [
  "async-std",
  "async-trait",
@@ -3718,7 +3756,7 @@ dependencies = [
 [[package]]
 name = "zenoh-macros"
 version = "0.7.0-rc"
-source = "git+https://github.com/eclipse-zenoh/zenoh?branch=liveliness#d8819b0f72c29d9ddb8aeec8cc182126a88177b6"
+source = "git+https://github.com/eclipse-zenoh/zenoh?branch=liveliness2#f3ca7b94195724a58abc41f90fc8a6b67acdb798"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3730,7 +3768,7 @@ dependencies = [
 [[package]]
 name = "zenoh-plugin-rest"
 version = "0.7.0-rc"
-source = "git+https://github.com/eclipse-zenoh/zenoh?branch=liveliness#d8819b0f72c29d9ddb8aeec8cc182126a88177b6"
+source = "git+https://github.com/eclipse-zenoh/zenoh?branch=liveliness2#f3ca7b94195724a58abc41f90fc8a6b67acdb798"
 dependencies = [
  "anyhow",
  "async-std",
@@ -3757,7 +3795,7 @@ dependencies = [
 [[package]]
 name = "zenoh-plugin-trait"
 version = "0.7.0-rc"
-source = "git+https://github.com/eclipse-zenoh/zenoh?branch=liveliness#d8819b0f72c29d9ddb8aeec8cc182126a88177b6"
+source = "git+https://github.com/eclipse-zenoh/zenoh?branch=liveliness2#f3ca7b94195724a58abc41f90fc8a6b67acdb798"
 dependencies = [
  "libloading",
  "log",
@@ -3770,7 +3808,7 @@ dependencies = [
 [[package]]
 name = "zenoh-protocol"
 version = "0.7.0-rc"
-source = "git+https://github.com/eclipse-zenoh/zenoh?branch=liveliness#d8819b0f72c29d9ddb8aeec8cc182126a88177b6"
+source = "git+https://github.com/eclipse-zenoh/zenoh?branch=liveliness2#f3ca7b94195724a58abc41f90fc8a6b67acdb798"
 dependencies = [
  "hex",
  "rand 0.8.5",
@@ -3784,7 +3822,7 @@ dependencies = [
 [[package]]
 name = "zenoh-result"
 version = "0.7.0-rc"
-source = "git+https://github.com/eclipse-zenoh/zenoh?branch=liveliness#d8819b0f72c29d9ddb8aeec8cc182126a88177b6"
+source = "git+https://github.com/eclipse-zenoh/zenoh?branch=liveliness2#f3ca7b94195724a58abc41f90fc8a6b67acdb798"
 dependencies = [
  "anyhow",
 ]
@@ -3792,7 +3830,7 @@ dependencies = [
 [[package]]
 name = "zenoh-shm"
 version = "0.7.0-rc"
-source = "git+https://github.com/eclipse-zenoh/zenoh?branch=liveliness#d8819b0f72c29d9ddb8aeec8cc182126a88177b6"
+source = "git+https://github.com/eclipse-zenoh/zenoh?branch=liveliness2#f3ca7b94195724a58abc41f90fc8a6b67acdb798"
 dependencies = [
  "bincode",
  "log",
@@ -3805,7 +3843,7 @@ dependencies = [
 [[package]]
 name = "zenoh-sync"
 version = "0.7.0-rc"
-source = "git+https://github.com/eclipse-zenoh/zenoh?branch=liveliness#d8819b0f72c29d9ddb8aeec8cc182126a88177b6"
+source = "git+https://github.com/eclipse-zenoh/zenoh?branch=liveliness2#f3ca7b94195724a58abc41f90fc8a6b67acdb798"
 dependencies = [
  "async-std",
  "event-listener",
@@ -3820,7 +3858,7 @@ dependencies = [
 [[package]]
 name = "zenoh-transport"
 version = "0.7.0-rc"
-source = "git+https://github.com/eclipse-zenoh/zenoh?branch=liveliness#d8819b0f72c29d9ddb8aeec8cc182126a88177b6"
+source = "git+https://github.com/eclipse-zenoh/zenoh?branch=liveliness2#f3ca7b94195724a58abc41f90fc8a6b67acdb798"
 dependencies = [
  "async-executor",
  "async-global-executor",
@@ -3851,16 +3889,18 @@ dependencies = [
 [[package]]
 name = "zenoh-util"
 version = "0.7.0-rc"
-source = "git+https://github.com/eclipse-zenoh/zenoh?branch=liveliness#d8819b0f72c29d9ddb8aeec8cc182126a88177b6"
+source = "git+https://github.com/eclipse-zenoh/zenoh?branch=liveliness2#f3ca7b94195724a58abc41f90fc8a6b67acdb798"
 dependencies = [
  "async-std",
  "async-trait",
  "clap",
  "flume",
  "futures",
+ "hashbrown 0.13.2",
  "hex",
  "home",
  "humantime",
+ "keyed-set",
  "lazy_static",
  "libc",
  "libloading",
@@ -3868,13 +3908,11 @@ dependencies = [
  "pnet",
  "pnet_datalink",
  "shellexpand",
+ "token-cell",
  "winapi",
- "zenoh-cfg-properties",
- "zenoh-collections",
  "zenoh-core",
- "zenoh-crypto",
+ "zenoh-protocol",
  "zenoh-result",
- "zenoh-sync",
 ]
 
 [[package]]

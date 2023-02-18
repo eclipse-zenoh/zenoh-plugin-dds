@@ -79,7 +79,6 @@ lazy_static::lazy_static!(
     static ref KE_PREFIX_ROUTE_FROM_DDS: &'static keyexpr = ke_for_sure!("route/from_dds");
     static ref KE_PREFIX_PUB_CACHE: &'static keyexpr = ke_for_sure!("@dds_pub_cache");
     static ref KE_PREFIX_FWD_DISCO: &'static keyexpr = ke_for_sure!("@dds_fwd_disco");
-    static ref KE_PREFIX_LIVELINESS_SPACE: &'static keyexpr = ke_for_sure!("@/liveliness");
     static ref KE_PREFIX_LIVELINESS_GROUP: &'static keyexpr = ke_for_sure!("zenoh-plugin-dds");
 
     static ref KE_ANY_1_SEGMENT: &'static keyexpr = ke_for_sure!("*");
@@ -171,7 +170,8 @@ pub async fn run(runtime: Runtime, config: Config) {
         None => zsession.zid().into_keyexpr(),
     };
     let member = match zsession
-        .declare_liveliness(*KE_PREFIX_LIVELINESS_GROUP / &member_id)
+        .liveliness()
+        .declare_token(*KE_PREFIX_LIVELINESS_GROUP / &member_id)
         .res()
         .await
     {
@@ -607,9 +607,8 @@ impl<'a> DdsPluginRuntime<'a> {
     async fn run(&mut self) {
         let group_subscriber = self
             .zsession
-            .declare_subscriber(
-                *KE_PREFIX_LIVELINESS_SPACE / *KE_PREFIX_LIVELINESS_GROUP / *KE_ANY_N_SEGMENT,
-            )
+            .liveliness()
+            .declare_subscriber(*KE_PREFIX_LIVELINESS_GROUP / *KE_ANY_N_SEGMENT)
             .res()
             .await
             .expect("Failed to create Liveliness Subscriber");
