@@ -108,13 +108,15 @@ r#"--group-lease=[Duration]   'The lease duration (in seconds) used in group man
             .default_value(&DEFAULT_GROUP_LEASE_STR)
         )
         .arg(Arg::from_usage(
-r#"-a, --allow=[String]   'A regular expression matching the set of 'partition/topic-name' that must be routed via zenoh. By default, all partitions and topics are allowed.
+r#"-a, --allow=[String]...   'A regular expression matching the set of 'partition/topic-name' that must be routed via zenoh. By default, all partitions and topics are allowed.
 If both '--allow' and '--deny' are set a partition and/or topic will be allowed if it matches only the 'allow' expression.
+Repeat this option to configure several topic expressions. These expressions are concatenated with '|'.
 Examples of expressions: '.*/TopicA', 'Partition-?/.*', 'cmd_vel|rosout'...'"#
         ))
         .arg(Arg::from_usage(
-r#"--deny=[String]   'A regular expression matching the set of 'partition/topic-name' that must not be routed via zenoh. By default, no partitions and no topics are denied.
+r#"--deny=[String]...   'A regular expression matching the set of 'partition/topic-name' that must not be routed via zenoh. By default, no partitions and no topics are denied.
 If both '--allow' and '--deny' are set a partition and/or topic will be allowed if it matches only the 'allow' expression.
+Repeat this option to configure several topic expressions. These expressions are concatenated with '|'.
 Examples of expressions: '.*/TopicA', 'Partition-?/.*', 'cmd_vel|rosout'...'"#
         ))
         .arg(Arg::from_usage(
@@ -198,8 +200,8 @@ r#"--watchdog=[PERIOD]   'Experimental!! Run a watchdog thread that monitors the
     insert_json5!(config, args, "plugins/dds/localhost_only", if "dds-localhost-only");
     insert_json5!(config, args, "plugins/dds/group_member_id", if "group-member-id", );
     insert_json5!(config, args, "plugins/dds/group_lease", if "group-lease", .parse::<f64>().unwrap());
-    insert_json5!(config, args, "plugins/dds/allow", if "allow", );
-    insert_json5!(config, args, "plugins/dds/deny", if "deny", );
+    insert_json5!(config, args, "plugins/dds/allow", for "allow", .collect::<Vec<_>>());
+    insert_json5!(config, args, "plugins/dds/deny", for "deny", .collect::<Vec::<_>>());
     insert_json5!(config, args, "plugins/dds/max_frequencies", for "max-frequency", .collect::<Vec<_>>());
     insert_json5!(config, args, "plugins/dds/generalise_pubs", for "generalise-pub", .collect::<Vec<_>>());
     insert_json5!(config, args, "plugins/dds/generalise_subs", for "generalise-sub", .collect::<Vec<_>>());

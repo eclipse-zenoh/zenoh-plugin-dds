@@ -123,7 +123,8 @@ fn deserialize_regex<'de, D>(deserializer: D) -> Result<Option<Regex>, D::Error>
 where
     D: Deserializer<'de>,
 {
-    let s: String = Deserialize::deserialize(deserializer)?;
+    let strs: Vec<String> = Deserialize::deserialize(deserializer)?;
+    let s: String = strs.join("|");
     Regex::new(&s)
         .map(Some)
         .map_err(|e| de::Error::custom(format!("Invalid regex 'allow={s}': {e}")))
