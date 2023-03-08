@@ -39,20 +39,28 @@
       // group_lease: 2.5,
 
       ////
-      //// allow: A regular expression matching the set of 'partition/topic-name' that must be routed via zenoh.
+      //// allow: 1 or more regular expression matching the set of 'partition/topic-name' that must be routed via zenoh.
       ////        By default, all partitions and topics are allowed.
       ////        If both 'allow' and 'deny' are set a partition and/or topic will be allowed if it matches only the 'allow' expression.
       ////        Repeat this option to configure several topic expressions. These expressions are concatenated with '|'.
-      ////        Examples of expressions: ".*/TopicA", "Partition-?/.*", "cmd_vel|rosout"...'"#
+      ////        Examples (the last 2 are equivalent):
+      ////           allow: ".*/TopicA",
+      ////           allow: "Partition-?/.*",
+      ////           allow: ["cmd_vel", "rosout"]
+      ////           allow: "cmd_vel|rosout"
       ////
       // allow: ["cmd_vel", "rosout"],
 
       ////
-      //// deny:  A regular expression matching the set of 'partition/topic-name' that must NOT be routed via zenoh.
+      //// deny:  1 or more regular regular expression matching the set of 'partition/topic-name' that must NOT be routed via zenoh.
       ////        By default, no partitions and no topics are denied.
       ////        If both 'allow' and 'deny' are set a partition and/or topic will be allowed if it matches only the 'allow' expression.
       ////        Repeat this option to configure several topic expressions. These expressions are concatenated with '|'.
-      ////        Examples of expressions: ".*/TopicA", "Partition-?/.*", "cmd_vel|rosout"...'"#
+      ////        Examples (the last 2 are equivalent):
+      ////           deny: ".*/TopicA",
+      ////           deny: "Partition-?/.*",
+      ////           deny: ["cmd_vel", "rosout"]
+      ////           allow: "cmd_vel|rosout"
       ////
       // deny: ["cmd_vel", "rosout"],
 
@@ -62,7 +70,7 @@
       ////                  - "regex" is a regular expression matching the set of "partition/topic-name"
       ////                    (same syntax than --allow option) for which the data (per DDS instance) must be
       ////                    routed at no higher rate than the specified max frequency.
-      ////                  - "float" is the maximum frequency in Hertz; 
+      ////                  - "float" is the maximum frequency in Hertz;
       ////                    if publication rate is higher, downsampling will occur when routing.
       // max_frequencies: ["diagnostic.*=10", "rosout=5"],
 

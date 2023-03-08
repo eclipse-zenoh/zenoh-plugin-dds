@@ -12,8 +12,10 @@
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 use regex::Regex;
+use serde::de::Visitor;
 use serde::{de, Deserialize, Deserializer};
 use std::env;
+use std::fmt;
 use std::time::Duration;
 use zenoh::prelude::*;
 
@@ -123,11 +125,7 @@ fn deserialize_regex<'de, D>(deserializer: D) -> Result<Option<Regex>, D::Error>
 where
     D: Deserializer<'de>,
 {
-    let strs: Vec<String> = Deserialize::deserialize(deserializer)?;
-    let s: String = strs.join("|");
-    Regex::new(&s)
-        .map(Some)
-        .map_err(|e| de::Error::custom(format!("Invalid regex 'allow={s}': {e}")))
+    deserializer.deserialize_any(RegexVisitor)
 }
 
 fn deserialize_max_frequencies<'de, D>(deserializer: D) -> Result<Vec<(Regex, f32)>, D::Error>
@@ -175,4 +173,39 @@ fn default_reliable_routes_blocking() -> bool {
 
 fn default_localhost_only() -> bool {
     env::var("ROS_LOCALHOST_ONLY").as_deref() == Ok("1")
+}
+
+// Serde Visitor for Regex deserialization.
+// It accepts either a String, either a list of Strings (that are concatenated with `|`)
+struct RegexVisitor;
+
+impl<'de> Visitor<'de> for RegexVisitor {
+    type Value = Option<Regex>;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str(r#"either a string or a list of strings"#)
+    }
+
+    fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+    where
+        E: de::Error,
+    {
+        Regex::new(value)
+            .map(Some)
+            .map_err(|e| de::Error::custom(format!("Invalid regex '{value}': {e}")))
+    }
+
+    fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+    where
+        A: de::SeqAccess<'de>,
+    {
+        let mut vec: Vec<String> = Vec::new();
+        while let Some(s) = seq.next_element()? {
+            vec.push(s);
+        }
+        let s: String = vec.join("|");
+        Regex::new(&s)
+            .map(Some)
+            .map_err(|e| de::Error::custom(format!("Invalid regex '{s}': {e}")))
+    }
 }
