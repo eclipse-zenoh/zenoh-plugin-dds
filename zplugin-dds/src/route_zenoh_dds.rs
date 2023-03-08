@@ -24,7 +24,7 @@ use std::sync::Arc;
 use std::{ffi::CString, fmt, sync::atomic::AtomicI32, time::Duration};
 use zenoh::prelude::*;
 use zenoh::{prelude::r#async::AsyncResolve, subscriber::Subscriber};
-use zenoh_ext::{QueryingSubscriber, SessionExt};
+use zenoh_ext::{FetchingSubscriber, SubscriberBuilderExt};
 
 use crate::DdsPluginRuntime;
 use crate::{
@@ -36,14 +36,14 @@ const DDS_ENTITY_NULL: dds_entity_t = 0;
 
 enum ZSubscriber<'a> {
     Subscriber(Subscriber<'a, ()>),
-    QueryingSubscriber(QueryingSubscriber<'a, ()>),
+    FetchingSubscriber(FetchingSubscriber<'a, ()>),
 }
 
 impl ZSubscriber<'_> {
     fn key_expr(&self) -> &KeyExpr<'static> {
         match self {
             ZSubscriber::Subscriber(s) => s.key_expr(),
-            ZSubscriber::QueryingSubscriber(s) => s.key_expr(),
+            ZSubscriber::FetchingSubscriber(s) => s.key_expr(),
         }
     }
 }
@@ -52,6 +52,9 @@ impl ZSubscriber<'_> {
 #[allow(clippy::upper_case_acronyms)]
 #[derive(Serialize)]
 pub(crate) struct RouteZenohDDS<'a> {
+    // the zenoh session
+    #[serde(skip)]
+    zenoh_session: &'a Arc<Session>,
     // the zenoh subscriber receiving data to be re-published by the DDS Writer
     #[serde(skip)]
     zenoh_subscriber: ZSubscriber<'a>,
@@ -173,7 +176,8 @@ impl RouteZenohDDS<'_> {
 
             let sub = plugin
                 .zsession
-                .declare_querying_subscriber(ke.clone())
+                .declare_subscriber(ke.clone())
+                .querying()
                 .callback(subscriber_callback)
                 .allowed_origin(Locality::Remote) // Allow only remote publications to avoid loops
                 .reliable()
@@ -183,10 +187,11 @@ impl RouteZenohDDS<'_> {
                 .await
                 .map_err(|e| {
                     format!(
-                        "Route Zenoh->DDS ({ke} -> {topic_name}): failed to create QueryingSubscriber: {e}"
+                        "Route Zenoh->DDS ({} -> {}): failed to create FetchingSubscriber: {}",
+                        ke, topic_name, e
                     )
                 })?;
-            ZSubscriber::QueryingSubscriber(sub)
+            ZSubscriber::FetchingSubscriber(sub)
         } else {
             let sub = plugin
                 .zsession
@@ -205,6 +210,7 @@ impl RouteZenohDDS<'_> {
         };
 
         Ok(RouteZenohDDS {
+            zenoh_session: plugin.zsession,
             zenoh_subscriber,
             topic_name,
             topic_type,
@@ -265,7 +271,7 @@ impl RouteZenohDDS<'_> {
         }
     }
 
-    /// If this route uses a QueryingSubscriber, query for historical publications
+    /// If this route uses a FetchingSubscriber, query for historical publications
     /// using the specified Selector. Otherwise, do nothing.
     pub(crate) async fn query_historical_publications<'a, F>(
         &mut self,
@@ -274,7 +280,7 @@ impl RouteZenohDDS<'_> {
     ) where
         F: Fn() -> Selector<'a>,
     {
-        if let ZSubscriber::QueryingSubscriber(sub) = &mut self.zenoh_subscriber {
+        if let ZSubscriber::FetchingSubscriber(sub) = &mut self.zenoh_subscriber {
             let s = selector();
             log::debug!(
                 "Route Zenoh->DDS ({} -> {}): query historical publications from {}",
@@ -283,7 +289,20 @@ impl RouteZenohDDS<'_> {
                 s
             );
             if let Err(e) = sub
-                .query_on(&s, QueryTarget::All, ConsolidationMode::None, query_timeout)
+                .fetch({
+                    let session = &self.zenoh_session;
+                    let s = s.clone();
+                    move |cb| {
+                        use zenoh_core::SyncResolve;
+                        session
+                            .get(&s)
+                            .target(QueryTarget::All)
+                            .consolidation(ConsolidationMode::None)
+                            .timeout(query_timeout)
+                            .callback(cb)
+                            .res_sync()
+                    }
+                })
                 .res()
                 .await
             {

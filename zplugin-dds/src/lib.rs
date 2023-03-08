@@ -38,7 +38,7 @@ use zenoh::Result as ZResult;
 use zenoh::Session;
 use zenoh_core::{bail, zerror};
 use zenoh_ext::group::{Group, GroupEvent, JoinEvent, LeaseExpiredEvent, LeaveEvent, Member};
-use zenoh_ext::SessionExt;
+use zenoh_ext::{SessionExt, SubscriberBuilderExt};
 use zenoh_util::{Timed, TimedEvent, Timer};
 
 pub mod config;
@@ -908,7 +908,8 @@ impl<'a> DdsPluginRuntime<'a> {
         // Subscribe to remote DDS plugins publications of new Readers/Writers on admin space
         let mut fwd_disco_sub = self
             .zsession
-            .declare_querying_subscriber(fwd_discovery_subscription_key)
+            .declare_subscriber(fwd_discovery_subscription_key)
+            .querying()
             .allowed_origin(Locality::Remote) // Note: ignore my own publications
             .query_timeout(self.config.queries_timeout)
             .res()
@@ -1260,7 +1261,16 @@ impl<'a> DdsPluginRuntime<'a> {
                                 *KE_PREFIX_FWD_DISCO / ke_for_sure!(member.id()) / *KE_ANY_N_SEGMENT
                             };
                             debug!("Query past discovery messages from {} on {}", member.id(), key);
-                            if let Err(e) = fwd_disco_sub.query_on(Selector::from(&key), QueryTarget::All, ConsolidationMode::None, self.config.queries_timeout).res().await {
+                            if let Err(e) = fwd_disco_sub.fetch( |cb| {
+                                use zenoh_core::SyncResolve;
+                                self.zsession.get(Selector::from(&key))
+                                    .callback(cb)
+                                    .target(QueryTarget::All)
+                                    .consolidation(ConsolidationMode::None)
+                                    .timeout(Duration::from_secs(5))
+                                    .res_sync()
+                            }).res().await
+                            {
                                 warn!("Query on {} for discovery messages failed: {}", key, e);
                             }
                             // make all QueryingSubscriber to query this new member
