@@ -609,6 +609,7 @@ impl<'a> DdsPluginRuntime<'a> {
             .zsession
             .liveliness()
             .declare_subscriber(*KE_PREFIX_LIVELINESS_GROUP / *KE_ANY_N_SEGMENT)
+            .querying()
             .res()
             .await
             .expect("Failed to create Liveliness Subscriber");
