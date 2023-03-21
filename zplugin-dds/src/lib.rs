@@ -33,7 +33,7 @@ use zenoh::plugins::{Plugin, RunningPluginTrait, Runtime, ZenohPlugin};
 use zenoh::prelude::r#async::AsyncResolve;
 use zenoh::prelude::*;
 use zenoh::publication::CongestionControl;
-use zenoh::query::{ConsolidationMode, QueryTarget, ReplyKeyExpr};
+use zenoh::query::{ConsolidationMode, QueryTarget};
 use zenoh::queryable::{Query, Queryable};
 use zenoh::Result as ZResult;
 use zenoh::Session;
@@ -1285,7 +1285,6 @@ impl<'a> DdsPluginRuntime<'a> {
                                     .callback(cb)
                                     .target(QueryTarget::All)
                                     .consolidation(ConsolidationMode::None)
-                                    .accept_replies(ReplyKeyExpr::Any)
                                     .timeout(Duration::from_secs(5))
                                     .res_sync()
                             }).res().await
