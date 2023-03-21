@@ -23,6 +23,7 @@ use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::{ffi::CString, fmt, sync::atomic::AtomicI32, time::Duration};
 use zenoh::prelude::*;
+use zenoh::query::ReplyKeyExpr;
 use zenoh::{prelude::r#async::AsyncResolve, subscriber::Subscriber};
 use zenoh_ext::{FetchingSubscriber, SubscriberBuilderExt};
 
@@ -297,6 +298,7 @@ impl RouteZenohDDS<'_> {
                             .get(&s)
                             .target(QueryTarget::All)
                             .consolidation(ConsolidationMode::None)
+                            .accept_replies(ReplyKeyExpr::Any)
                             .timeout(Duration::from_secs_f32(TIMEOUT_HISTORICAL_PUB_QUERY))
                             .callback(cb)
                             .res_sync()
