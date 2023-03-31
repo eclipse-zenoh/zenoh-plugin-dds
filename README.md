@@ -285,15 +285,15 @@ The `zenoh-bridge-dds` exposes this administration space with paths prefixed by 
 Example of queries on administration space using the REST API with the `curl` command line tool (don't forget to activate the REST API with `--rest-http-port 8000` argument):
  - List all the DDS entities that have been discovered:
     ```bash
-    curl http://localhost:8000:/@/service/**/participant/**
+    curl http://localhost:8000/@/service/**/participant/**
     ```
  - List all established routes:
     ```bash
-    curl http://localhost:8000:/@/service/**/route/**
+    curl http://localhost:8000/@/service/**/route/**
     ```
  - List all discovered DDS entities and established route for topic `cmd_vel`:
     ```bash
-    curl http://localhost:8000:/@/service/**/cmd_vel
+    curl http://localhost:8000/@/service/**/cmd_vel
     ```
 
 > _Pro tip: pipe the result into [**jq**](https://stedolan.github.io/jq/) command for JSON pretty print or transformation._
