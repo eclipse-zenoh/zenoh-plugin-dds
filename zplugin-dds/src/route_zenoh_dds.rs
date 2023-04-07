@@ -35,8 +35,6 @@ use crate::{
 type AtomicDDSEntity = AtomicI32;
 const DDS_ENTITY_NULL: dds_entity_t = 0;
 
-const TIMEOUT_HISTORICAL_PUB_QUERY: f32 = 5.0;
-
 enum ZSubscriber<'a> {
     Subscriber(Subscriber<'a, ()>),
     FetchingSubscriber(FetchingSubscriber<'a, ()>),
@@ -184,14 +182,14 @@ impl RouteZenohDDS<'_> {
                 .allowed_origin(Locality::Remote) // Allow only remote publications to avoid loops
                 .reliable()
                 .querying()
+                .query_timeout(plugin.config.queries_timeout)
                 .query_selector(query_selector)
                 .query_accept_replies(ReplyKeyExpr::Any)
                 .res()
                 .await
                 .map_err(|e| {
                     format!(
-                        "Route Zenoh->DDS ({} -> {}): failed to create FetchingSubscriber: {}",
-                        ke, topic_name, e
+                        "Route Zenoh->DDS ({ke} -> {topic_name}): failed to create FetchingSubscriber: {e}"
                     )
                 })?;
             ZSubscriber::FetchingSubscriber(sub)
@@ -206,8 +204,7 @@ impl RouteZenohDDS<'_> {
                 .await
                 .map_err(|e| {
                     format!(
-                        "Route Zenoh->DDS ({} -> {}): failed to create Subscriber: {}",
-                        ke, topic_name, e
+                        "Route Zenoh->DDS ({ke} -> {topic_name}): failed to create Subscriber: {e}"
                     )
                 })?;
             ZSubscriber::Subscriber(sub)
@@ -277,8 +274,11 @@ impl RouteZenohDDS<'_> {
 
     /// If this route uses a FetchingSubscriber, query for historical publications
     /// using the specified Selector. Otherwise, do nothing.
-    pub(crate) async fn query_historical_publications<'a, F>(&mut self, selector: F)
-    where
+    pub(crate) async fn query_historical_publications<'a, F>(
+        &mut self,
+        selector: F,
+        query_timeout: Duration,
+    ) where
         F: Fn() -> Selector<'a>,
     {
         if let ZSubscriber::FetchingSubscriber(sub) = &mut self.zenoh_subscriber {
@@ -300,7 +300,7 @@ impl RouteZenohDDS<'_> {
                             .target(QueryTarget::All)
                             .consolidation(ConsolidationMode::None)
                             .accept_replies(ReplyKeyExpr::Any)
-                            .timeout(Duration::from_secs_f32(TIMEOUT_HISTORICAL_PUB_QUERY))
+                            .timeout(query_timeout)
                             .callback(cb)
                             .res_sync()
                     }

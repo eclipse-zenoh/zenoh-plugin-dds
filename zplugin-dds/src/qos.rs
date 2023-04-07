@@ -535,7 +535,7 @@ fn test_qos_serialization() {
     let qos = Qos::from_writer_qos_native(native);
     let json = serde_json::to_string(&qos).unwrap();
 
-    println!("{}", json);
+    println!("{json}");
     let qos2 = serde_json::from_str::<Qos>(&json).unwrap();
     assert!(qos == qos2);
 

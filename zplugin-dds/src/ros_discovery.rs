@@ -167,7 +167,7 @@ impl RosDiscoveryInfoMgr {
     pub(crate) fn write(&self, info: &ParticipantEntitiesInfo) -> Result<(), String> {
         unsafe {
             let buf = cdr::serialize::<_, _, CdrLe>(info, Infinite)
-                .map_err(|e| format!("Error serializing ParticipantEntitiesInfo: {}", e))?;
+                .map_err(|e| format!("Error serializing ParticipantEntitiesInfo: {e}"))?;
 
             // create sertype (Unfortunatelly cdds_ddsi_payload_create() takes *mut ddsi_sertype. And keeping it in Self would make it not Send)
             let ctyn = CString::new(ROS_DISCOVERY_INFO_TOPIC_TYPE)
@@ -188,7 +188,7 @@ impl RosDiscoveryInfoMgr {
                 ddsi_serdata_kind_SDK_DATA,
                 ptr,
                 len.try_into().map_err(|e| {
-                    format!("Error creating payload for ParticipantEntitiesInfo: {}", e)
+                    format!("Error creating payload for ParticipantEntitiesInfo: {e}")
                 })?,
             );
             dds_writecdr(self.writer, fwdp as *mut ddsi_serdata);
@@ -253,7 +253,7 @@ impl std::fmt::Display for ParticipantEntitiesInfo {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "participant {} : [", self.gid)?;
         for i in self.node_entities_info_seq.values() {
-            write!(f, "({}), ", i)?;
+            write!(f, "({i}), ")?;
         }
         write!(f, "]")?;
         Ok(())
@@ -291,7 +291,7 @@ where
     S: Serializer,
 {
     let mut buf = hex::decode(gid).map_err(|e| {
-        serde::ser::Error::custom(format!("Failed to decode gid {} as hex: {}", gid, e))
+        serde::ser::Error::custom(format!("Failed to decode gid {gid} as hex: {e}"))
     })?;
     // Gid size in ROS messages in 24 bytes (The DDS gid is usually 16 bytes). Resize the buffer
     buf.resize(24, 0);
@@ -317,7 +317,7 @@ where
     let mut seq = serializer.serialize_seq(Some(gids.len()))?;
     for s in gids {
         let mut buf = hex::decode(s).map_err(|e| {
-            serde::ser::Error::custom(format!("Failed to decode gid {} as hex: {}", s, e))
+            serde::ser::Error::custom(format!("Failed to decode gid {s} as hex: {e}"))
         })?;
         // Gid size in ROS messages in 24 bytes (The DDS gid is usually 16 bytes). Resize the buffer
         buf.resize(24, 0);

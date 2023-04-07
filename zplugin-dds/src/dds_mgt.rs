@@ -374,7 +374,7 @@ pub fn delete_dds_entity(entity: dds_entity_t) -> Result<(), String> {
         let r = dds_delete(entity);
         match r {
             0 | DDS_RETCODE_ALREADY_DELETED => Ok(()),
-            e => Err(format!("Error deleting DDS entity - retcode={}", e)),
+            e => Err(format!("Error deleting DDS entity - retcode={e}")),
         }
     }
 }
@@ -386,7 +386,7 @@ pub fn get_guid(entity: &dds_entity_t) -> Result<String, String> {
         if r == 0 {
             Ok(hex::encode(guid.v))
         } else {
-            Err(format!("Error getting GUID of DDS entity - retcode={}", r))
+            Err(format!("Error getting GUID of DDS entity - retcode={r}"))
         }
     }
 }

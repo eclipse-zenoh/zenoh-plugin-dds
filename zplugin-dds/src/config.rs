@@ -12,13 +12,17 @@
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 use regex::Regex;
+use serde::de::Visitor;
 use serde::{de, Deserialize, Deserializer};
 use std::env;
+use std::fmt;
+use std::time::Duration;
 use zenoh::prelude::*;
 
 pub const DEFAULT_DOMAIN: u32 = 0;
 pub const DEFAULT_FORWARD_DISCOVERY: bool = false;
 pub const DEFAULT_RELIABLE_ROUTES_BLOCKING: bool = true;
+pub const DEFAULT_QUERIES_TIMEOUT: f32 = 5.0;
 pub const DEFAULT_DDS_LOCALHOST_ONLY: bool = false;
 
 #[derive(Deserialize, Debug)]
@@ -46,6 +50,11 @@ pub struct Config {
     pub reliable_routes_blocking: bool,
     #[serde(default = "default_localhost_only")]
     pub localhost_only: bool,
+    #[serde(
+        default = "default_queries_timeout",
+        deserialize_with = "deserialize_duration"
+    )]
+    pub queries_timeout: Duration,
     #[serde(default)]
     __required__: bool,
     #[serde(default, deserialize_with = "deserialize_paths")]
@@ -98,10 +107,7 @@ fn deserialize_regex<'de, D>(deserializer: D) -> Result<Option<Regex>, D::Error>
 where
     D: Deserializer<'de>,
 {
-    let s: String = Deserialize::deserialize(deserializer)?;
-    Regex::new(&s)
-        .map(Some)
-        .map_err(|e| de::Error::custom(format!("Invalid regex 'allow={}': {}", s, e)))
+    deserializer.deserialize_any(RegexVisitor)
 }
 
 fn deserialize_max_frequencies<'de, D>(deserializer: D) -> Result<Vec<(Regex, f32)>, D::Error>
@@ -113,19 +119,30 @@ where
     for s in strs {
         let i = s
             .find('=')
-            .ok_or_else(|| de::Error::custom(format!("Invalid 'max_frequency': {}", s)))?;
+            .ok_or_else(|| de::Error::custom(format!("Invalid 'max_frequency': {s}")))?;
         let regex = Regex::new(&s[0..i]).map_err(|e| {
-            de::Error::custom(format!("Invalid regex for 'max_frequency': '{}': {}", s, e))
+            de::Error::custom(format!("Invalid regex for 'max_frequency': '{s}': {e}"))
         })?;
         let frequency: f32 = s[i + 1..].parse().map_err(|e| {
             de::Error::custom(format!(
-                "Invalid float value for 'max_frequency': '{}': {}",
-                s, e
+                "Invalid float value for 'max_frequency': '{s}': {e}"
             ))
         })?;
         result.push((regex, frequency));
     }
     Ok(result)
+}
+
+fn default_queries_timeout() -> Duration {
+    Duration::from_secs_f32(DEFAULT_QUERIES_TIMEOUT)
+}
+
+fn deserialize_duration<'de, D>(deserializer: D) -> Result<Duration, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let seconds: f32 = Deserialize::deserialize(deserializer)?;
+    Ok(Duration::from_secs_f32(seconds))
 }
 
 fn default_forward_discovery() -> bool {
@@ -138,4 +155,39 @@ fn default_reliable_routes_blocking() -> bool {
 
 fn default_localhost_only() -> bool {
     env::var("ROS_LOCALHOST_ONLY").as_deref() == Ok("1")
+}
+
+// Serde Visitor for Regex deserialization.
+// It accepts either a String, either a list of Strings (that are concatenated with `|`)
+struct RegexVisitor;
+
+impl<'de> Visitor<'de> for RegexVisitor {
+    type Value = Option<Regex>;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str(r#"either a string or a list of strings"#)
+    }
+
+    fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+    where
+        E: de::Error,
+    {
+        Regex::new(value)
+            .map(Some)
+            .map_err(|e| de::Error::custom(format!("Invalid regex '{value}': {e}")))
+    }
+
+    fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+    where
+        A: de::SeqAccess<'de>,
+    {
+        let mut vec: Vec<String> = Vec::new();
+        while let Some(s) = seq.next_element()? {
+            vec.push(s);
+        }
+        let s: String = vec.join("|");
+        Regex::new(&s)
+            .map(Some)
+            .map_err(|e| de::Error::custom(format!("Invalid regex '{s}': {e}")))
+    }
 }

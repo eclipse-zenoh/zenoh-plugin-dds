@@ -103,13 +103,15 @@ This option is not active by default, unless the "ROS_LOCALHOST_ONLY" environeme
 r#"--group-member-id=[ID]   'A custom identifier for the bridge, that will be used in group management (if not specified, the zenoh UUID is used).'"#
         ))
         .arg(Arg::from_usage(
-r#"-a, --allow=[String]   'A regular expression matching the set of 'partition/topic-name' that must be routed via zenoh. By default, all partitions and topics are allowed.
+r#"-a, --allow=[String]...   'A regular expression matching the set of 'partition/topic-name' that must be routed via zenoh. By default, all partitions and topics are allowed.
 If both '--allow' and '--deny' are set a partition and/or topic will be allowed if it matches only the 'allow' expression.
+Repeat this option to configure several topic expressions. These expressions are concatenated with '|'.
 Examples of expressions: '.*/TopicA', 'Partition-?/.*', 'cmd_vel|rosout'...'"#
         ))
         .arg(Arg::from_usage(
-r#"--deny=[String]   'A regular expression matching the set of 'partition/topic-name' that must not be routed via zenoh. By default, no partitions and no topics are denied.
+r#"--deny=[String]...   'A regular expression matching the set of 'partition/topic-name' that must not be routed via zenoh. By default, no partitions and no topics are denied.
 If both '--allow' and '--deny' are set a partition and/or topic will be allowed if it matches only the 'allow' expression.
+Repeat this option to configure several topic expressions. These expressions are concatenated with '|'.
 Examples of expressions: '.*/TopicA', 'Partition-?/.*', 'cmd_vel|rosout'...'"#
         ))
         .arg(Arg::from_usage(
@@ -129,6 +131,11 @@ r#"-w, --generalise-pub=[String]...   'A list of key expression to use for gener
 r#"-f, --fwd-discovery   'When set, rather than creating a local route when discovering a local DDS entity, this discovery info is forwarded to the remote plugins/bridges. Those will create the routes, including a replica of the discovered entity.'"#
             ).alias("forward-discovery")
         )
+        .arg(Arg::from_usage(
+r#"--queries-timeout=[float]... 'A float in seconds (default: 5.0 sec) that will be used as a timeout when the bridge
+queries any other remote bridge for discovery information and for historical data for TRANSIENT_LOCAL DDS Readers it serves
+(i.e. if the query to the remote bridge exceed the timeout, some historical samples might be not routed to the Readers, but the route will not be blocked forever)."#
+        ))
         .arg(Arg::from_usage(
 r#"--watchdog=[PERIOD]   'Experimental!! Run a watchdog thread that monitors the bridge's async executor and reports as error log any stalled status during the specified period (default: 1.0 second)'"#
         ).default_missing_value("1.0"));
@@ -173,7 +180,7 @@ r#"--watchdog=[PERIOD]   'Experimental!! Run a watchdog thread that monitors the
     }
     if let Some(port) = args.value_of("rest-http-port") {
         config
-            .insert_json5("plugins/rest/http_port", &format!(r#""{}""#, port))
+            .insert_json5("plugins/rest/http_port", &format!(r#""{port}""#))
             .unwrap();
     }
     // Always add timestamps to publications (required for PublicationCache used in case of TRANSIENT_LOCAL topics)
@@ -187,11 +194,12 @@ r#"--watchdog=[PERIOD]   'Experimental!! Run a watchdog thread that monitors the
     insert_json5!(config, args, "plugins/dds/domain", if "domain", .parse::<u64>().unwrap());
     insert_json5!(config, args, "plugins/dds/localhost_only", if "dds-localhost-only");
     insert_json5!(config, args, "plugins/dds/group_member_id", if "group-member-id", );
-    insert_json5!(config, args, "plugins/dds/allow", if "allow", );
-    insert_json5!(config, args, "plugins/dds/deny", if "deny", );
+    insert_json5!(config, args, "plugins/dds/allow", for "allow", .collect::<Vec<_>>());
+    insert_json5!(config, args, "plugins/dds/deny", for "deny", .collect::<Vec::<_>>());
     insert_json5!(config, args, "plugins/dds/max_frequencies", for "max-frequency", .collect::<Vec<_>>());
     insert_json5!(config, args, "plugins/dds/generalise_pubs", for "generalise-pub", .collect::<Vec<_>>());
     insert_json5!(config, args, "plugins/dds/generalise_subs", for "generalise-sub", .collect::<Vec<_>>());
+    insert_json5!(config, args, "plugins/dds/queries_timeout", if "queries-timeout", .parse::<f64>().unwrap());
     if args.is_present("fwd-discovery") {
         config
             .insert_json5("plugins/dds/forward_discovery", "true")

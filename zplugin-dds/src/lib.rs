@@ -88,7 +88,7 @@ lazy_static::lazy_static!(
 // CycloneDDS' localhost-only: set network interface address (shortened form of config would be
 // possible, too, but I think it is clearer to spell it out completely).
 // Empty configuration fragments are ignored, so it is safe to unconditionally append a comma.
-const CYCLONEDDS_CONFIG_LOCALHOST_ONLY: &str = r#"<CycloneDDS><Domain><General><NetworkInterfaceAddress>127.0.0.1</NetworkInterfaceAddress></General></Domain></CycloneDDS>,"#;
+const CYCLONEDDS_CONFIG_LOCALHOST_ONLY: &str = r#"<CycloneDDS><Domain><General><Interfaces><NetworkInterface address="127.0.0.1" multicast="true"/></Interfaces></General></Domain></CycloneDDS>,"#;
 
 const ROS_DISCOVERY_INFO_POLL_INTERVAL_MS: u64 = 500;
 
@@ -284,7 +284,7 @@ impl Serialize for DdsPluginRuntime<'_> {
                 .config
                 .max_frequencies
                 .iter()
-                .map(|(re, freq)| format!("{}={}", re, freq))
+                .map(|(re, freq)| format!("{re}={freq}"))
                 .collect::<Vec<String>>(),
         )?;
         s.serialize_field("forward_discovery", &self.config.forward_discovery)?;
@@ -663,9 +663,9 @@ impl<'a> DdsPluginRuntime<'a> {
     ) -> ZResult<OwnedKeyExpr> {
         // key_expr for a topic is: "<scope>/<partition>/<topic_name>" with <scope> and <partition> being optional
         match (scope, partition) {
-            (Some(scope), Some(part)) => scope.join(&format!("{}/{}", part, topic_name)),
+            (Some(scope), Some(part)) => scope.join(&format!("{part}/{topic_name}")),
             (Some(scope), None) => scope.join(topic_name),
-            (None, Some(part)) => format!("{}/{}", part, topic_name).try_into(),
+            (None, Some(part)) => format!("{part}/{topic_name}").try_into(),
             (None, None) => topic_name.try_into(),
         }
     }
@@ -841,7 +841,7 @@ impl<'a> DdsPluginRuntime<'a> {
                             if let Ok(member_id) = keyexpr::new(mid) {
                                 // make all QueryingSubscriber to query this new member
                                 for (zkey, route) in &mut self.routes_to_dds {
-                                    route.query_historical_publications(|| (*KE_PREFIX_PUB_CACHE / member_id / zkey).into()).await;
+                                    route.query_historical_publications(|| (*KE_PREFIX_PUB_CACHE / member_id / zkey).into(), self.config.queries_timeout).await;
                                 }
                             } else {
                                 error!("Can't convert member id '{}' into a KeyExpr", mid);
@@ -929,6 +929,7 @@ impl<'a> DdsPluginRuntime<'a> {
             .declare_subscriber(fwd_discovery_subscription_key)
             .querying()
             .allowed_origin(Locality::Remote) // Note: ignore my own publications
+            .query_timeout(self.config.queries_timeout)
             .res()
             .await
             .expect("Failed to declare QueryingSubscriber for Fwd Discovery");
@@ -1285,7 +1286,7 @@ impl<'a> DdsPluginRuntime<'a> {
                                     .callback(cb)
                                     .target(QueryTarget::All)
                                     .consolidation(ConsolidationMode::None)
-                                    .timeout(Duration::from_secs(5))
+                                    .timeout(self.config.queries_timeout)
                                     .res_sync()
                             }).res().await
                             {
@@ -1293,7 +1294,7 @@ impl<'a> DdsPluginRuntime<'a> {
                             }
                             // make all QueryingSubscriber to query this new member
                             for (zkey, route) in &mut self.routes_to_dds {
-                                route.query_historical_publications(|| (*KE_PREFIX_PUB_CACHE / ke_for_sure!(mid) / zkey).into()).await;
+                                route.query_historical_publications(|| (*KE_PREFIX_PUB_CACHE / ke_for_sure!(mid) / zkey).into(), self.config.queries_timeout).await;
                             }
                         }
                         Ok(SampleKind::Delete) => {
@@ -1302,7 +1303,7 @@ impl<'a> DdsPluginRuntime<'a> {
                             // remove all the references to the plugin's enities, removing no longer used routes
                             // and updating/re-publishing ParticipantEntitiesInfo
                             let admin_space = &mut self.admin_space;
-                            let admin_subke = format!("@/service/{}/dds/", mid);
+                            let admin_subke = format!("@/service/{mid}/dds/");
                             let mut participant_info_changed = false;
                             self.routes_to_dds.retain(|zkey, route| {
                                 route.remove_remote_routed_writers_containing(&admin_subke);
