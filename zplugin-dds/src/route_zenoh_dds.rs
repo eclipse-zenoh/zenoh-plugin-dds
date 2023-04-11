@@ -23,6 +23,7 @@ use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::{ffi::CString, fmt, sync::atomic::AtomicI32, time::Duration};
 use zenoh::prelude::*;
+use zenoh::query::ReplyKeyExpr;
 use zenoh::{prelude::r#async::AsyncResolve, subscriber::Subscriber};
 use zenoh_ext::{FetchingSubscriber, SubscriberBuilderExt};
 
@@ -177,18 +178,18 @@ impl RouteZenohDDS<'_> {
             let sub = plugin
                 .zsession
                 .declare_subscriber(ke.clone())
-                .querying()
                 .callback(subscriber_callback)
                 .allowed_origin(Locality::Remote) // Allow only remote publications to avoid loops
                 .reliable()
+                .querying()
                 .query_timeout(plugin.config.queries_timeout)
                 .query_selector(query_selector)
+                .query_accept_replies(ReplyKeyExpr::Any)
                 .res()
                 .await
                 .map_err(|e| {
                     format!(
-                        "Route Zenoh->DDS ({} -> {}): failed to create FetchingSubscriber: {}",
-                        ke, topic_name, e
+                        "Route Zenoh->DDS ({ke} -> {topic_name}): failed to create FetchingSubscriber: {e}"
                     )
                 })?;
             ZSubscriber::FetchingSubscriber(sub)
@@ -298,6 +299,7 @@ impl RouteZenohDDS<'_> {
                             .get(&s)
                             .target(QueryTarget::All)
                             .consolidation(ConsolidationMode::None)
+                            .accept_replies(ReplyKeyExpr::Any)
                             .timeout(query_timeout)
                             .callback(cb)
                             .res_sync()

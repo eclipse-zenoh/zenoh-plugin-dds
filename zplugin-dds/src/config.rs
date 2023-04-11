@@ -20,7 +20,6 @@ use std::time::Duration;
 use zenoh::prelude::*;
 
 pub const DEFAULT_DOMAIN: u32 = 0;
-pub const DEFAULT_GROUP_LEASE_SEC: f64 = 3.0;
 pub const DEFAULT_FORWARD_DISCOVERY: bool = false;
 pub const DEFAULT_RELIABLE_ROUTES_BLOCKING: bool = true;
 pub const DEFAULT_QUERIES_TIMEOUT: f32 = 5.0;
@@ -35,11 +34,6 @@ pub struct Config {
     pub domain: u32,
     #[serde(default)]
     pub group_member_id: Option<OwnedKeyExpr>,
-    #[serde(
-        default = "default_group_lease",
-        deserialize_with = "deserialize_group_lease"
-    )]
-    pub group_lease: Duration,
     #[serde(default, deserialize_with = "deserialize_regex")]
     pub allow: Option<Regex>,
     #[serde(default, deserialize_with = "deserialize_regex")]
@@ -73,18 +67,6 @@ fn default_domain() -> u32 {
     } else {
         DEFAULT_DOMAIN
     }
-}
-
-fn default_group_lease() -> Duration {
-    Duration::from_secs_f64(DEFAULT_GROUP_LEASE_SEC)
-}
-
-fn deserialize_group_lease<'de, D>(deserializer: D) -> Result<Duration, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    let secs: f64 = Deserialize::deserialize(deserializer)?;
-    Ok(Duration::from_secs_f64(secs))
 }
 
 fn deserialize_paths<'de, D>(deserializer: D) -> Result<Vec<String>, D::Error>

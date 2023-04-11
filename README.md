@@ -232,8 +232,7 @@ The `"dds"` part of this same configuration file can also be used in the configu
    - **`-e, --peer <LOCATOR>`** : A peer locator this router will try to connect to (typically another bridge or a zenoh router). Repeat this option to connect to several peers. Example of locator: `tcp/<ip-address>:7447`.
    - **`--no-multicast-scouting`** : disable the zenoh scouting protocol that allows automatic discovery of zenoh peers and routers.
    - **`-i, --id <hex_string>`** : The identifier (as an hexadecimal string - e.g.: 0A0B23...) that the zenoh bridge must use. **WARNING: this identifier must be unique in the system!** If not set, a random UUIDv4 will be used.
-   - **`--group-member-id <ID>`** : The bridges are supervising each other via a group membership algorithm implemented over zenoh. This option allows to set a custom identifier for the bridge, that will be used in group membership algorithm (if not specified, the zenoh UUID is used).
-   - **`--group-lease <Duration>`** : The lease duration (in seconds) used in group membership algorithm (default: 3 seconds)
+   - **`--group-member-id <ID>`** : The bridges are supervising each other via zenoh liveliness tokens. This option allows to set a custom identifier for the bridge, that will be used the liveliness token key (if not specified, the zenoh UUID is used).
    - **`--rest-http-port <rest-http-port>`** : set the REST API http port (default: 8000)
  * DDS-related arguments:
    - **`-d, --domain <ID>`** : The DDS Domain ID. By default set to `0`, or to `"$ROS_DOMAIN_ID"` is this environment variable is defined.

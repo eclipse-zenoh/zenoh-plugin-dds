@@ -20,7 +20,6 @@ use zenoh::prelude::*;
 
 lazy_static::lazy_static!(
     pub static ref DEFAULT_DOMAIN_STR: String = zplugin_dds::config::DEFAULT_DOMAIN.to_string();
-    pub static ref DEFAULT_GROUP_LEASE_STR: String = zplugin_dds::config::DEFAULT_GROUP_LEASE_SEC.to_string();
 );
 
 macro_rules! insert_json5 {
@@ -103,10 +102,6 @@ This option is not active by default, unless the "ROS_LOCALHOST_ONLY" environeme
         .arg(Arg::from_usage(
 r#"--group-member-id=[ID]   'A custom identifier for the bridge, that will be used in group management (if not specified, the zenoh UUID is used).'"#
         ))
-        .arg(Arg::from_usage(
-r#"--group-lease=[Duration]   'The lease duration (in seconds) used in group management for all DDS plugins.'"#)
-            .default_value(&DEFAULT_GROUP_LEASE_STR)
-        )
         .arg(Arg::from_usage(
 r#"-a, --allow=[String]...   'A regular expression matching the set of 'partition/topic-name' that must be routed via zenoh. By default, all partitions and topics are allowed.
 If both '--allow' and '--deny' are set a partition and/or topic will be allowed if it matches only the 'allow' expression.
@@ -199,7 +194,6 @@ r#"--watchdog=[PERIOD]   'Experimental!! Run a watchdog thread that monitors the
     insert_json5!(config, args, "plugins/dds/domain", if "domain", .parse::<u64>().unwrap());
     insert_json5!(config, args, "plugins/dds/localhost_only", if "dds-localhost-only");
     insert_json5!(config, args, "plugins/dds/group_member_id", if "group-member-id", );
-    insert_json5!(config, args, "plugins/dds/group_lease", if "group-lease", .parse::<f64>().unwrap());
     insert_json5!(config, args, "plugins/dds/allow", for "allow", .collect::<Vec<_>>());
     insert_json5!(config, args, "plugins/dds/deny", for "deny", .collect::<Vec::<_>>());
     insert_json5!(config, args, "plugins/dds/max_frequencies", for "max-frequency", .collect::<Vec<_>>());
