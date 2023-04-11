@@ -74,6 +74,8 @@ Then either:
 
 > :warning: **WARNING** :warning: : Zenoh and its ecosystem are under active development. When you build from git, make sure you also build from git any other Zenoh repository you plan to use (e.g. binding, plugin, backend, etc.). It may happen that some changes in git are not compatible with the most recent packaged Zenoh release (e.g. deb, docker, pip). We put particular effort in mantaining compatibility between the various git repositories in the Zenoh project.
 
+> :warning: **WARNING** :warning: : Zenoh and its plugins are developed in Rust. Unfortunately, Rust does not guarantee any ABI stability when using different versions of the build toolchain, libraries, etc. For that reason, make sure that Zenoh router and its plugins are built using the same version of the compiler.
+
 In order to build the zenoh bridge for DDS you need first to install the following dependencies:
 
 - [Rust](https://www.rust-lang.org/tools/install)
@@ -90,8 +92,6 @@ $ git clone https://github.com/eclipse-zenoh/zenoh-plugin-dds.git
 $ cd zenoh-plugin-dds
 ```
 > :warning: **WARNING** :warning: : On Linux, don't use `cargo build` command without specifying a package with `-p`. Building both `zplugin-dds` (plugin library) and `zenoh-bridge-dds` (standalone executable) together will lead to a `multiple definition of `load_plugin'` error at link time. See [#117](https://github.com/eclipse-zenoh/zenoh-plugin-dds/issues/117#issuecomment-1439694331) for explanations.
-
-> :warning: **WARNING** :warning: : Zenoh and its plugins are developed in Rust. Unfortunately, Rust does not guarantee any ABI stability when using different versions of the build toolchain, libraries, etc. For that reason, make sure that Zenoh router and its plugins are built using the same version of the compiler.
 
 You can then choose between building the zenoh bridge for DDS:
 - as a plugin library that can be dynamically loaded by the zenoh router (`zenohd`):
