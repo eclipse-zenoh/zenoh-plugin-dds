@@ -14,7 +14,7 @@
 
 use cyclors::{
     cdds_create_blob_sertype, cdds_ddsi_payload_create, cdds_sertype_unref, dds_entity_t,
-    dds_writecdr, ddsi_serdata, ddsi_serdata_kind_SDK_DATA, size_t, ddsi_sertype,
+    dds_writecdr, ddsi_serdata, ddsi_serdata_kind_SDK_DATA, ddsi_sertype, size_t,
 };
 use serde::{Serialize, Serializer};
 use std::collections::HashSet;
@@ -52,7 +52,6 @@ impl ZSubscriber<'_> {
 struct SendSerType(*mut ddsi_sertype);
 unsafe impl Send for SendSerType {}
 unsafe impl Sync for SendSerType {}
-
 
 // a route from Zenoh to DDS
 #[allow(clippy::upper_case_acronyms)]
@@ -374,12 +373,7 @@ impl RouteZenohDDS<'_> {
     }
 }
 
-fn do_route_data(
-    s: Sample,
-    topic_name: &str,
-    sertype: &SendSerType,
-    data_writer: dds_entity_t,
-) {
+fn do_route_data(s: Sample, topic_name: &str, sertype: &SendSerType, data_writer: dds_entity_t) {
     if *LOG_PAYLOAD {
         log::trace!(
             "Route Zenoh->DDS ({} -> {}): routing data - payload: {:?}",
