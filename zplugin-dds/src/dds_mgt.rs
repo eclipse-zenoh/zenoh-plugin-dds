@@ -24,10 +24,10 @@ use std::os::raw;
 use std::sync::Arc;
 use std::time::Duration;
 use zenoh::buffers::ZBuf;
-use zenoh::prelude::r#async::AsyncResolve;
 use zenoh::prelude::*;
 use zenoh::publication::CongestionControl;
 use zenoh::Session;
+use zenoh_core::SyncResolve;
 
 const MAX_SAMPLES: u32 = 32;
 
@@ -219,14 +219,11 @@ unsafe extern "C" fn data_forwarder_listener(dr: dds_entity_t, arg: *mut std::os
             } else {
                 log::trace!("Route data from DDS {} to zenoh key={}", &(*pa).0, &(*pa).1);
             }
-            let _ = task::block_on(async {
-                (*pa)
-                    .2
-                    .put(&(*pa).1, rbuf)
-                    .congestion_control((*pa).3)
-                    .res()
-                    .await
-            });
+            let _ = (*pa)
+                .2
+                .put(&(*pa).1, rbuf)
+                .congestion_control((*pa).3)
+                .res_sync();
             (*zp).payload = std::ptr::null_mut();
         }
         cdds_serdata_unref(zp as *mut ddsi_serdata);
@@ -323,12 +320,10 @@ pub fn create_forwarding_dds_reader(
                                     (*zp).size as usize,
                                 );
                                 let rbuf = ZBuf::from(bs);
-                                let _ = task::block_on(async {
-                                    z.put(&z_key, rbuf)
-                                        .congestion_control(congestion_ctrl)
-                                        .res()
-                                        .await
-                                });
+                                let _ = z
+                                    .put(&z_key, rbuf)
+                                    .congestion_control(congestion_ctrl)
+                                    .res_sync();
                                 (*zp).payload = std::ptr::null_mut();
                             }
                             cdds_serdata_unref(zp as *mut ddsi_serdata);
