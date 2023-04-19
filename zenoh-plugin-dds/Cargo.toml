@@ -12,7 +12,7 @@
 #   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 #
 [package]
-name = "zplugin-dds"
+name = "zenoh-plugin-dds"
 version = { workspace = true }
 authors = { workspace = true }
 edition = { workspace = true }
@@ -23,7 +23,7 @@ categories = ["network-programming", "science::robotics"]
 description = "Zenoh plugin for ROS2 and DDS in general"
 
 [lib]
-name = "zplugin_dds"
+name = "zenoh_plugin_dds"
 crate-type = ["cdylib", "rlib"]
 
 [features]

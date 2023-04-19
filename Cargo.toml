@@ -14,7 +14,7 @@
 [workspace]
 members = [
   "zenoh-bridge-dds",
-  "zplugin-dds",
+  "zenoh-plugin-dds",
 ]
 
 [workspace.package]

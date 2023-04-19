@@ -51,11 +51,11 @@ jobs:
           command: clippy
           args: --all --examples -- -D warnings
 
-      - name: Build zplugin-dds
+      - name: Build zenoh-plugin-dds
         uses: actions-rs/cargo@v1
         with:
           command: build
-          args: -p zplugin-dds --verbose --all-targets
+          args: -p zenoh-plugin-dds --verbose --all-targets
 
       - name: Build zenoh-bridge-dds
         uses: actions-rs/cargo@v1

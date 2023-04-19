@@ -19,7 +19,7 @@ use zenoh::config::{Config, ModeDependentValue};
 use zenoh::prelude::*;
 
 lazy_static::lazy_static!(
-    pub static ref DEFAULT_DOMAIN_STR: String = zplugin_dds::config::DEFAULT_DOMAIN.to_string();
+    pub static ref DEFAULT_DOMAIN_STR: String = zenoh_plugin_dds::config::DEFAULT_DOMAIN.to_string();
 );
 
 macro_rules! insert_json5 {
@@ -42,8 +42,8 @@ macro_rules! insert_json5 {
 
 fn parse_args() -> (Config, Option<f32>) {
     let app = App::new("zenoh bridge for DDS")
-        .version(zplugin_dds::GIT_VERSION)
-        .long_version(zplugin_dds::LONG_VERSION.as_str())
+        .version(zenoh_plugin_dds::GIT_VERSION)
+        .long_version(zenoh_plugin_dds::LONG_VERSION.as_str())
         //
         // zenoh related arguments:
         //
@@ -218,7 +218,7 @@ r#"--watchdog=[PERIOD]   'Experimental!! Run a watchdog thread that monitors the
 #[async_std::main]
 async fn main() {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("z=info")).init();
-    log::info!("zenoh-bridge-dds {}", *zplugin_dds::LONG_VERSION);
+    log::info!("zenoh-bridge-dds {}", *zenoh_plugin_dds::LONG_VERSION);
 
     let (config, watchdog_period) = parse_args();
     let rest_plugin = config.plugin("rest").is_some();
@@ -233,12 +233,12 @@ async fn main() {
     // start REST plugin
     if rest_plugin {
         use zenoh_plugin_trait::Plugin;
-        zplugin_rest::RestPlugin::start("rest", &runtime).unwrap();
+        zenoh_plugin_rest::RestPlugin::start("rest", &runtime).unwrap();
     }
 
     // start DDS plugin
     use zenoh_plugin_trait::Plugin;
-    zplugin_dds::DDSPlugin::start("dds", &runtime).unwrap();
+    zenoh_plugin_dds::DDSPlugin::start("dds", &runtime).unwrap();
     async_std::task::block_on(async_std::future::pending::<()>());
 }
 

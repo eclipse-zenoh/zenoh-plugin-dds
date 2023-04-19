@@ -3497,9 +3497,9 @@ dependencies = [
  "log",
  "serde_json",
  "zenoh",
+ "zenoh-plugin-dds",
  "zenoh-plugin-rest",
  "zenoh-plugin-trait",
- "zplugin-dds",
 ]
 
 [[package]]
@@ -3780,6 +3780,35 @@ dependencies = [
 ]
 
 [[package]]
+name = "zenoh-plugin-dds"
+version = "0.7.0-rc"
+dependencies = [
+ "async-std",
+ "async-trait",
+ "bincode",
+ "cdr",
+ "cyclors",
+ "derivative",
+ "env_logger 0.10.0",
+ "flume",
+ "futures",
+ "git-version",
+ "hex",
+ "lazy_static",
+ "log",
+ "regex",
+ "rustc_version 0.4.0",
+ "serde",
+ "serde_json",
+ "zenoh",
+ "zenoh-collections",
+ "zenoh-core",
+ "zenoh-ext",
+ "zenoh-plugin-trait",
+ "zenoh-util",
+]
+
+[[package]]
 name = "zenoh-plugin-rest"
 version = "0.7.0-rc"
 source = "git+https://github.com/eclipse-zenoh/zenoh?branch=master#dff6c83d7a6486510b37b3e6bd876ecb8bdb1860"
@@ -3932,32 +3961,3 @@ name = "zeroize"
 version = "1.5.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c394b5bd0c6f669e7275d9c20aa90ae064cb22e75a1cad54e1b34088034b149f"
-
-[[package]]
-name = "zplugin-dds"
-version = "0.7.0-rc"
-dependencies = [
- "async-std",
- "async-trait",
- "bincode",
- "cdr",
- "cyclors",
- "derivative",
- "env_logger 0.10.0",
- "flume",
- "futures",
- "git-version",
- "hex",
- "lazy_static",
- "log",
- "regex",
- "rustc_version 0.4.0",
- "serde",
- "serde_json",
- "zenoh",
- "zenoh-collections",
- "zenoh-core",
- "zenoh-ext",
- "zenoh-plugin-trait",
- "zenoh-util",
-]

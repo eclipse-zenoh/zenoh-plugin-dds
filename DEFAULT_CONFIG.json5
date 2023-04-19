@@ -1,5 +1,5 @@
 ////
-//// This file presents the default configuration used by both the `zplugin-dds` plugin and the `zenoh-bridge-dds` standalone executable.
+//// This file presents the default configuration used by both the `zenoh-plugin-dds` plugin and the `zenoh-bridge-dds` standalone executable.
 //// The "dds" JSON5 object below can be used as such in the "plugins" part of a config file for the zenoh router (zenohd).
 ////
 {
