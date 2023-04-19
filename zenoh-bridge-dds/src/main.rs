@@ -239,7 +239,7 @@ async fn main() {
     // start DDS plugin
     use zenoh_plugin_trait::Plugin;
     zenoh_plugin_dds::DDSPlugin::start("dds", &runtime).unwrap();
-    async_std::task::block_on(async_std::future::pending::<()>());
+    async_std::future::pending::<()>().await;
 }
 
 fn run_watchdog(period: f32) {
