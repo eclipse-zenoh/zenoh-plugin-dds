@@ -610,6 +610,7 @@ impl<'a> DdsPluginRuntime<'a> {
             .liveliness()
             .declare_subscriber(*KE_PREFIX_LIVELINESS_GROUP / *KE_ANY_N_SEGMENT)
             .querying()
+            .with(flume::unbounded())
             .res()
             .await
             .expect("Failed to create Liveliness Subscriber");
