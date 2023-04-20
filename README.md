@@ -53,7 +53,7 @@ All release packages can be downloaded from:
 Each subdirectory has the name of the Rust target. See the platforms each target corresponds to on https://doc.rust-lang.org/stable/rustc/platform-support.html
 
 Choose your platform and download:
- - the `zplugin-dds-<version>-<platform>.zip` file for the plugin.  
+ - the `zenoh-plugin-dds-<version>-<platform>.zip` file for the plugin.  
    Then unzip it in the same directory than `zenohd` or to any directory where it can find the plugin library (e.g. /usr/lib)
  - the `zenoh-bridge-dds-<version>-<platform>.zip` file for the standalone executable.  
    Then unzip it where you want, and run the extracted `zenoh-bridge-dds` binary.
@@ -93,12 +93,12 @@ Once these dependencies are in place, you may clone the repository on your machi
 $ git clone https://github.com/eclipse-zenoh/zenoh-plugin-dds.git
 $ cd zenoh-plugin-dds
 ```
-> :warning: **WARNING** :warning: : On Linux, don't use `cargo build` command without specifying a package with `-p`. Building both `zplugin-dds` (plugin library) and `zenoh-bridge-dds` (standalone executable) together will lead to a `multiple definition of `load_plugin'` error at link time. See [#117](https://github.com/eclipse-zenoh/zenoh-plugin-dds/issues/117#issuecomment-1439694331) for explanations.
+> :warning: **WARNING** :warning: : On Linux, don't use `cargo build` command without specifying a package with `-p`. Building both `zenoh-plugin-dds` (plugin library) and `zenoh-bridge-dds` (standalone executable) together will lead to a `multiple definition of `load_plugin'` error at link time. See [#117](https://github.com/eclipse-zenoh/zenoh-plugin-dds/issues/117#issuecomment-1439694331) for explanations.
 
 You can then choose between building the zenoh bridge for DDS:
 - as a plugin library that can be dynamically loaded by the zenoh router (`zenohd`):
 ```bash
-$ cargo build --release -p zplugin-dds
+$ cargo build --release -p zenoh-plugin-dds
 ```
 The plugin shared library (`*.so` on Linux, `*.dylib` on Mac OS, `*.dll` on Windows) will be generated in the `target/release` subdirectory.
 
@@ -225,7 +225,7 @@ See in details how to achieve that in [this blog](https://zenoh.io/blog/2021-04-
 
 `zenoh-bridge-dds` can be configured via a JSON5 file passed via the `-c`argument. You can see a commented example of such configuration file: [`DEFAULT_CONFIG.json5`](DEFAULT_CONFIG.json5).
 
-The `"dds"` part of this same configuration file can also be used in the configuration file for the zenoh router (within its `"plugins"` part). The router will automatically try to load the plugin library (`zplugin_dds`) at startup and apply its configuration.
+The `"dds"` part of this same configuration file can also be used in the configuration file for the zenoh router (within its `"plugins"` part). The router will automatically try to load the plugin library (`zenoh-plugin_dds`) at startup and apply its configuration.
 
 `zenoh-bridge-dds` also accepts the following arguments. If set, each argument will override the similar setting from the configuration file:
  * zenoh-related arguments:

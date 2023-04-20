@@ -62,7 +62,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y jq
 
-          ZENOH_VERSION=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[] | select(.name == "zplugin-dds") | .version')
+          ZENOH_VERSION=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[] | select(.name == "zenoh-plugin-dds") | .version')
           echo "ZENOH_VERSION=${ZENOH_VERSION}" >> $GITHUB_OUTPUT
           if [ -n "${GIT_TAG}" ]; then
             IS_RELEASE="true"
@@ -172,12 +172,12 @@ jobs:
           override: true
           profile: minimal
 
-      - name: zplugin-dds > Build
+      - name: zenoh-plugin-dds > Build
         uses: actions-rs/cargo@v1
         with:
           use-cross: ${{ matrix.job.use-cross }}
           command: build
-          args: --release --target=${{ matrix.job.target }} -p zplugin-dds
+          args: --release --target=${{ matrix.job.target }} -p zenoh-plugin-dds
 
       - name: zenoh-bridge-dds > Build
         uses: actions-rs/cargo@v1
@@ -186,12 +186,12 @@ jobs:
           command: build
           args: --release --target=${{ matrix.job.target }} -p zenoh-bridge-dds
 
-      - name: zplugin-dds > Debian package
+      - name: zenoh-plugin-dds > Debian package
         if: contains(matrix.job.target, '-linux-gnu')
         uses: actions-rs/cargo@v1
         with:
           command: deb
-          args: --no-build --target=${{ matrix.job.target }} -p zplugin-dds
+          args: --no-build --target=${{ matrix.job.target }} -p zenoh-plugin-dds
 
       - name: zenoh-bridge-dds > Debian package
         if: contains(matrix.job.target, '-linux-gnu')
@@ -205,15 +205,15 @@ jobs:
         shell: bash
         run: |
           TARGET=${{ matrix.job.target }}
-          LIB_PKG_NAME="${GITHUB_WORKSPACE}/zplugin-dds-${{ needs.checks.outputs.PKG_VERSION }}-${TARGET}.zip"
+          LIB_PKG_NAME="${GITHUB_WORKSPACE}/zenoh-plugin-dds-${{ needs.checks.outputs.PKG_VERSION }}-${TARGET}.zip"
           BIN_PKG_NAME="${GITHUB_WORKSPACE}/zenoh-bridge-dds-${{ needs.checks.outputs.PKG_VERSION }}-${TARGET}.zip"
-          DEBS_PKG_NAME="${GITHUB_WORKSPACE}/zplugin-dds-${{ needs.checks.outputs.PKG_VERSION }}-${TARGET}-deb-pkgs.zip"
+          DEBS_PKG_NAME="${GITHUB_WORKSPACE}/zenoh-plugin-dds-${{ needs.checks.outputs.PKG_VERSION }}-${TARGET}-deb-pkgs.zip"
 
           case ${TARGET} in
             *linux*)
               cd "target/${TARGET}/release/"
               echo "Packaging ${LIB_PKG_NAME}:"
-              zip ${LIB_PKG_NAME} libzplugin*.so
+              zip ${LIB_PKG_NAME} libzenoh_plugin*.so
               echo "Packaging ${BIN_PKG_NAME}:"
               zip ${BIN_PKG_NAME} zenoh-bridge-dds
               cd -
@@ -232,7 +232,7 @@ jobs:
             *apple*)
               cd "target/${TARGET}/release/"
               echo "Packaging ${LIB_PKG_NAME}:"
-              zip ${LIB_PKG_NAME} libzplugin*.dylib
+              zip ${LIB_PKG_NAME} libzenoh_plugin*.dylib
               echo "Packaging ${BIN_PKG_NAME}:"
               zip ${BIN_PKG_NAME} zenoh-bridge-dds
               cd -
@@ -242,7 +242,7 @@ jobs:
             *windows*)
               cd "target/${TARGET}/release/"
               echo "Packaging ${LIB_PKG_NAME}:"
-              7z -y a "${LIB_PKG_NAME}" zplugin*.dll
+              7z -y a "${LIB_PKG_NAME}" zenoh-plugin*.dll
               echo "Packaging ${BIN_PKG_NAME}:"
               7z -y a "${BIN_PKG_NAME}" zenoh-bridge-dds.exe
               cd -

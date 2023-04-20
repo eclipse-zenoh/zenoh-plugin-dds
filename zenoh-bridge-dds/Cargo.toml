@@ -33,7 +33,7 @@ serde_json = { workspace = true }
 zenoh  = { workspace = true }
 zenoh-plugin-rest = { workspace = true }
 zenoh-plugin-trait = { workspace = true }
-zplugin-dds = { path = "../zplugin-dds/", default-features = false }
+zenoh-plugin-dds = { path = "../zenoh-plugin-dds/", default-features = false }
 
 [[bin]]
 name = "zenoh-bridge-dds"
