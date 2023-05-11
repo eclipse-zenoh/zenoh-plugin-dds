@@ -57,6 +57,7 @@ zenoh-ext = { version = "0.7.1-rc", features = ["unstable"] }
 zenoh-plugin-rest = { version = "0.7.1-rc", default-features = false }
 zenoh-plugin-trait = { version = "0.7.1-rc", default-features = false }
 zenoh-util = "0.7.1-rc"
+zenoh-plugin-dds = { version = "0.7.1-rc", path = "zenoh-plugin-dds/", default-features = false }
 
 [profile.release]
 debug = false
