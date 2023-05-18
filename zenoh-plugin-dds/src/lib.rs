@@ -13,6 +13,7 @@
 //
 use async_trait::async_trait;
 use cyclors::*;
+use cyclors::qos::*;
 use flume::{unbounded, Receiver, Sender};
 use futures::select;
 use git_version::git_version;
@@ -43,13 +44,11 @@ use zenoh_util::{Timed, TimedEvent, Timer};
 
 pub mod config;
 mod dds_mgt;
-mod qos;
 mod ros_discovery;
 mod route_dds_zenoh;
 mod route_zenoh_dds;
 use config::Config;
 use dds_mgt::*;
-use qos::*;
 
 use crate::ros_discovery::{
     NodeEntitiesInfo, ParticipantEntitiesInfo, RosDiscoveryInfoMgr, ROS_DISCOVERY_INFO_TOPIC_NAME,

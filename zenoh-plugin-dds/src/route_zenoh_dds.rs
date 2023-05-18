@@ -13,15 +13,16 @@
 //
 
 use cyclors::{
-    cdds_create_blob_sertype, cdds_ddsi_payload_create, cdds_sertype_unref, dds_entity_t,
-    dds_writecdr, ddsi_serdata, ddsi_serdata_kind_SDK_DATA, ddsi_sertype, size_t,
+    dds_entity_t, dds_writecdr, dds_get_entity_sertype, dds_strretcode,
+    ddsi_serdata_kind_SDK_DATA, ddsi_sertype, ddsi_serdata_from_ser_iov,
+    ddsrt_iovec_t, size_t,
 };
 use serde::{Serialize, Serializer};
 use std::collections::HashSet;
 use std::convert::TryInto;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
-use std::{ffi::CString, fmt, sync::atomic::AtomicI32, time::Duration};
+use std::{ffi::CStr, fmt, sync::atomic::AtomicI32, time::Duration};
 use zenoh::prelude::*;
 use zenoh::query::ReplyKeyExpr;
 use zenoh::{prelude::r#async::AsyncResolve, subscriber::Subscriber};
@@ -48,10 +49,6 @@ impl ZSubscriber<'_> {
         }
     }
 }
-#[derive(Clone)]
-struct SendSerType(*mut ddsi_sertype);
-unsafe impl Send for SendSerType {}
-unsafe impl Sync for SendSerType {}
 
 // a route from Zenoh to DDS
 #[allow(clippy::upper_case_acronyms)]
@@ -67,8 +64,6 @@ pub(crate) struct RouteZenohDDS<'a> {
     topic_name: String,
     // the DDS topic type
     topic_type: String,
-    #[serde(skip)]
-    sertype: SendSerType,
     // is DDS topic keyess
     keyless: bool,
     // the local DDS Writer created to serve the route (i.e. re-publish to DDS data coming from zenoh)
@@ -85,9 +80,6 @@ pub(crate) struct RouteZenohDDS<'a> {
 impl Drop for RouteZenohDDS<'_> {
     fn drop(&mut self) {
         self.delete_dds_writer();
-        unsafe {
-            cdds_sertype_unref(self.sertype.0);
-        }
     }
 }
 
@@ -129,12 +121,6 @@ impl RouteZenohDDS<'_> {
             querying_subscriber
         );
 
-        let sertype = unsafe {
-            let ctyn = CString::new(topic_type.clone()).unwrap().into_raw();
-            let s = cdds_create_blob_sertype(plugin.dp, ctyn as *mut std::os::raw::c_char, keyless);
-            SendSerType(s)
-        };
-
         // Initiate an Arc<AtomicDDSEntity> to DDS_ENTITY_NULL for the DDS Writer
         let dds_writer = Arc::new(AtomicDDSEntity::from(DDS_ENTITY_NULL));
         // Clone it for the subscriber_callback
@@ -142,11 +128,10 @@ impl RouteZenohDDS<'_> {
 
         // Callback routing data received by Zenoh subscriber to DDS Writer (if set)
         let ton = topic_name.clone();
-        let typ = sertype.clone();
         let subscriber_callback = move |s: Sample| {
             let dw = arc_dw.load(Ordering::Relaxed);
             if dw != DDS_ENTITY_NULL {
-                do_route_data(s, &ton, &typ, dw);
+                do_route_data(s, &ton, dw);
             } else {
                 // delay the routing of data for few ms in case this publication arrived
                 // before the discovery message provoking the creation of the Data Writer
@@ -157,14 +142,13 @@ impl RouteZenohDDS<'_> {
                 );
                 let arc_dw2 = arc_dw.clone();
                 let ton2 = ton.clone();
-                let typ2 = typ.clone();
                 let ke = s.key_expr.clone();
                 async_std::task::spawn(async move {
                     for _ in 1..30 {
                         async_std::task::sleep(Duration::from_millis(100)).await;
                         let dw = arc_dw2.load(Ordering::Relaxed);
                         if dw != DDS_ENTITY_NULL {
-                            do_route_data(s, &ton2, &typ2, dw);
+                            do_route_data(s, &ton2, dw);
                             break;
                         } else {
                             log::warn!(
@@ -229,7 +213,6 @@ impl RouteZenohDDS<'_> {
             zenoh_subscriber,
             topic_name,
             topic_type,
-            sertype,
             keyless,
             dds_writer,
             remote_routed_writers: HashSet::new(),
@@ -373,7 +356,7 @@ impl RouteZenohDDS<'_> {
     }
 }
 
-fn do_route_data(s: Sample, topic_name: &str, sertype: &SendSerType, data_writer: dds_entity_t) {
+fn do_route_data(s: Sample, topic_name: &str, data_writer: dds_entity_t) {
     if *LOG_PAYLOAD {
         log::trace!(
             "Route Zenoh->DDS ({} -> {}): routing data - payload: {:?}",
@@ -410,8 +393,35 @@ fn do_route_data(s: Sample, topic_name: &str, sertype: &SendSerType, data_writer
                 return;
             }
         };
-        let fwdp = cdds_ddsi_payload_create(sertype.0, ddsi_serdata_kind_SDK_DATA, ptr, size);
-        dds_writecdr(data_writer, fwdp as *mut ddsi_serdata);
+
+        let data_out = ddsrt_iovec_t {
+            iov_base: ptr as *mut std::ffi::c_void,
+            iov_len: size
+        };
+
+        let mut sertype_ptr: *const ddsi_sertype = std::ptr::null_mut();
+        let ret = dds_get_entity_sertype(data_writer, &mut sertype_ptr);
+        if ret < 0 {
+            log::warn!(
+                "Route Zenoh->DDS ({} -> {}): can't route data; sertype lookup failed ({})",
+                s.key_expr,
+                topic_name,
+                CStr::from_ptr(dds_strretcode(ret))
+                    .to_str()
+                    .unwrap_or("unrecoverable DDS retcode")
+            );
+            return;
+        }
+
+        let fwdp = ddsi_serdata_from_ser_iov(
+            sertype_ptr,
+            ddsi_serdata_kind_SDK_DATA,
+            1,
+            &data_out,
+            size
+        );
+
+        dds_writecdr(data_writer, fwdp);
         drop(Vec::from_raw_parts(ptr, len, capacity));
     }
 }

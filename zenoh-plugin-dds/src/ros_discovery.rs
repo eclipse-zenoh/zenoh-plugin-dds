@@ -23,6 +23,7 @@ use std::{
     collections::HashMap,
     ffi::{CStr, CString},
     mem::MaybeUninit,
+    slice,
 };
 use zenoh::buffers::ZBuf;
 
@@ -30,7 +31,6 @@ pub(crate) const ROS_DISCOVERY_INFO_TOPIC_NAME: &str = "ros_discovery_info";
 const ROS_DISCOVERY_INFO_TOPIC_TYPE: &str = "rmw_dds_common::msg::dds_::ParticipantEntitiesInfo_";
 
 pub(crate) struct RosDiscoveryInfoMgr {
-    participant: dds_entity_t,
     reader: dds_entity_t,
     writer: dds_entity_t,
 }
@@ -124,7 +124,6 @@ impl RosDiscoveryInfoMgr {
             drop(CString::from_raw(ctyn));
 
             Ok(RosDiscoveryInfoMgr {
-                participant,
                 reader,
                 writer,
             })
@@ -133,32 +132,46 @@ impl RosDiscoveryInfoMgr {
 
     pub(crate) fn read(&self) -> HashMap<String, ZBuf> {
         unsafe {
-            let mut zp: *mut cdds_ddsi_payload = std::ptr::null_mut();
+            let mut zp: *mut ddsi_serdata = std::ptr::null_mut();
             #[allow(clippy::uninit_assumed_init)]
             let mut si = MaybeUninit::<[dds_sample_info_t; 1]>::uninit();
             // Place read samples into a map indexed by Participant gid. Thus we only keep the last update for each
             let mut result: HashMap<String, ZBuf> = HashMap::new();
-            while cdds_take_blob(
+            while dds_takecdr(
                 self.reader,
                 &mut zp,
+                1,
                 si.as_mut_ptr() as *mut dds_sample_info_t,
+                DDS_ANY_STATE,
             ) > 0
             {
                 let si = si.assume_init();
                 if si[0].valid_data {
-                    let bs = Vec::from_raw_parts(
-                        (*zp).payload,
-                        (*zp).size as usize,
-                        (*zp).size as usize,
+                    let mut data_in = ddsrt_iovec_t {
+                        iov_base: std::ptr::null_mut(),
+                        iov_len: 0,
+                    };
+
+                    let size = ddsi_serdata_size(zp);
+                    let sdref = ddsi_serdata_to_ser_ref(
+                        zp,
+                        0,
+                        size as size_t,
+                        &mut data_in
                     );
+
+                    let data_in_slice = slice::from_raw_parts(
+                        data_in.iov_base as *mut u8,
+                        data_in.iov_len as usize);
+                    let bs = data_in_slice.to_vec();
                     // No need to deserialize the full payload. Just read the Participant gid (16 bytes after the 4 bytes of CDR header)
                     let gid = hex::encode(&bs[4..20]);
                     let buf = ZBuf::from(bs);
                     result.insert(gid, buf);
-
-                    (*zp).payload = std::ptr::null_mut();
+                    
+                    ddsi_serdata_to_ser_unref(sdref, &data_in);
                 }
-                cdds_serdata_unref(zp as *mut ddsi_serdata);
+                ddsi_serdata_unref(zp);
             }
             result
         }
@@ -169,12 +182,16 @@ impl RosDiscoveryInfoMgr {
             let buf = cdr::serialize::<_, _, CdrLe>(info, Infinite)
                 .map_err(|e| format!("Error serializing ParticipantEntitiesInfo: {e}"))?;
 
-            // create sertype (Unfortunatelly cdds_ddsi_payload_create() takes *mut ddsi_sertype. And keeping it in Self would make it not Send)
-            let ctyn = CString::new(ROS_DISCOVERY_INFO_TOPIC_TYPE)
-                .unwrap()
-                .into_raw();
-            let sertype = cdds_create_blob_sertype(self.participant, ctyn, true);
-            drop(CString::from_raw(ctyn));
+            let mut sertype: *const ddsi_sertype = std::ptr::null_mut();
+            let ret = dds_get_entity_sertype (self.writer, &mut sertype);
+            if ret < 0 {
+                return Err(format!(
+                    "Error creating payload for ParticipantEntitiesInfo: {}",
+                    CStr::from_ptr(dds_strretcode(ret))
+                    .to_str()
+                    .unwrap_or("unrecoverable DDS retcode")
+                ))
+            }
 
             // As per the Vec documentation (see https://doc.rust-lang.org/std/vec/struct.Vec.html#method.into_raw_parts)
             // the only way to correctly releasing it is to create a vec using from_raw_parts
@@ -183,17 +200,24 @@ impl RosDiscoveryInfoMgr {
             // that is not necessarily safe or guaranteed to be leak free.
             // TODO replace when stable https://github.com/rust-lang/rust/issues/65816
             let (ptr, len, capacity) = crate::vec_into_raw_parts(buf);
-            let fwdp = cdds_ddsi_payload_create(
+            let size: size_t = len.try_into().map_err(|e| {
+                format!("Error creating payload for ParticipantEntitiesInfo, excessive payload size: {e}")
+            })?;
+
+            let data_out = ddsrt_iovec_t {
+                iov_base: ptr as *mut std::ffi::c_void,
+                iov_len: size,
+            };
+
+            let fwdp = ddsi_serdata_from_ser_iov(
                 sertype,
                 ddsi_serdata_kind_SDK_DATA,
-                ptr,
-                len.try_into().map_err(|e| {
-                    format!("Error creating payload for ParticipantEntitiesInfo: {e}")
-                })?,
+                1,
+                &data_out,
+                size,
             );
-            dds_writecdr(self.writer, fwdp as *mut ddsi_serdata);
+            dds_writecdr(self.writer, fwdp);
             drop(Vec::from_raw_parts(ptr, len, capacity));
-            cdds_sertype_unref(sertype);
             Ok(())
         }
     }
