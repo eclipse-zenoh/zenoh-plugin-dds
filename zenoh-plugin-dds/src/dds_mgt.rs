@@ -24,7 +24,6 @@ use std::os::raw;
 use std::sync::Arc;
 use std::time::Duration;
 use std::slice;
-use zenoh::buffers::ZBuf;
 use zenoh::prelude::*;
 use zenoh::publication::CongestionControl;
 use zenoh::Session;
@@ -217,22 +216,20 @@ unsafe extern "C" fn data_forwarder_listener(dr: dds_entity_t, arg: *mut std::os
             let sdref = ddsi_serdata_to_ser_ref(zp, 0, size as size_t, &mut data_in);
 
             let data_in_slice = slice::from_raw_parts(data_in.iov_base as *mut u8, data_in.iov_len as usize);
-            let bs = data_in_slice.to_vec();
-            let rbuf = ZBuf::from(bs);
 
             if *crate::LOG_PAYLOAD {
                 log::trace!(
                     "Route data from DDS {} to zenoh key={} - payload: {:?}",
                     &(*pa).0,
                     &(*pa).1,
-                    rbuf
+                    data_in_slice
                 );
             } else {
                 log::trace!("Route data from DDS {} to zenoh key={}", &(*pa).0, &(*pa).1);
             }
             let _ = (*pa)
                 .2
-                .put(&(*pa).1, rbuf)
+                .put(&(*pa).1, data_in_slice)
                 .congestion_control((*pa).3)
                 .res_sync();
 
@@ -343,10 +340,8 @@ pub fn create_forwarding_dds_reader(
                                 );
 
                                 let data_in_slice = slice::from_raw_parts(data_in.iov_base as *mut u8, data_in.iov_len as usize);
-                                let bs = data_in_slice.to_vec();
-                                let rbuf = ZBuf::from(bs);
                                 let _ = z
-                                    .put(&z_key, rbuf)
+                                    .put(&z_key, data_in_slice)
                                     .congestion_control(congestion_ctrl)
                                     .res_sync();
                                 
