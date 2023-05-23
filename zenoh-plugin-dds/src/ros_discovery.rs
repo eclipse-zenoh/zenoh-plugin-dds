@@ -161,7 +161,7 @@ impl RosDiscoveryInfoMgr {
                     );
 
                     let data_in_slice = slice::from_raw_parts(
-                        data_in.iov_base as *mut u8,
+                        data_in.iov_base as *const u8,
                         data_in.iov_len as usize);
                     let bs = data_in_slice.to_vec();
                     // No need to deserialize the full payload. Just read the Participant gid (16 bytes after the 4 bytes of CDR header)

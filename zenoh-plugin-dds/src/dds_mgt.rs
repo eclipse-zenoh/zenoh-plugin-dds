@@ -215,7 +215,7 @@ unsafe extern "C" fn data_forwarder_listener(dr: dds_entity_t, arg: *mut std::os
             let size = ddsi_serdata_size(zp);
             let sdref = ddsi_serdata_to_ser_ref(zp, 0, size as size_t, &mut data_in);
 
-            let data_in_slice = slice::from_raw_parts(data_in.iov_base as *mut u8, data_in.iov_len as usize);
+            let data_in_slice = slice::from_raw_parts(data_in.iov_base as *const u8, data_in.iov_len as usize);
 
             if *crate::LOG_PAYLOAD {
                 log::trace!(
@@ -339,7 +339,7 @@ pub fn create_forwarding_dds_reader(
                                     &mut data_in
                                 );
 
-                                let data_in_slice = slice::from_raw_parts(data_in.iov_base as *mut u8, data_in.iov_len as usize);
+                                let data_in_slice = slice::from_raw_parts(data_in.iov_base as *const u8, data_in.iov_len as usize);
                                 let _ = z
                                     .put(&z_key, data_in_slice)
                                     .congestion_control(congestion_ctrl)
