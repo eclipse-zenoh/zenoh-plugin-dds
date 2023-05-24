@@ -11,7 +11,7 @@
 // Contributors:
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
-use crate::dds_mgt::delete_dds_entity;
+use crate::dds_mgt::{delete_dds_entity, DDSRawSample};
 use crate::qos::{Durability, History, Qos, Reliability, DDS_INFINITE_TIME};
 use cdr::{CdrLe, Infinite};
 use cyclors::*;
@@ -23,9 +23,7 @@ use std::{
     collections::HashMap,
     ffi::{CStr, CString},
     mem::MaybeUninit,
-    slice,
 };
-use zenoh::buffers::ZBuf;
 
 pub(crate) const ROS_DISCOVERY_INFO_TOPIC_NAME: &str = "ros_discovery_info";
 const ROS_DISCOVERY_INFO_TOPIC_TYPE: &str = "rmw_dds_common::msg::dds_::ParticipantEntitiesInfo_";
@@ -130,13 +128,13 @@ impl RosDiscoveryInfoMgr {
         }
     }
 
-    pub(crate) fn read(&self) -> HashMap<String, ZBuf> {
+    pub(crate) fn read(&self) -> HashMap<String, DDSRawSample> {
         unsafe {
             let mut zp: *mut ddsi_serdata = std::ptr::null_mut();
             #[allow(clippy::uninit_assumed_init)]
             let mut si = MaybeUninit::<[dds_sample_info_t; 1]>::uninit();
             // Place read samples into a map indexed by Participant gid. Thus we only keep the last update for each
-            let mut result: HashMap<String, ZBuf> = HashMap::new();
+            let mut result: HashMap<String, DDSRawSample> = HashMap::new();
             while dds_takecdr(
                 self.reader,
                 &mut zp,
@@ -147,29 +145,12 @@ impl RosDiscoveryInfoMgr {
             {
                 let si = si.assume_init();
                 if si[0].valid_data {
-                    let mut data_in = ddsrt_iovec_t {
-                        iov_base: std::ptr::null_mut(),
-                        iov_len: 0,
-                    };
+                    let raw_sample = DDSRawSample::create(zp);
 
-                    let size = ddsi_serdata_size(zp);
-                    let sdref = ddsi_serdata_to_ser_ref(
-                        zp,
-                        0,
-                        size as size_t,
-                        &mut data_in
-                    );
-
-                    let data_in_slice = slice::from_raw_parts(
-                        data_in.iov_base as *const u8,
-                        data_in.iov_len as usize);
-                    let bs = data_in_slice.to_vec();
                     // No need to deserialize the full payload. Just read the Participant gid (16 bytes after the 4 bytes of CDR header)
-                    let gid = hex::encode(&bs[4..20]);
-                    let buf = ZBuf::from(bs);
-                    result.insert(gid, buf);
-                    
-                    ddsi_serdata_to_ser_unref(sdref, &data_in);
+                    let gid = hex::encode(&raw_sample.as_slice()[4..20]);
+
+                    result.insert(gid, raw_sample);
                 }
                 ddsi_serdata_unref(zp);
             }

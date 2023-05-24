@@ -58,6 +58,52 @@ pub(crate) enum DiscoveryEvent {
     UndiscoveredSubscription { key: String },
 }
 
+pub(crate) struct DDSRawSample {
+    sdref: *mut ddsi_serdata,
+    data: ddsrt_iovec_t,
+}
+
+impl DDSRawSample {
+    pub(crate) fn create(serdata: *const ddsi_serdata) -> DDSRawSample {
+        unsafe {
+            let mut data = ddsrt_iovec_t {
+                                            iov_base: std::ptr::null_mut(),
+                                            iov_len: 0,
+                                        };
+
+            let size = ddsi_serdata_size(serdata);
+            let sdref = ddsi_serdata_to_ser_ref(
+                serdata,
+                0,
+                size as size_t,
+                &mut data
+            );
+
+            DDSRawSample {
+                sdref,
+                data,
+            }
+        }
+    }
+
+    pub(crate) fn as_slice(&self) -> &[u8] {
+        unsafe {
+            slice::from_raw_parts(
+                self.data.iov_base as *const u8,
+                self.data.iov_len as usize
+            )
+        }
+    }
+}
+
+impl Drop for DDSRawSample {
+    fn drop(&mut self) {
+        unsafe {
+            ddsi_serdata_to_ser_unref(self.sdref, &self.data);
+        }
+    }
+}
+
 unsafe extern "C" fn on_data(dr: dds_entity_t, arg: *mut std::os::raw::c_void) {
     let btx = Box::from_raw(arg as *mut (bool, Sender<DiscoveryEvent>));
     let pub_discovery: bool = btx.0;
@@ -207,15 +253,8 @@ unsafe extern "C" fn data_forwarder_listener(dr: dds_entity_t, arg: *mut std::os
     while dds_takecdr(dr, &mut zp, 1, si.as_mut_ptr() as *mut dds_sample_info_t, DDS_ANY_STATE) > 0 {
         let si = si.assume_init();
         if si[0].valid_data {
-            let mut data_in = ddsrt_iovec_t {
-                                            iov_base: std::ptr::null_mut(),
-                                            iov_len: 0,
-                                        };
-
-            let size = ddsi_serdata_size(zp);
-            let sdref = ddsi_serdata_to_ser_ref(zp, 0, size as size_t, &mut data_in);
-
-            let data_in_slice = slice::from_raw_parts(data_in.iov_base as *const u8, data_in.iov_len as usize);
+            let raw_sample = DDSRawSample::create(zp);
+            let data_in_slice = raw_sample.as_slice();
 
             if *crate::LOG_PAYLOAD {
                 log::trace!(
@@ -232,8 +271,6 @@ unsafe extern "C" fn data_forwarder_listener(dr: dds_entity_t, arg: *mut std::os
                 .put(&(*pa).1, data_in_slice)
                 .congestion_control((*pa).3)
                 .res_sync();
-
-            ddsi_serdata_to_ser_unref(sdref, &data_in);
         }
         ddsi_serdata_unref(zp);
     }
@@ -326,26 +363,13 @@ pub fn create_forwarding_dds_reader(
                                     z_key
                                 );
 
-                                let mut data_in = ddsrt_iovec_t {
-                                    iov_base: std::ptr::null_mut(),
-                                    iov_len: 0,
-                                };
+                                let raw_sample = DDSRawSample::create(zp);
+                                let data_in_slice = raw_sample.as_slice();
 
-                                let size = ddsi_serdata_size(zp);
-                                let sdref = ddsi_serdata_to_ser_ref(
-                                    zp,
-                                    0,
-                                    size as size_t,
-                                    &mut data_in
-                                );
-
-                                let data_in_slice = slice::from_raw_parts(data_in.iov_base as *const u8, data_in.iov_len as usize);
                                 let _ = z
                                     .put(&z_key, data_in_slice)
                                     .congestion_control(congestion_ctrl)
                                     .res_sync();
-                                
-                                ddsi_serdata_to_ser_unref(sdref, &data_in);
                             }
                             ddsi_serdata_unref(zp);
                         }
