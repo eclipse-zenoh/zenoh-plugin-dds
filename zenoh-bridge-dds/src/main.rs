@@ -100,6 +100,11 @@ r#"--dds-localhost-only \
 This option is not active by default, unless the "ROS_LOCALHOST_ONLY" environement variable is set to "1".'"#
         ))
         .arg(Arg::from_usage(
+r#"--dds-enable-shm \
+'Configure CycloneDDS to use Iceoryx shared memory. If not set, CycloneDDS will instead use any shared memory settings defined in "$CYCLONEDDS_URI" configuration.
+This option is not active by default.'"#
+        ))
+        .arg(Arg::from_usage(
 r#"--group-member-id=[ID]   'A custom identifier for the bridge, that will be used in group management (if not specified, the zenoh UUID is used).'"#
         ))
         .arg(Arg::from_usage(
@@ -193,6 +198,7 @@ r#"--watchdog=[PERIOD]   'Experimental!! Run a watchdog thread that monitors the
     insert_json5!(config, args, "plugins/dds/scope", if "scope",);
     insert_json5!(config, args, "plugins/dds/domain", if "domain", .parse::<u64>().unwrap());
     insert_json5!(config, args, "plugins/dds/localhost_only", if "dds-localhost-only");
+    insert_json5!(config, args, "plugins/dds/shm_enabled", if "dds-enable-shm");
     insert_json5!(config, args, "plugins/dds/group_member_id", if "group-member-id", );
     insert_json5!(config, args, "plugins/dds/allow", for "allow", .collect::<Vec<_>>());
     insert_json5!(config, args, "plugins/dds/deny", for "deny", .collect::<Vec::<_>>());

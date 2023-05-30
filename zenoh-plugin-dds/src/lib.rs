@@ -90,6 +90,9 @@ lazy_static::lazy_static!(
 // Empty configuration fragments are ignored, so it is safe to unconditionally append a comma.
 const CYCLONEDDS_CONFIG_LOCALHOST_ONLY: &str = r#"<CycloneDDS><Domain><General><Interfaces><NetworkInterface address="127.0.0.1" multicast="true"/></Interfaces></General></Domain></CycloneDDS>,"#;
 
+// CycloneDDS' enable-shm: enable usage of Iceoryx shared memory
+const CYCLONEDDS_CONFIG_ENABLE_SHM: &str = r#"<CycloneDDS><Domain><SharedMemory><Enable>true</Enable></SharedMemory></Domain></CycloneDDS>,"#;
+
 const ROS_DISCOVERY_INFO_POLL_INTERVAL_MS: u64 = 500;
 
 zenoh_plugin_trait::declare_plugin!(DDSPlugin);
@@ -189,6 +192,18 @@ pub async fn run(runtime: Runtime, config: Config) {
             format!(
                 "{}{}",
                 CYCLONEDDS_CONFIG_LOCALHOST_ONLY,
+                env::var("CYCLONEDDS_URI").unwrap_or_default()
+            ),
+        );
+    }
+
+    // if "enable_shm" is set, configure CycloneDDS to use Iceoryx shared memory
+    if config.shm_enabled {
+        env::set_var(
+            "CYCLONEDDS_URI",
+            format!(
+                "{}{}",
+                CYCLONEDDS_CONFIG_ENABLE_SHM,
                 env::var("CYCLONEDDS_URI").unwrap_or_default()
             ),
         );
