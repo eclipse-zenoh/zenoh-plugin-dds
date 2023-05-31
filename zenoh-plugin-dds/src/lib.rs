@@ -12,8 +12,8 @@
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 use async_trait::async_trait;
-use cyclors::*;
 use cyclors::qos::*;
+use cyclors::*;
 use flume::{unbounded, Receiver, Sender};
 use futures::select;
 use git_version::git_version;
@@ -613,7 +613,11 @@ impl<'a> DdsPluginRuntime<'a> {
         // send replies
         for (ke, v) in kvs.drain(..) {
             let admin_keyexpr = admin_keyexpr_prefix / &ke;
-            if let Err(e) = query.reply(Ok(Sample::new(admin_keyexpr, v))).res_async().await {
+            if let Err(e) = query
+                .reply(Ok(Sample::new(admin_keyexpr, v)))
+                .res_async()
+                .await
+            {
                 warn!("Error replying to admin query {:?}: {}", query, e);
             }
         }
