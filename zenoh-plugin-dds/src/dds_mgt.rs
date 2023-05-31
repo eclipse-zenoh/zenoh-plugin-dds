@@ -12,8 +12,8 @@
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 use async_std::task;
+use cyclors::qos::{HistoryKind, Qos};
 use cyclors::*;
-use cyclors::qos::{Qos, HistoryKind};
 use flume::Sender;
 use log::{debug, error, warn};
 use serde::{Deserialize, Serialize, Serializer};
@@ -21,9 +21,9 @@ use std::collections::HashMap;
 use std::ffi::{CStr, CString};
 use std::mem::MaybeUninit;
 use std::os::raw;
+use std::slice;
 use std::sync::Arc;
 use std::time::Duration;
-use std::slice;
 use zenoh::prelude::*;
 use zenoh::publication::CongestionControl;
 use zenoh::Session;
@@ -67,31 +67,20 @@ impl DDSRawSample {
     pub(crate) fn create(serdata: *const ddsi_serdata) -> DDSRawSample {
         unsafe {
             let mut data = ddsrt_iovec_t {
-                                            iov_base: std::ptr::null_mut(),
-                                            iov_len: 0,
-                                        };
+                iov_base: std::ptr::null_mut(),
+                iov_len: 0,
+            };
 
             let size = ddsi_serdata_size(serdata);
-            let sdref = ddsi_serdata_to_ser_ref(
-                serdata,
-                0,
-                size as size_t,
-                &mut data
-            );
+            let sdref = ddsi_serdata_to_ser_ref(serdata, 0, size as size_t, &mut data);
 
-            DDSRawSample {
-                sdref,
-                data,
-            }
+            DDSRawSample { sdref, data }
         }
     }
 
     pub(crate) fn as_slice(&self) -> &[u8] {
         unsafe {
-            slice::from_raw_parts(
-                self.data.iov_base as *const u8,
-                self.data.iov_len as usize
-            )
+            slice::from_raw_parts(self.data.iov_base as *const u8, self.data.iov_len as usize)
         }
     }
 }
@@ -250,7 +239,14 @@ unsafe extern "C" fn data_forwarder_listener(dr: dds_entity_t, arg: *mut std::os
     let mut zp: *mut ddsi_serdata = std::ptr::null_mut();
     #[allow(clippy::uninit_assumed_init)]
     let mut si = MaybeUninit::<[dds_sample_info_t; 1]>::uninit();
-    while dds_takecdr(dr, &mut zp, 1, si.as_mut_ptr() as *mut dds_sample_info_t, DDS_ANY_STATE) > 0 {
+    while dds_takecdr(
+        dr,
+        &mut zp,
+        1,
+        si.as_mut_ptr() as *mut dds_sample_info_t,
+        DDS_ANY_STATE,
+    ) > 0
+    {
         let si = si.assume_init();
         if si[0].valid_data {
             let raw_sample = DDSRawSample::create(zp);
@@ -305,8 +301,7 @@ pub fn create_forwarding_dds_reader(
                 let reader = dds_create_reader(dp, t, qos_native, sub_listener);
                 Qos::delete_qos_native(qos_native);
                 if reader >= 0 {
-                    let res =
-                        dds_reader_wait_for_historical_data(reader, qos::DDS_100MS_DURATION);
+                    let res = dds_reader_wait_for_historical_data(reader, qos::DDS_100MS_DURATION);
                     if res < 0 {
                         log::error!(
                             "Error calling dds_reader_wait_for_historical_data(): {}",

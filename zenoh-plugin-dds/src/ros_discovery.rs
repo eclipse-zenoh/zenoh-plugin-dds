@@ -121,10 +121,7 @@ impl RosDiscoveryInfoMgr {
             drop(CString::from_raw(cton));
             drop(CString::from_raw(ctyn));
 
-            Ok(RosDiscoveryInfoMgr {
-                reader,
-                writer,
-            })
+            Ok(RosDiscoveryInfoMgr { reader, writer })
         }
     }
 
@@ -164,14 +161,14 @@ impl RosDiscoveryInfoMgr {
                 .map_err(|e| format!("Error serializing ParticipantEntitiesInfo: {e}"))?;
 
             let mut sertype: *const ddsi_sertype = std::ptr::null_mut();
-            let ret = dds_get_entity_sertype (self.writer, &mut sertype);
+            let ret = dds_get_entity_sertype(self.writer, &mut sertype);
             if ret < 0 {
                 return Err(format!(
                     "Error creating payload for ParticipantEntitiesInfo: {}",
                     CStr::from_ptr(dds_strretcode(ret))
-                    .to_str()
-                    .unwrap_or("unrecoverable DDS retcode")
-                ))
+                        .to_str()
+                        .unwrap_or("unrecoverable DDS retcode")
+                ));
             }
 
             // As per the Vec documentation (see https://doc.rust-lang.org/std/vec/struct.Vec.html#method.into_raw_parts)
@@ -190,13 +187,8 @@ impl RosDiscoveryInfoMgr {
                 iov_len: size,
             };
 
-            let fwdp = ddsi_serdata_from_ser_iov(
-                sertype,
-                ddsi_serdata_kind_SDK_DATA,
-                1,
-                &data_out,
-                size,
-            );
+            let fwdp =
+                ddsi_serdata_from_ser_iov(sertype, ddsi_serdata_kind_SDK_DATA, 1, &data_out, size);
             dds_writecdr(self.writer, fwdp);
             drop(Vec::from_raw_parts(ptr, len, capacity));
             Ok(())
