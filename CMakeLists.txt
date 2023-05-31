@@ -49,9 +49,8 @@ add_custom_target(
 
 install(FILES
     ${RUST_TARGET_DIR}/release/zenoh-bridge-dds
-    RENAME zenoh_bridge_dds
     PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE
-    DESTINATION lib/${PROJECT_NAME}
+    DESTINATION bin
 )
 
 ament_package()
