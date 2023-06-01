@@ -72,12 +72,7 @@ impl DDSRawSample {
             };
 
             let size = ddsi_serdata_size(serdata);
-            let sdref = ddsi_serdata_to_ser_ref(
-                serdata,
-                0,
-                size as usize,
-                &mut data
-            );
+            let sdref = ddsi_serdata_to_ser_ref(serdata, 0, size as usize, &mut data);
 
             DDSRawSample { sdref, data }
         }

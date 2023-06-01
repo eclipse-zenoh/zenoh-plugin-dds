@@ -13,9 +13,8 @@
 //
 
 use cyclors::{
-    dds_entity_t, dds_writecdr, dds_get_entity_sertype, dds_strretcode,
-    ddsi_serdata_kind_SDK_DATA, ddsi_sertype, ddsi_serdata_from_ser_iov,
-    ddsrt_iovec_t, ddsrt_iov_len_t,
+    dds_entity_t, dds_get_entity_sertype, dds_strretcode, dds_writecdr, ddsi_serdata_from_ser_iov,
+    ddsi_serdata_kind_SDK_DATA, ddsi_sertype, ddsrt_iov_len_t, ddsrt_iovec_t,
 };
 use serde::{Serialize, Serializer};
 use std::collections::HashSet;
@@ -418,7 +417,7 @@ fn do_route_data(s: Sample, topic_name: &str, data_writer: dds_entity_t) {
             ddsi_serdata_kind_SDK_DATA,
             1,
             &data_out,
-            size as usize
+            size as usize,
         );
 
         dds_writecdr(data_writer, fwdp);
