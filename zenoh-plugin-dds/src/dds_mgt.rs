@@ -19,6 +19,7 @@ use log::{debug, error, warn};
 use serde::{Deserialize, Serialize, Serializer};
 use std::collections::HashMap;
 use std::ffi::{CStr, CString};
+use std::fmt;
 use std::mem::MaybeUninit;
 use std::os::raw;
 use std::sync::Arc;
@@ -50,17 +51,42 @@ pub(crate) struct DdsEntity {
     pub(crate) routes: HashMap<String, RouteStatus>, // map of routes statuses indexed by partition ("*" only if no partition)
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub(crate) struct DdsParticipant {
+    pub(crate) key: String,
+}
+
 #[derive(Debug)]
 pub(crate) enum DiscoveryEvent {
     DiscoveredPublication { entity: DdsEntity },
     UndiscoveredPublication { key: String },
     DiscoveredSubscription { entity: DdsEntity },
     UndiscoveredSubscription { key: String },
+    DiscoveredParticipant { entity: DdsParticipant },
+    UndiscoveredParticipant { key: String },
+}
+
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum DiscoveryType {
+    Participant,
+    Publication,
+    Subscription,
+}
+
+impl fmt::Display for DiscoveryType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            DiscoveryType::Participant => write!(f, "participant"),
+            DiscoveryType::Publication => write!(f, "publication"),
+            DiscoveryType::Subscription => write!(f, "subscription"),
+        }
+    }
 }
 
 unsafe extern "C" fn on_data(dr: dds_entity_t, arg: *mut std::os::raw::c_void) {
-    let btx = Box::from_raw(arg as *mut (bool, Sender<DiscoveryEvent>));
-    let pub_discovery: bool = btx.0;
+    let btx = Box::from_raw(arg as *mut (DiscoveryType, Sender<DiscoveryEvent>));
+    let discovery_type = btx.0;
+    let sender = &btx.1;
     let dp = dds_get_participant(dr);
     let mut dpih: dds_instance_handle_t = 0;
     let _ = dds_get_instance_handle(dp, &mut dpih);
@@ -81,80 +107,106 @@ unsafe extern "C" fn on_data(dr: dds_entity_t, arg: *mut std::os::raw::c_void) {
     let si = si.assume_init();
 
     for i in 0..n {
-        let sample = samples[i as usize] as *mut dds_builtintopic_endpoint_t;
-        if (*sample).participant_instance_handle == dpih {
-            // Ignore discovery of entities created by our own participant
-            continue;
-        }
-        let is_alive = si[i as usize].instance_state == dds_instance_state_DDS_IST_ALIVE;
-        let key = hex::encode((*sample).key.v);
-
-        if is_alive {
-            let topic_name = match CStr::from_ptr((*sample).topic_name).to_str() {
-                Ok(s) => s,
-                Err(e) => {
-                    warn!("Discovery of an invalid topic name: {}", e);
+        match discovery_type {
+            DiscoveryType::Publication | DiscoveryType::Subscription => {
+                let sample = samples[i as usize] as *mut dds_builtintopic_endpoint_t;
+                if (*sample).participant_instance_handle == dpih {
+                    // Ignore discovery of entities created by our own participant
                     continue;
                 }
-            };
-            if topic_name.starts_with("DCPS") {
-                debug!(
-                    "Ignoring discovery of {} ({} is a builtin topic)",
-                    key, topic_name
-                );
-                continue;
-            }
+                let is_alive = si[i as usize].instance_state == dds_instance_state_DDS_IST_ALIVE;
+                let key = hex::encode((*sample).key.v);
 
-            let type_name = match CStr::from_ptr((*sample).type_name).to_str() {
-                Ok(s) => s,
-                Err(e) => {
-                    warn!("Discovery of an invalid topic type: {}", e);
-                    continue;
-                }
-            };
-            let participant_key = hex::encode((*sample).participant_key.v);
-            let keyless = (*sample).key.v[15] == 3 || (*sample).key.v[15] == 4;
+                if is_alive {
+                    let topic_name = match CStr::from_ptr((*sample).topic_name).to_str() {
+                        Ok(s) => s,
+                        Err(e) => {
+                            warn!("Discovery of an invalid topic name: {}", e);
+                            continue;
+                        }
+                    };
+                    if topic_name.starts_with("DCPS") {
+                        debug!(
+                            "Ignoring discovery of {} ({} is a builtin topic)",
+                            key, topic_name
+                        );
+                        continue;
+                    }
 
-            debug!(
-                "Discovered DDS {} {} from Participant {} on {} with type {} (keyless: {})",
-                if pub_discovery {
-                    "publication"
+                    let type_name = match CStr::from_ptr((*sample).type_name).to_str() {
+                        Ok(s) => s,
+                        Err(e) => {
+                            warn!("Discovery of an invalid topic type: {}", e);
+                            continue;
+                        }
+                    };
+                    let participant_key = hex::encode((*sample).participant_key.v);
+                    let keyless = (*sample).key.v[15] == 3 || (*sample).key.v[15] == 4;
+
+                    debug!(
+                        "Discovered DDS {} {} from Participant {} on {} with type {} (keyless: {})",
+                        discovery_type, key, participant_key, topic_name, type_name, keyless
+                    );
+
+                    let qos = if let DiscoveryType::Publication = discovery_type {
+                        Qos::from_writer_qos_native((*sample).qos)
+                    } else {
+                        Qos::from_reader_qos_native((*sample).qos)
+                    };
+
+                    // send a DiscoveryEvent
+                    let entity = DdsEntity {
+                        key: key.clone(),
+                        participant_key: participant_key.clone(),
+                        topic_name: String::from(topic_name),
+                        type_name: String::from(type_name),
+                        keyless,
+                        qos,
+                        routes: HashMap::<String, RouteStatus>::new(),
+                    };
+
+                    if let DiscoveryType::Publication = discovery_type {
+                        send_discovery_event(
+                            sender,
+                            DiscoveryEvent::DiscoveredPublication { entity },
+                        );
+                    } else {
+                        send_discovery_event(
+                            sender,
+                            DiscoveryEvent::DiscoveredSubscription { entity },
+                        );
+                    }
+                } else if let DiscoveryType::Publication = discovery_type {
+                    send_discovery_event(sender, DiscoveryEvent::UndiscoveredPublication { key });
                 } else {
-                    "subscription"
-                },
-                key,
-                participant_key,
-                topic_name,
-                type_name,
-                keyless
-            );
-
-            let qos = if pub_discovery {
-                Qos::from_writer_qos_native((*sample).qos)
-            } else {
-                Qos::from_reader_qos_native((*sample).qos)
-            };
-
-            // send a DiscoveryEvent
-            let entity = DdsEntity {
-                key: key.clone(),
-                participant_key: participant_key.clone(),
-                topic_name: String::from(topic_name),
-                type_name: String::from(type_name),
-                keyless,
-                qos,
-                routes: HashMap::<String, RouteStatus>::new(),
-            };
-
-            if pub_discovery {
-                send_discovery_event(&btx.1, DiscoveryEvent::DiscoveredPublication { entity });
-            } else {
-                send_discovery_event(&btx.1, DiscoveryEvent::DiscoveredSubscription { entity });
+                    send_discovery_event(sender, DiscoveryEvent::UndiscoveredSubscription { key });
+                }
             }
-        } else if pub_discovery {
-            send_discovery_event(&btx.1, DiscoveryEvent::UndiscoveredPublication { key });
-        } else {
-            send_discovery_event(&btx.1, DiscoveryEvent::UndiscoveredSubscription { key });
+            DiscoveryType::Participant => {
+                let sample = samples[i as usize] as *mut dds_builtintopic_participant_t;
+                let is_alive = si[i as usize].instance_state == dds_instance_state_DDS_IST_ALIVE;
+                let key = hex::encode((*sample).key.v);
+
+                let mut guid = dds_builtintopic_guid { v: [0; 16] };
+                let _ = dds_get_guid(dp, &mut guid);
+                let guid = hex::encode(guid.v);
+
+                if key == guid {
+                    // Ignore discovery of entities created by our own participant
+                    continue;
+                }
+
+                if is_alive {
+                    debug!("Discovered DDS Participant {})", key,);
+
+                    // Send a DiscoveryEvent
+                    let entity = DdsParticipant { key: key.clone() };
+
+                    send_discovery_event(sender, DiscoveryEvent::DiscoveredParticipant { entity });
+                } else {
+                    send_discovery_event(sender, DiscoveryEvent::UndiscoveredParticipant { key });
+                }
+            }
         }
     }
     dds_return_loan(
@@ -176,8 +228,9 @@ fn send_discovery_event(sender: &Sender<DiscoveryEvent>, event: DiscoveryEvent) 
 
 pub(crate) fn run_discovery(dp: dds_entity_t, tx: Sender<DiscoveryEvent>) {
     unsafe {
-        let ptx = Box::new((true, tx.clone()));
-        let stx = Box::new((false, tx));
+        let ptx = Box::new((DiscoveryType::Publication, tx.clone()));
+        let stx = Box::new((DiscoveryType::Subscription, tx.clone()));
+        let dptx = Box::new((DiscoveryType::Participant, tx));
         let sub_listener = dds_create_listener(Box::into_raw(ptx) as *mut std::os::raw::c_void);
         dds_lset_data_available(sub_listener, Some(on_data));
 
@@ -193,6 +246,15 @@ pub(crate) fn run_discovery(dp: dds_entity_t, tx: Sender<DiscoveryEvent>) {
         let _sr = dds_create_reader(
             dp,
             DDS_BUILTIN_TOPIC_DCPSSUBSCRIPTION,
+            std::ptr::null(),
+            sub_listener,
+        );
+
+        let sub_listener = dds_create_listener(Box::into_raw(dptx) as *mut std::os::raw::c_void);
+        dds_lset_data_available(sub_listener, Some(on_data));
+        let _dpr = dds_create_reader(
+            dp,
+            DDS_BUILTIN_TOPIC_DCPSPARTICIPANT,
             std::ptr::null(),
             sub_listener,
         );

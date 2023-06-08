@@ -213,6 +213,7 @@ pub async fn run(runtime: Runtime, config: Config) {
         _member: member,
         member_id,
         dp,
+        discovered_participants: HashMap::<String, DdsParticipant>::new(),
         discovered_writers: HashMap::<String, DdsEntity>::new(),
         discovered_readers: HashMap::<String, DdsEntity>::new(),
         routes_from_dds: HashMap::<OwnedKeyExpr, RouteDDSZenoh>::new(),
@@ -226,6 +227,7 @@ pub async fn run(runtime: Runtime, config: Config) {
 // An reference used in admin space to point to a struct (DdsEntity or Route) stored in another map
 #[derive(Debug)]
 enum AdminRef {
+    DdsParticipant(String),
     DdsWriterEntity(String),
     DdsReaderEntity(String),
     FromDdsRoute(OwnedKeyExpr),
@@ -243,6 +245,7 @@ pub(crate) struct DdsPluginRuntime<'a> {
     member_id: OwnedKeyExpr,
     dp: dds_entity_t,
     // maps of all discovered DDS entities (indexed by DDS key)
+    discovered_participants: HashMap<String, DdsParticipant>,
     discovered_writers: HashMap<String, DdsEntity>,
     discovered_readers: HashMap<String, DdsEntity>,
     // maps of established routes from/to DDS (indexed by zenoh key expression)
@@ -324,7 +327,11 @@ impl<'a> DdsPluginRuntime<'a> {
         None
     }
 
-    fn get_admin_keyexpr(e: &DdsEntity, is_writer: bool) -> OwnedKeyExpr {
+    fn get_participant_admin_keyexpr(e: &DdsParticipant) -> OwnedKeyExpr {
+        format!("participant/{}", e.key,).try_into().unwrap()
+    }
+
+    fn get_entity_admin_keyexpr(e: &DdsEntity, is_writer: bool) -> OwnedKeyExpr {
         format!(
             "participant/{}/{}/{}/{}",
             e.participant_key,
@@ -334,6 +341,27 @@ impl<'a> DdsPluginRuntime<'a> {
         )
         .try_into()
         .unwrap()
+    }
+
+    fn insert_dds_participant(&mut self, admin_keyexpr: OwnedKeyExpr, e: DdsParticipant) {
+        // insert reference in admin space
+        self.admin_space
+            .insert(admin_keyexpr, AdminRef::DdsParticipant(e.key.clone()));
+
+        // insert DdsParticipant in discovered_participants map
+        self.discovered_participants.insert(e.key.clone(), e);
+    }
+
+    fn remove_dds_participant(&mut self, dds_key: &str) -> Option<(OwnedKeyExpr, DdsParticipant)> {
+        // remove fron participants map
+        if let Some(e) = self.discovered_participants.remove(dds_key) {
+            // remove from admin_space
+            let admin_keyexpr = DdsPluginRuntime::get_participant_admin_keyexpr(&e);
+            self.admin_space.remove(&admin_keyexpr);
+            Some((admin_keyexpr, e))
+        } else {
+            None
+        }
     }
 
     fn insert_dds_writer(&mut self, admin_keyexpr: OwnedKeyExpr, e: DdsEntity) {
@@ -349,7 +377,7 @@ impl<'a> DdsPluginRuntime<'a> {
         // remove from dds_writer map
         if let Some(e) = self.discovered_writers.remove(dds_key) {
             // remove from admin_space
-            let admin_keyexpr = DdsPluginRuntime::get_admin_keyexpr(&e, true);
+            let admin_keyexpr = DdsPluginRuntime::get_entity_admin_keyexpr(&e, true);
             self.admin_space.remove(&admin_keyexpr);
             Some((admin_keyexpr, e))
         } else {
@@ -370,7 +398,7 @@ impl<'a> DdsPluginRuntime<'a> {
         // remove from dds_reader map
         if let Some(e) = self.discovered_readers.remove(dds_key) {
             // remove from admin space
-            let admin_keyexpr = DdsPluginRuntime::get_admin_keyexpr(&e, false);
+            let admin_keyexpr = DdsPluginRuntime::get_entity_admin_keyexpr(&e, false);
             self.admin_space.remove(&admin_keyexpr);
             Some((admin_keyexpr, e))
         } else {
@@ -528,6 +556,11 @@ impl<'a> DdsPluginRuntime<'a> {
 
     fn get_admin_value(&self, admin_ref: &AdminRef) -> Result<Option<Value>, serde_json::Error> {
         match admin_ref {
+            AdminRef::DdsParticipant(key) => self
+                .discovered_participants
+                .get(key)
+                .map(serde_json::to_value)
+                .transpose(),
             AdminRef::DdsReaderEntity(key) => self
                 .discovered_readers
                 .get(key)
@@ -689,7 +722,7 @@ impl<'a> DdsPluginRuntime<'a> {
                         } => {
                             debug!("Discovered DDS Writer {} on {} with type '{}' and QoS: {:?}", entity.key, entity.topic_name, entity.type_name, entity.qos);
                             // get its admin_keyexpr
-                            let admin_keyexpr = DdsPluginRuntime::get_admin_keyexpr(&entity, true);
+                            let admin_keyexpr = DdsPluginRuntime::get_entity_admin_keyexpr(&entity, true);
 
                             // copy and adapt Writer's QoS for creation of a matching Reader
                             let mut qos = entity.qos.clone();
@@ -759,7 +792,7 @@ impl<'a> DdsPluginRuntime<'a> {
                             mut entity
                         } => {
                             debug!("Discovered DDS Reader {} on {} with type '{}' and QoS: {:?}", entity.key, entity.topic_name, entity.type_name, entity.qos);
-                            let admin_keyexpr = DdsPluginRuntime::get_admin_keyexpr(&entity, false);
+                            let admin_keyexpr = DdsPluginRuntime::get_entity_admin_keyexpr(&entity, false);
 
                             // copy and adapt Reader's QoS for creation of a matching Writer
                             let mut qos = entity.qos.clone();
@@ -829,6 +862,24 @@ impl<'a> DdsPluginRuntime<'a> {
                                         }
                                     }
                                 );
+                            }
+                        }
+
+                        DiscoveryEvent::DiscoveredParticipant {
+                            entity,
+                        } => {
+                            debug!("Discovered DDS Participant {}", entity.key);
+                            let admin_keyexpr = DdsPluginRuntime::get_participant_admin_keyexpr(&entity);
+
+                            // store the participant
+                            self.insert_dds_participant(admin_keyexpr, entity);
+                        }
+
+                        DiscoveryEvent::UndiscoveredParticipant {
+                            key,
+                        } => {
+                            if let Some((_, _)) = self.remove_dds_participant(&key) {
+                                debug!("Undiscovered DDS Participant {}", key);
                             }
                         }
                     }
@@ -961,7 +1012,7 @@ impl<'a> DdsPluginRuntime<'a> {
                         } => {
                             debug!("Discovered DDS Writer {} on {} with type '{}' and QoS: {:?} => advertise it", entity.key, entity.topic_name, entity.type_name, entity.qos);
                             // advertise the entity and its scope within admin space (bincode format)
-                            let admin_keyexpr = DdsPluginRuntime::get_admin_keyexpr(&entity, true);
+                            let admin_keyexpr = DdsPluginRuntime::get_entity_admin_keyexpr(&entity, true);
                             let fwd_ke = &fwd_writers_key_prefix_key / &admin_keyexpr;
                             let msg = (&entity, &scope);
                             let ser_msg = match bincode::serialize(&msg) {
@@ -1022,7 +1073,7 @@ impl<'a> DdsPluginRuntime<'a> {
                             }
 
                             // advertise the entity and its scope within admin space (bincode format)
-                            let admin_keyexpr = DdsPluginRuntime::get_admin_keyexpr(&entity, false);
+                            let admin_keyexpr = DdsPluginRuntime::get_entity_admin_keyexpr(&entity, false);
                             let fwd_ke = &fwd_readers_key_prefix_key / &admin_keyexpr;
                             let msg = (&entity, &scope);
                             let ser_msg = match bincode::serialize(&msg) {
@@ -1066,6 +1117,24 @@ impl<'a> DdsPluginRuntime<'a> {
                                     }
                                 }
                             );
+                        }
+
+                        DiscoveryEvent::DiscoveredParticipant {
+                            entity,
+                        } => {
+                            debug!("Discovered DDS Participant {}", entity.key);
+                            let admin_keyexpr = DdsPluginRuntime::get_participant_admin_keyexpr(&entity);
+
+                            // store the participant
+                            self.insert_dds_participant(admin_keyexpr, entity);
+                        }
+
+                        DiscoveryEvent::UndiscoveredParticipant {
+                            key,
+                        } => {
+                            if let Some((_, _)) = self.remove_dds_participant(&key) {
+                                debug!("Undiscovered DDS Participant {}", key);
+                            }
                         }
                     }
                 },
