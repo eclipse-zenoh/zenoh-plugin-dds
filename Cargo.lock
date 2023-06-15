@@ -750,13 +750,16 @@ dependencies = [
 
 [[package]]
 name = "cyclors"
-version = "0.1.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f8cb4a24704f4efe7758a6233f889a0099a308e10dbe7427f6960a84c500ec02"
+version = "0.2.0"
+source = "git+https://github.com/gmartin82/cyclors?branch=master#7b0aa7ab2d02f59336ba6cfd8af17a950ac31354"
 dependencies = [
+ "bincode",
  "bindgen",
  "cmake",
+ "derivative",
  "libc",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

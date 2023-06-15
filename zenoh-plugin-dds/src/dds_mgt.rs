@@ -11,8 +11,8 @@
 // Contributors:
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
-use crate::qos::{HistoryKind, Qos};
 use async_std::task;
+use cyclors::qos::{HistoryKind, Qos};
 use cyclors::*;
 use flume::Sender;
 use log::{debug, error, warn};
@@ -21,9 +21,9 @@ use std::collections::HashMap;
 use std::ffi::{CStr, CString};
 use std::mem::MaybeUninit;
 use std::os::raw;
+use std::slice;
 use std::sync::Arc;
 use std::time::Duration;
-use zenoh::buffers::ZBuf;
 use zenoh::prelude::*;
 use zenoh::publication::CongestionControl;
 use zenoh::Session;
@@ -56,6 +56,41 @@ pub(crate) enum DiscoveryEvent {
     UndiscoveredPublication { key: String },
     DiscoveredSubscription { entity: DdsEntity },
     UndiscoveredSubscription { key: String },
+}
+
+pub(crate) struct DDSRawSample {
+    sdref: *mut ddsi_serdata,
+    data: ddsrt_iovec_t,
+}
+
+impl DDSRawSample {
+    pub(crate) fn create(serdata: *const ddsi_serdata) -> DDSRawSample {
+        unsafe {
+            let mut data = ddsrt_iovec_t {
+                iov_base: std::ptr::null_mut(),
+                iov_len: 0,
+            };
+
+            let size = ddsi_serdata_size(serdata);
+            let sdref = ddsi_serdata_to_ser_ref(serdata, 0, size as size_t, &mut data);
+
+            DDSRawSample { sdref, data }
+        }
+    }
+
+    pub(crate) fn as_slice(&self) -> &[u8] {
+        unsafe {
+            slice::from_raw_parts(self.data.iov_base as *const u8, self.data.iov_len as usize)
+        }
+    }
+}
+
+impl Drop for DDSRawSample {
+    fn drop(&mut self) {
+        unsafe {
+            ddsi_serdata_to_ser_unref(self.sdref, &self.data);
+        }
+    }
 }
 
 unsafe extern "C" fn on_data(dr: dds_entity_t, arg: *mut std::os::raw::c_void) {
@@ -201,32 +236,39 @@ pub(crate) fn run_discovery(dp: dds_entity_t, tx: Sender<DiscoveryEvent>) {
 
 unsafe extern "C" fn data_forwarder_listener(dr: dds_entity_t, arg: *mut std::os::raw::c_void) {
     let pa = arg as *mut (String, KeyExpr, Arc<Session>, CongestionControl);
-    let mut zp: *mut cdds_ddsi_payload = std::ptr::null_mut();
+    let mut zp: *mut ddsi_serdata = std::ptr::null_mut();
     #[allow(clippy::uninit_assumed_init)]
     let mut si = MaybeUninit::<[dds_sample_info_t; 1]>::uninit();
-    while cdds_take_blob(dr, &mut zp, si.as_mut_ptr() as *mut dds_sample_info_t) > 0 {
+    while dds_takecdr(
+        dr,
+        &mut zp,
+        1,
+        si.as_mut_ptr() as *mut dds_sample_info_t,
+        DDS_ANY_STATE,
+    ) > 0
+    {
         let si = si.assume_init();
         if si[0].valid_data {
-            let bs = Vec::from_raw_parts((*zp).payload, (*zp).size as usize, (*zp).size as usize);
-            let rbuf = ZBuf::from(bs);
+            let raw_sample = DDSRawSample::create(zp);
+            let data_in_slice = raw_sample.as_slice();
+
             if *crate::LOG_PAYLOAD {
                 log::trace!(
                     "Route data from DDS {} to zenoh key={} - payload: {:?}",
                     &(*pa).0,
                     &(*pa).1,
-                    rbuf
+                    data_in_slice
                 );
             } else {
                 log::trace!("Route data from DDS {} to zenoh key={}", &(*pa).0, &(*pa).1);
             }
             let _ = (*pa)
                 .2
-                .put(&(*pa).1, rbuf)
+                .put(&(*pa).1, data_in_slice)
                 .congestion_control((*pa).3)
                 .res_sync();
-            (*zp).payload = std::ptr::null_mut();
         }
-        cdds_serdata_unref(zp as *mut ddsi_serdata);
+        ddsi_serdata_unref(zp);
     }
 }
 
@@ -259,8 +301,7 @@ pub fn create_forwarding_dds_reader(
                 let reader = dds_create_reader(dp, t, qos_native, sub_listener);
                 Qos::delete_qos_native(qos_native);
                 if reader >= 0 {
-                    let res =
-                        dds_reader_wait_for_historical_data(reader, crate::qos::DDS_100MS_DURATION);
+                    let res = dds_reader_wait_for_historical_data(reader, qos::DDS_100MS_DURATION);
                     if res < 0 {
                         log::error!(
                             "Error calling dds_reader_wait_for_historical_data(): {}",
@@ -299,13 +340,15 @@ pub fn create_forwarding_dds_reader(
                         }
 
                         async_std::task::sleep(period).await;
-                        let mut zp: *mut cdds_ddsi_payload = std::ptr::null_mut();
+                        let mut zp: *mut ddsi_serdata = std::ptr::null_mut();
                         #[allow(clippy::uninit_assumed_init)]
                         let mut si = MaybeUninit::<[dds_sample_info_t; 1]>::uninit();
-                        while cdds_take_blob(
+                        while dds_takecdr(
                             reader,
                             &mut zp,
+                            1,
                             si.as_mut_ptr() as *mut dds_sample_info_t,
+                            DDS_ANY_STATE,
                         ) > 0
                         {
                             let si = si.assume_init();
@@ -314,19 +357,16 @@ pub fn create_forwarding_dds_reader(
                                     "Route (periodic) data to zenoh resource with rid={}",
                                     z_key
                                 );
-                                let bs = Vec::from_raw_parts(
-                                    (*zp).payload,
-                                    (*zp).size as usize,
-                                    (*zp).size as usize,
-                                );
-                                let rbuf = ZBuf::from(bs);
+
+                                let raw_sample = DDSRawSample::create(zp);
+                                let data_in_slice = raw_sample.as_slice();
+
                                 let _ = z
-                                    .put(&z_key, rbuf)
+                                    .put(&z_key, data_in_slice)
                                     .congestion_control(congestion_ctrl)
                                     .res_sync();
-                                (*zp).payload = std::ptr::null_mut();
                             }
-                            cdds_serdata_unref(zp as *mut ddsi_serdata);
+                            ddsi_serdata_unref(zp);
                         }
                     }
                 });
