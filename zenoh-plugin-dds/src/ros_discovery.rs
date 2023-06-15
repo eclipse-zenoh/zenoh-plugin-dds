@@ -178,7 +178,7 @@ impl RosDiscoveryInfoMgr {
             // that is not necessarily safe or guaranteed to be leak free.
             // TODO replace when stable https://github.com/rust-lang/rust/issues/65816
             let (ptr, len, capacity) = crate::vec_into_raw_parts(buf);
-            let size: ddsrt_iov_len_t = len.try_into().map_err(|e| {
+            let size: size_t = len.try_into().map_err(|e| {
                 format!("Error creating payload for ParticipantEntitiesInfo, excessive payload size: {e}")
             })?;
 
