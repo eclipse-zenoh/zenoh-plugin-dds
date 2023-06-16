@@ -29,10 +29,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macOS-latest] # Note: windows not supported because of cyclocut not ported
+        os: [ubuntu-latest, macOS-latest, windows-latest]
 
     steps:
       - uses: actions/checkout@v2
+
+      - name: Install ACL
+        if: startsWith(matrix.os,'ubuntu')
+        run: sudo apt-get -y install acl-dev
 
       - name: Install Rust toolchain
         uses: actions-rs/toolchain@v1
