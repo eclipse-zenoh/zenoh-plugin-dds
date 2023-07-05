@@ -565,16 +565,19 @@ impl<'a> DdsPluginRuntime<'a> {
                 .discovered_participants
                 .get(key)
                 .map(serde_json::to_value)
+                .map(remove_null_qos_values)
                 .transpose(),
             AdminRef::DdsReaderEntity(key) => self
                 .discovered_readers
                 .get(key)
                 .map(serde_json::to_value)
+                .map(remove_null_qos_values)
                 .transpose(),
             AdminRef::DdsWriterEntity(key) => self
                 .discovered_writers
                 .get(key)
                 .map(serde_json::to_value)
+                .map(remove_null_qos_values)
                 .transpose(),
             AdminRef::FromDdsRoute(zkey) => self
                 .routes_from_dds
@@ -1539,6 +1542,27 @@ impl<'a> DdsPluginRuntime<'a> {
                 }
             }
         }
+    }
+}
+
+// Remove any null QoS values from a serde_json::Value
+fn remove_null_qos_values(
+    value: Result<Value, serde_json::Error>,
+) -> Result<Value, serde_json::Error> {
+    match value {
+        Ok(value) => match value {
+            Value::Object(mut obj) => {
+                let qos = obj.get_mut("qos");
+                if let Some(qos) = qos {
+                    if qos.is_object() {
+                        qos.as_object_mut().unwrap().retain(|_, v| !v.is_null());
+                    }
+                }
+                Ok(Value::Object(obj))
+            }
+            _ => Ok(value),
+        },
+        Err(error) => Err(error),
     }
 }
 
