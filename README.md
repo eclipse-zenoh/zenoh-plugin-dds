@@ -242,9 +242,6 @@ The `"dds"` part of this same configuration file can also be used in the configu
    - **`-d, --domain <ID>`** : The DDS Domain ID. By default set to `0`, or to `"$ROS_DOMAIN_ID"` is this environment variable is defined.
    - **`--dds-localhost-only`** : If set, the DDS discovery and traffic will occur only on the localhost interface (127.0.0.1).
      By default set to false, unless the "ROS_LOCALHOST_ONLY=1" environment variable is defined.
-   - **`--dds-enable-shm`** : If set, DDS will be configured to use shared memory.
-     See [here](https://cyclonedds.io/docs/cyclonedds/latest/shared_memory.html) for more details of shared memory support in Cyclone DDS.
-     By default set to false.
    - **`-f, --fwd-discovery`** : When set, rather than creating a local route when discovering a local DDS entity, this discovery info is forwarded to the remote plugins/bridges. Those will create the routes, including a replica of the discovered entity. More details [here](#full-support-of-ros-graph-and-topic-lists-via-the-forward-discovery-mode)
    - **`-s, --scope <String>`** : A string used as prefix to scope DDS traffic when mapped to zenoh keys.
    - **`-a, --allow <String>`** :  A regular expression matching the set of 'partition/topic-name' that must be routed via zenoh.

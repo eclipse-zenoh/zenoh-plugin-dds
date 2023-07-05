@@ -50,8 +50,6 @@ pub struct Config {
     pub reliable_routes_blocking: bool,
     #[serde(default = "default_localhost_only")]
     pub localhost_only: bool,
-    #[serde(default)]
-    pub shm_enabled: bool,
     #[serde(
         default = "default_queries_timeout",
         deserialize_with = "deserialize_duration"

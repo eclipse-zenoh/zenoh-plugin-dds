@@ -12,7 +12,7 @@
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 use async_std::task;
-use cyclors::qos::{HistoryKind, Qos};
+use cyclors::qos::{History, HistoryKind, Qos};
 use cyclors::*;
 use flume::Sender;
 use log::{debug, error, warn};
@@ -54,6 +54,7 @@ pub(crate) struct DdsEntity {
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct DdsParticipant {
     pub(crate) key: String,
+    pub(crate) qos: Qos,
 }
 
 #[derive(Debug)]
@@ -183,12 +184,6 @@ unsafe extern "C" fn on_data(dr: dds_entity_t, arg: *mut std::os::raw::c_void) {
                         discovery_type, key, participant_key, topic_name, type_name, keyless
                     );
 
-                    let qos = if let DiscoveryType::Publication = discovery_type {
-                        Qos::from_writer_qos_native((*sample).qos)
-                    } else {
-                        Qos::from_reader_qos_native((*sample).qos)
-                    };
-
                     // send a DiscoveryEvent
                     let entity = DdsEntity {
                         key: key.clone(),
@@ -196,7 +191,7 @@ unsafe extern "C" fn on_data(dr: dds_entity_t, arg: *mut std::os::raw::c_void) {
                         topic_name: String::from(topic_name),
                         type_name: String::from(type_name),
                         keyless,
-                        qos,
+                        qos: Qos::from_qos_native((*sample).qos),
                         routes: HashMap::<String, RouteStatus>::new(),
                     };
 
@@ -235,7 +230,10 @@ unsafe extern "C" fn on_data(dr: dds_entity_t, arg: *mut std::os::raw::c_void) {
                     debug!("Discovered DDS Participant {})", key,);
 
                     // Send a DiscoveryEvent
-                    let entity = DdsParticipant { key: key.clone() };
+                    let entity = DdsParticipant {
+                        key: key.clone(),
+                        qos: Qos::from_qos_native((*sample).qos),
+                    };
 
                     send_discovery_event(sender, DiscoveryEvent::DiscoveredParticipant { entity });
                 } else {
@@ -384,8 +382,10 @@ pub fn create_forwarding_dds_reader(
             }
             Some(period) => {
                 // Use a periodic task that takes data to route from a Reader with KEEP_LAST 1
-                qos.history.kind = HistoryKind::KEEP_LAST;
-                qos.history.depth = 1;
+                qos.history = Some(History {
+                    kind: HistoryKind::KEEP_LAST,
+                    depth: 1,
+                });
                 let qos_native = qos.to_qos_native();
                 let reader = dds_create_reader(dp, t, qos_native, std::ptr::null());
                 let z_key = z_key.into_owned();
