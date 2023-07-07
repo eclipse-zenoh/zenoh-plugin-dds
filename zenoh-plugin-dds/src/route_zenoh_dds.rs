@@ -135,7 +135,7 @@ impl RouteZenohDDS<'_> {
                 // delay the routing of data for few ms in case this publication arrived
                 // before the discovery message provoking the creation of the Data Writer
                 log::debug!(
-                    "Route Zenoh->DDS ({} -> {}): data arrived but no DDS Writer yet to route it... wait 3s for discovery forarding msg",
+                    "Route Zenoh->DDS ({} -> {}): data arrived but no DDS Writer yet to route it... wait 3s for discovery forwarding msg",
                     s.key_expr,
                     &ton
                 );
