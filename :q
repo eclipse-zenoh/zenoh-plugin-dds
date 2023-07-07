@@ -1,0 +1,16 @@
+[1mdiff --git a/zenoh-plugin-dds/src/lib.rs b/zenoh-plugin-dds/src/lib.rs[m
+[1mindex 79f9caf..195af80 100644[m
+[1m--- a/zenoh-plugin-dds/src/lib.rs[m
+[1m+++ b/zenoh-plugin-dds/src/lib.rs[m
+[36m@@ -177,7 +177,10 @@[m [mpub async fn run(runtime: Runtime, config: Config) {[m
+     {[m
+         Ok(member) => member,[m
+         Err(e) => {[m
+[31m-            log::error!("Unable to declare liveliness token for DDS plugin : {:?}", e);[m
+[32m+[m[32m            log::error!([m
+[32m+[m[32m                "Unable to declare liveliness token for DDS plugin : {:?}",[m
+[32m+[m[32m                e[m
+[32m+[m[32m            );[m
+             return;[m
+         }[m
+     };[m

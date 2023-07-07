@@ -177,7 +177,10 @@ pub async fn run(runtime: Runtime, config: Config) {
     {
         Ok(member) => member,
         Err(e) => {
-            log::error!("Unable to declare liveliness token for DDS plugin : {:?}", e);
+            log::error!(
+                "Unable to declare liveliness token for DDS plugin : {:?}",
+                e
+            );
             return;
         }
     };
