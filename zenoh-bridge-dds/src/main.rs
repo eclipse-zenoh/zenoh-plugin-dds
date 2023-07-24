@@ -97,7 +97,7 @@ r#"-d, --domain=[ID]   'The DDS Domain ID. The default value is "$ROS_DOMAIN_ID"
         .arg(Arg::from_usage(
 r#"--dds-localhost-only \
 'Configure CycloneDDS to use only the localhost interface. If not set, CycloneDDS will pick the interface defined in "$CYCLONEDDS_URI" configuration, or automatically choose one.
-This option is not active by default, unless the "ROS_LOCALHOST_ONLY" environement variable is set to "1".'"#
+This option is not active by default, unless the "ROS_LOCALHOST_ONLY" environment variable is set to "1".'"#
         ))
         .arg(Arg::from_usage(
 r#"--dds-enable-shm \

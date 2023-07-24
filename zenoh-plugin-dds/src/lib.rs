@@ -180,7 +180,10 @@ pub async fn run(runtime: Runtime, config: Config) {
     {
         Ok(member) => member,
         Err(e) => {
-            log::error!("Unable todeclare liveliness token for DDS plugin : {:?}", e);
+            log::error!(
+                "Unable to declare liveliness token for DDS plugin : {:?}",
+                e
+            );
             return;
         }
     };
@@ -1156,22 +1159,24 @@ impl<'a> DdsPluginRuntime<'a> {
                                     let admin_space = &mut self.admin_space;
                                     self.routes_to_dds.retain(|zkey, route| {
                                             route.remove_remote_routed_writer(&full_admin_keyexpr);
-                                            // #102: don't delete the route if there is still a
-                                            // local Reader. But delete its DDS Writer if there are
-                                            // no more remote Writer
-                                            if !route.has_remote_routed_writer() {
-                                                route.delete_dds_writer();
-                                            }
-                                            if !route.has_local_routed_reader() {
-                                                info!(
-                                                    "{}: remove it as no longer unused (no remote DDS Writer nor local DDS Reader left)",
-                                                    route
-                                                );
-                                                let ke = *KE_PREFIX_ROUTE_TO_DDS / zkey;
-                                                admin_space.remove(&ke);
-                                                false
-                                            } else {
+                                            if route.has_remote_routed_writer() {
+                                                // if there are still remote writers for this route, keep it
                                                 true
+                                            } else {
+                                                // #102: Delete the DDS Writer of this route if there are no more remote Writers,
+                                                // but don't delete the route itself if there is still a local Reader.
+                                                route.delete_dds_writer();
+                                                if !route.has_local_routed_reader() {
+                                                    info!(
+                                                        "{}: remove it as no longer unused (no remote DDS Writer nor local DDS Reader left)",
+                                                        route
+                                                    );
+                                                    let ke = *KE_PREFIX_ROUTE_TO_DDS / zkey;
+                                                    admin_space.remove(&ke);
+                                                    false
+                                                } else {
+                                                    true
+                                                }
                                             }
                                         }
                                     );
