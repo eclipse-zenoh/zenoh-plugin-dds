@@ -254,7 +254,7 @@ unsafe extern "C" fn data_forwarder_listener(dr: dds_entity_t, arg: *mut std::os
 
             if *crate::LOG_PAYLOAD {
                 log::trace!(
-                    "Route data from DDS {} to zenoh key={} - payload: {:?}",
+                    "Route data from DDS {} to zenoh key={} - payload: {:02x?}",
                     &(*pa).0,
                     &(*pa).1,
                     data_in_slice
