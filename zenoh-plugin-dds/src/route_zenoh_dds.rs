@@ -412,8 +412,13 @@ fn do_route_data(s: Sample, topic_name: &str, data_writer: dds_entity_t) {
             return;
         }
 
-        let fwdp =
-            ddsi_serdata_from_ser_iov(sertype_ptr, ddsi_serdata_kind_SDK_DATA, 1, &data_out, size);
+        let fwdp = ddsi_serdata_from_ser_iov(
+            sertype_ptr,
+            ddsi_serdata_kind_SDK_DATA,
+            1,
+            &data_out,
+            size as usize,
+        );
 
         dds_writecdr(data_writer, fwdp);
         drop(Vec::from_raw_parts(ptr, len, capacity));

@@ -187,8 +187,13 @@ impl RosDiscoveryInfoMgr {
                 iov_len: size,
             };
 
-            let fwdp =
-                ddsi_serdata_from_ser_iov(sertype, ddsi_serdata_kind_SDK_DATA, 1, &data_out, size);
+            let fwdp = ddsi_serdata_from_ser_iov(
+                sertype,
+                ddsi_serdata_kind_SDK_DATA,
+                1,
+                &data_out,
+                size as usize,
+            );
             dds_writecdr(self.writer, fwdp);
             drop(Vec::from_raw_parts(ptr, len, capacity));
             Ok(())
