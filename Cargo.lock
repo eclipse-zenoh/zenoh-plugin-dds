@@ -547,9 +547,9 @@ checksum = "981520c98f422fcc584dc1a95c334e6953900b9106bc47a9839b81790009eb21"
 
 [[package]]
 name = "cc"
-version = "1.0.80"
+version = "1.0.81"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "51f1226cd9da55587234753d1245dd5b132343ea240f26b6a9003d68706141ba"
+checksum = "6c6b2562119bf28c3439f7f02db99faf0aa1a8cdfe5772a2ee155d32227239f0"
 dependencies = [
  "libc",
 ]
@@ -790,7 +790,7 @@ dependencies = [
 [[package]]
 name = "cyclors"
 version = "0.2.0"
-source = "git+https://github.com/gmartin82/cyclors?branch=optional-iceoryx#1ac0c35ad3071ccc4f23b667b0cac1f735d66a24"
+source = "git+https://github.com/gmartin82/cyclors?branch=optional-iceoryx#8a722d30dd5242d0e5800380add9191606dc045b"
 dependencies = [
  "bincode",
  "bindgen",
@@ -1449,7 +1449,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cb0889898416213fab133e1d33a0e5858a48177452750691bde3666d0fdbaf8b"
 dependencies = [
  "hermit-abi 0.3.2",
- "rustix 0.38.4",
+ "rustix 0.38.6",
  "windows-sys",
 ]
 
@@ -2330,9 +2330,9 @@ dependencies = [
 
 [[package]]
 name = "rustix"
-version = "0.38.4"
+version = "0.38.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0a962918ea88d644592894bc6dc55acc6c0956488adcebbfb6e273506b7fd6e5"
+checksum = "1ee020b1716f0a80e2ace9b03441a749e402e86712f15f16fe8a8f75afac732f"
 dependencies = [
  "bitflags 2.3.3",
  "errno",
