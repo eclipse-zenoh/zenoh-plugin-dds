@@ -26,8 +26,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      - name: Install ACL
-        run: sudo apt-get -y install acl-dev
       - name: Install Rust toolchain
         uses: actions-rs/toolchain@v1
         with:
@@ -162,10 +160,6 @@ jobs:
               sudo apt-get -y install gcc-aarch64-linux-gnu
               ;;
           esac
-
-      - name: Install ACL
-        if: startsWith(matrix.job.os,'ubuntu')
-        run: sudo apt-get -y install acl-dev
 
       - name: Install Rust toolchain
         uses: actions-rs/toolchain@v1

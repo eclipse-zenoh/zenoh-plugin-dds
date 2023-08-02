@@ -787,7 +787,7 @@ dependencies = [
 [[package]]
 name = "cyclors"
 version = "0.2.0"
-source = "git+https://github.com/kydos/cyclors?branch=master#2b164d0b81248e1d6c4bf358d1d4687f1caf954e"
+source = "git+https://github.com/gmartin82/cyclors?branch=optional-iceoryx#c97d4d7780ba5ef4dd3c92202340e7ea85f7f3fa"
 dependencies = [
  "bincode",
  "bindgen",
