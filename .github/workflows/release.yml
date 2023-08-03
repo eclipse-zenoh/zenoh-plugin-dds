@@ -129,11 +129,11 @@ jobs:
               os: ubuntu-20.04,
               use-cross: true,
             }
+          - { target: x86_64-pc-windows-msvc, arch: win64, os: windows-2019 }
           ##
-          ## NOTE: cannot build for Windows since cyclocut was not ported to Windows.
+          ## NOTE: cannon build for Windows GNU as not supported by cyclors
           ##
-          # - { target: x86_64-pc-windows-msvc, arch: win64, os: windows-2019 }
-          # - { target: x86_64-pc-windows-gnu         , arch: win64 , os: windows-2019                  }
+          # - { target: x86_64-pc-windows-gnu, arch: win64 , os: windows-2019 }
     steps:
       - name: Checkout source code
         uses: actions/checkout@v2
