@@ -421,6 +421,7 @@ impl<'a> DdsPluginRuntime<'a> {
         ke: OwnedKeyExpr,
         topic_name: &str,
         topic_type: &str,
+        type_info: Option<TypeInfo>,
         keyless: bool,
         reader_qos: Qos,
         congestion_ctrl: CongestionControl,
@@ -447,6 +448,7 @@ impl<'a> DdsPluginRuntime<'a> {
             self,
             topic_name.into(),
             topic_type.into(),
+            type_info,
             keyless,
             reader_qos,
             ke.clone(),
@@ -715,7 +717,7 @@ impl<'a> DdsPluginRuntime<'a> {
 
                             // copy and adapt Writer's QoS for creation of a matching Reader
                             let mut qos = entity.qos.clone();
-                            qos.ignore_local_participant = true;
+                            qos.ignore_local_participant = false;
 
                             // CongestionControl to be used when re-publishing over zenoh: Blocking if Writer is RELIABLE (since we don't know what is remote Reader's QoS)
                             let congestion_ctrl = match (self.config.reliable_routes_blocking, entity.qos.reliability.kind) {
@@ -726,7 +728,7 @@ impl<'a> DdsPluginRuntime<'a> {
                             // create 1 route per partition, or just 1 if no partition
                             if entity.qos.partitions.is_empty() {
                                 let ke = self.topic_to_keyexpr(&entity.topic_name, &self.config.scope, None).unwrap();
-                                let route_status = self.try_add_route_from_dds(ke, &entity.topic_name, &entity.type_name, entity.keyless, qos, congestion_ctrl).await;
+                                let route_status = self.try_add_route_from_dds(ke, &entity.topic_name, &entity.type_name, entity.type_info.clone(), entity.keyless, qos, congestion_ctrl).await;
                                 if let RouteStatus::Routed(ref route_key) = route_status {
                                     if let Some(r) = self.routes_from_dds.get_mut(route_key) {
                                         // add Writer's key to the route
@@ -737,7 +739,7 @@ impl<'a> DdsPluginRuntime<'a> {
                             } else {
                                 for p in &entity.qos.partitions {
                                     let ke = self.topic_to_keyexpr(&entity.topic_name, &self.config.scope, Some(p)).unwrap();
-                                    let route_status = self.try_add_route_from_dds(ke, &entity.topic_name, &entity.type_name, entity.keyless, qos.clone(), congestion_ctrl).await;
+                                    let route_status = self.try_add_route_from_dds(ke, &entity.topic_name, &entity.type_name, entity.type_info.clone(), entity.keyless, qos.clone(), congestion_ctrl).await;
                                     if let RouteStatus::Routed(ref route_key) = route_status {
                                         if let Some(r) = self.routes_from_dds.get_mut(route_key) {
                                             // if route has been created, add this Writer in its routed_writers list
@@ -1198,7 +1200,7 @@ impl<'a> DdsPluginRuntime<'a> {
                                     };
                                     // copy and adapt Reader's QoS for creation of a proxy Reader
                                     let mut qos = entity.qos.clone();
-                                    qos.ignore_local_participant = true;
+                                    qos.ignore_local_participant = false;
 
                                     // CongestionControl to be used when re-publishing over zenoh: Blocking if Reader is RELIABLE (since Writer will also be, otherwise no matching)
                                     let congestion_ctrl = match (self.config.reliable_routes_blocking, entity.qos.reliability.kind) {
@@ -1209,7 +1211,7 @@ impl<'a> DdsPluginRuntime<'a> {
                                     // create 1 'from_dds" route per partition, or just 1 if no partition
                                     if entity.qos.partitions.is_empty() {
                                         let ke = self.topic_to_keyexpr(&entity.topic_name, &scope, None).unwrap();
-                                        let route_status = self.try_add_route_from_dds(ke, &entity.topic_name, &entity.type_name, entity.keyless, qos, congestion_ctrl).await;
+                                        let route_status = self.try_add_route_from_dds(ke, &entity.topic_name, &entity.type_name, entity.type_info.clone(), entity.keyless, qos, congestion_ctrl).await;
                                         if let RouteStatus::Routed(ref route_key) = route_status {
                                             if let Some(r) = self.routes_from_dds.get_mut(route_key) {
                                                 // add the reader's admin keyexpr to the list of remote_routed_writers
@@ -1226,7 +1228,7 @@ impl<'a> DdsPluginRuntime<'a> {
                                     } else {
                                         for p in &entity.qos.partitions {
                                             let ke = self.topic_to_keyexpr(&entity.topic_name, &scope, Some(p)).unwrap();
-                                            let route_status = self.try_add_route_from_dds(ke, &entity.topic_name, &entity.type_name, entity.keyless, qos.clone(), congestion_ctrl).await;
+                                            let route_status = self.try_add_route_from_dds(ke, &entity.topic_name, &entity.type_name, entity.type_info.clone(), entity.keyless, qos.clone(), congestion_ctrl).await;
                                             if let RouteStatus::Routed(ref route_key) = route_status {
                                                 if let Some(r) = self.routes_from_dds.get_mut(route_key) {
                                                     // add the reader's admin keyexpr to the list of remote_routed_writers
@@ -1393,10 +1395,10 @@ impl<'a> DdsPluginRuntime<'a> {
                 _ = ros_disco_timer_rcv.recv_async() => {
                     let infos = ros_disco_mgr.read();
                     for (gid, buf) in infos {
-                        trace!("Received ros_discovery_info from DDS for {}, forward via zenoh: {}", gid, hex::encode(buf.as_slice()));
+                        trace!("Received ros_discovery_info from DDS for {}, forward via zenoh: {}", gid, buf.hex_encode());
                         // forward the payload on zenoh
                         let ke = &fwd_ros_discovery_key_declared / ke_for_sure!(&gid);
-                        if let Err(e) = self.zsession.put(ke, buf.as_slice()).res_sync() {
+                        if let Err(e) = self.zsession.put(ke, buf).res_sync() {
                             error!("Forward ROS discovery info failed: {}", e);
                         }
                     }

@@ -751,7 +751,7 @@ dependencies = [
 [[package]]
 name = "cyclors"
 version = "0.2.0"
-source = "git+https://github.com/gmartin82/cyclors?branch=enable-shared-memory#7434953e2da8ed5eeb82808cd843c8ef67e466e8"
+source = "git+https://github.com/gmartin82/cyclors?branch=enable-shared-memory#9e4b6a20d9960d540e524bd12899324481df5140"
 dependencies = [
  "bincode",
  "bindgen",
