@@ -43,12 +43,21 @@ pub(crate) enum RouteStatus {
 
 #[derive(Clone, Debug)]
 pub(crate) struct TypeInfo {
-    ptr: *const dds_typeinfo_t,
+    ptr: *mut dds_typeinfo_t,
 }
 
 impl TypeInfo {
-    pub(crate) fn new(ptr: *const dds_typeinfo_t) -> TypeInfo {
+    pub(crate) unsafe fn new(ptr: *const dds_typeinfo_t) -> TypeInfo {
+        let ptr = ddsi_typeinfo_dup(ptr);
         TypeInfo { ptr }
+    }
+}
+
+impl Drop for TypeInfo {
+    fn drop(&mut self) {
+        unsafe {
+            dds_free_typeinfo(self.ptr);
+        }
     }
 }
 
@@ -95,33 +104,31 @@ pub(crate) struct DDSRawSample {
 }
 
 impl DDSRawSample {
-    pub(crate) fn create(serdata: *const ddsi_serdata) -> DDSRawSample {
-        unsafe {
-            let mut data = ddsrt_iovec_t {
-                iov_base: std::ptr::null_mut(),
-                iov_len: 0,
-            };
+    pub(crate) unsafe fn create(serdata: *const ddsi_serdata) -> DDSRawSample {
+        let mut data = ddsrt_iovec_t {
+            iov_base: std::ptr::null_mut(),
+            iov_len: 0,
+        };
 
-            let size = ddsi_serdata_size(serdata);
-            let sdref = ddsi_serdata_to_ser_ref(serdata, 0, size as usize, &mut data);
+        let size = ddsi_serdata_size(serdata);
+        let sdref = ddsi_serdata_to_ser_ref(serdata, 0, size as usize, &mut data);
 
-            let iox_chunk_ptr = (*serdata).iox_chunk;
-            let iox_chunk: Option<IoxChunk> = match iox_chunk_ptr.is_null() {
-                false => {
-                    let header = iceoryx_header_from_chunk(iox_chunk_ptr);
-                    Some(IoxChunk {
-                        ptr: iox_chunk_ptr,
-                        header,
-                    })
-                }
-                true => None,
-            };
-
-            DDSRawSample {
-                sdref,
-                data,
-                iox_chunk,
+        let iox_chunk_ptr = (*serdata).iox_chunk;
+        let iox_chunk: Option<IoxChunk> = match iox_chunk_ptr.is_null() {
+            false => {
+                let header = iceoryx_header_from_chunk(iox_chunk_ptr);
+                Some(IoxChunk {
+                    ptr: iox_chunk_ptr,
+                    header,
+                })
             }
+            true => None,
+        };
+
+        DDSRawSample {
+            sdref,
+            data,
+            iox_chunk,
         }
     }
 
@@ -251,19 +258,6 @@ unsafe extern "C" fn on_data(dr: dds_entity_t, arg: *mut std::os::raw::c_void) {
             let mut type_info: *const dds_typeinfo_t = std::ptr::null();
             let ret = dds_builtintopic_get_endpoint_type_info(sample, &mut type_info);
 
-            let type_info = match ret {
-                0 => Some(TypeInfo::new(type_info)),
-                _ => {
-                    warn!(
-                        "Discovery of an invalid topic type: typeinfo lookup failed({})",
-                        CStr::from_ptr(dds_strretcode(ret))
-                            .to_str()
-                            .unwrap_or("unrecoverable DDS retcode")
-                    );
-                    None
-                }
-            };
-
             debug!(
                 "Discovered DDS {} {} from Participant {} on {} with type {} (keyless: {})",
                 if pub_discovery {
@@ -277,6 +271,27 @@ unsafe extern "C" fn on_data(dr: dds_entity_t, arg: *mut std::os::raw::c_void) {
                 type_name,
                 keyless
             );
+
+            let type_info = match ret {
+                0 => match type_info.is_null() {
+                    false => Some(TypeInfo::new(type_info)),
+                    true => {
+                        debug!(
+                            "Type information not available for type {}", type_name
+                        );
+                        None
+                    }
+                }
+                _ => {
+                    warn!(
+                        "Failed to lookup type information({})",
+                        CStr::from_ptr(dds_strretcode(ret))
+                            .to_str()
+                            .unwrap_or("unrecoverable DDS retcode")
+                    );
+                    None
+                }
+            };
 
             let qos = if pub_discovery {
                 Qos::from_writer_qos_native((*sample).qos)
