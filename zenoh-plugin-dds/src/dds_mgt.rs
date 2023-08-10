@@ -514,7 +514,6 @@ unsafe fn create_topic(
 
     match type_info {
         None => {
-            println!("Returning topic created using cdds_create_blob_topic()");
             cdds_create_blob_topic(dp, cton, ctyn, keyless)
         }
         Some(type_info) => {
@@ -533,7 +532,6 @@ unsafe fn create_topic(
                 assert!(topic >= 0);
                 dds_delete_topic_descriptor(descriptor);
             }
-            println!("Returning topic created from type_info");
             topic
         }
     }
