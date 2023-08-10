@@ -790,7 +790,7 @@ dependencies = [
 [[package]]
 name = "cyclors"
 version = "0.2.0"
-source = "git+https://github.com/gmartin82/cyclors?branch=qos-update#6352d000cabc38ceab1248ea7a31f4931af3be4a"
+source = "git+https://github.com/gmartin82/cyclors?branch=qos-update#2c2624c8e1da95dfb679e58f91cd02d71fe9d7d4"
 dependencies = [
  "bincode",
  "bindgen",
@@ -3117,7 +3117,7 @@ version = "1.6.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "97fee6b57c6a41524a810daee9286c02d7752c4253064d0b05472833a438f675"
 dependencies = [
- "cfg-if 1.0.0",
+ "cfg-if 0.1.10",
  "static_assertions",
 ]
 

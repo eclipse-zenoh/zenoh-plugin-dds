@@ -47,11 +47,17 @@ add_custom_target(
         ${RUST_TARGET_DIR}/release/zenoh-bridge-dds
 )
 
-install(FILES
-    ${RUST_TARGET_DIR}/release/zenoh-bridge-dds
-    RENAME zenoh_bridge_dds
-    PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE
-    DESTINATION lib/${PROJECT_NAME}
-)
+macro(INSTALL_ZENOH src_path dst_path)
+  install(FILES
+      ${src_path}
+      RENAME zenoh_bridge_dds
+      PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE
+      DESTINATION ${dst_path}
+  )
+endmacro(INSTALL_ZENOH)
+
+INSTALL_ZENOH(${RUST_TARGET_DIR}/release/zenoh-bridge-dds lib/${PROJECT_NAME})
+
+INSTALL_ZENOH(${RUST_TARGET_DIR}/release/zenoh-bridge-dds bin)
 
 ament_package()
