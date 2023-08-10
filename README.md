@@ -82,9 +82,9 @@ In order to build the zenoh bridge for DDS you need first to install the followi
 
 - [Rust](https://www.rust-lang.org/tools/install). If you already have the Rust toolchain installed, make sure it is up-to-date with:
 
-```bash
-$ rustup update
-```
+  ```bash
+  $ rustup update
+  ```
 
 - On Linux, make sure the `llvm` and `clang` development packages are installed:
    - on Debians do: `sudo apt install llvm-dev libclang-dev`
