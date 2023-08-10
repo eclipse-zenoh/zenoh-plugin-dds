@@ -12,6 +12,7 @@
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 
+use cyclors::qos::{HistoryKind, Qos};
 use cyclors::{dds_entity_t, DDS_LENGTH_UNLIMITED};
 use serde::Serialize;
 use std::{collections::HashSet, fmt};
@@ -19,11 +20,7 @@ use zenoh::prelude::r#async::AsyncResolve;
 use zenoh::prelude::*;
 use zenoh_ext::{PublicationCache, SessionExt};
 
-use crate::{
-    dds_mgt::*,
-    qos::{DurabilityKind, HistoryKind, Qos},
-    DdsPluginRuntime, KE_PREFIX_PUB_CACHE,
-};
+use crate::{dds_mgt::*, qos_helpers::*, DdsPluginRuntime, KE_PREFIX_PUB_CACHE};
 
 enum ZPublisher<'a> {
     Publisher(KeyExpr<'a>),
@@ -81,6 +78,7 @@ impl fmt::Display for RouteDDSZenoh<'_> {
 }
 
 impl RouteDDSZenoh<'_> {
+    #[allow(clippy::too_many_arguments)]
     pub(crate) async fn new<'a>(
         plugin: &DdsPluginRuntime<'a>,
         topic_name: String,
@@ -109,24 +107,23 @@ impl RouteDDSZenoh<'_> {
             })?;
 
         // declare the zenoh Publisher
-        let zenoh_publisher: ZPublisher<'a> = if reader_qos.durability.kind
-            == DurabilityKind::TRANSIENT_LOCAL
-        {
+        let zenoh_publisher: ZPublisher<'a> = if is_transient_local(&reader_qos) {
             #[allow(non_upper_case_globals)]
-            let history = match (reader_qos.history.kind, reader_qos.history.depth) {
+            let history_qos = get_history_or_default(&reader_qos);
+            let durability_service_qos = get_durability_service_or_default(&reader_qos);
+            let history = match (history_qos.kind, history_qos.depth) {
                 (HistoryKind::KEEP_LAST, n) => {
                     if keyless {
                         // only 1 instance => history=n
                         n as usize
-                    } else if reader_qos.durability_service.max_instances == DDS_LENGTH_UNLIMITED {
+                    } else if durability_service_qos.max_instances == DDS_LENGTH_UNLIMITED {
                         // No limit! => history=MAX
                         usize::MAX
-                    } else if reader_qos.durability_service.max_instances > 0 {
+                    } else if durability_service_qos.max_instances > 0 {
                         // Compute cache size as history.depth * durability_service.max_instances
                         // This makes the assumption that the frequency of publication is the same for all instances...
                         // But as we have no way to have 1 cache per-instance, there is no other choice.
-                        if let Some(m) = n.checked_mul(reader_qos.durability_service.max_instances)
-                        {
+                        if let Some(m) = n.checked_mul(durability_service_qos.max_instances) {
                             m as usize
                         } else {
                             usize::MAX
@@ -139,7 +136,7 @@ impl RouteDDSZenoh<'_> {
             };
             log::debug!(
                 "Caching publications for TRANSIENT_LOCAL Writer on resource {} with history {} (Writer uses {:?} and DurabilityService.max_instances={})",
-                ke, history, reader_qos.history, reader_qos.durability_service.max_instances
+                ke, history, reader_qos.history, durability_service_qos.max_instances
             );
             let pub_cache = plugin
                 .zsession

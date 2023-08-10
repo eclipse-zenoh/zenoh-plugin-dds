@@ -12,8 +12,10 @@
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 use crate::dds_mgt::{delete_dds_entity, DDSRawSample};
-use crate::qos::{Durability, History, Qos, Reliability, DDS_INFINITE_TIME};
 use cdr::{CdrLe, Infinite};
+use cyclors::qos::{
+    Durability, History, IgnoreLocal, IgnoreLocalKind, Qos, Reliability, DDS_INFINITE_TIME,
+};
 use cyclors::*;
 use log::warn;
 use serde::ser::SerializeSeq;
@@ -65,19 +67,21 @@ impl RosDiscoveryInfoMgr {
 
             // Create reader
             let mut qos = Qos::default();
-            qos.reliability = Reliability {
-                kind: crate::qos::ReliabilityKind::RELIABLE,
+            qos.reliability = Some(Reliability {
+                kind: qos::ReliabilityKind::RELIABLE,
                 max_blocking_time: DDS_INFINITE_TIME,
-            };
-            qos.durability = Durability {
-                kind: crate::qos::DurabilityKind::TRANSIENT_LOCAL,
-            };
+            });
+            qos.durability = Some(Durability {
+                kind: qos::DurabilityKind::TRANSIENT_LOCAL,
+            });
             // Note: KEEP_ALL to not loose any sample (topic is keyless). A periodic task should take samples from history.
-            qos.history = History {
-                kind: crate::qos::HistoryKind::KEEP_ALL,
+            qos.history = Some(History {
+                kind: qos::HistoryKind::KEEP_ALL,
                 depth: 0,
-            };
-            qos.ignore_local_participant = true;
+            });
+            qos.ignore_local = Some(IgnoreLocal {
+                kind: IgnoreLocalKind::PARTICIPANT,
+            });
             let qos_native = qos.to_qos_native();
             let reader = dds_create_reader(participant, t, qos_native, std::ptr::null());
             Qos::delete_qos_native(qos_native);
@@ -93,18 +97,20 @@ impl RosDiscoveryInfoMgr {
 
             // Create writer
             let mut qos = Qos::default();
-            qos.reliability = Reliability {
-                kind: crate::qos::ReliabilityKind::RELIABLE,
+            qos.reliability = Some(Reliability {
+                kind: qos::ReliabilityKind::RELIABLE,
                 max_blocking_time: DDS_INFINITE_TIME,
-            };
-            qos.durability = Durability {
-                kind: crate::qos::DurabilityKind::TRANSIENT_LOCAL,
-            };
-            qos.history = History {
-                kind: crate::qos::HistoryKind::KEEP_LAST,
+            });
+            qos.durability = Some(Durability {
+                kind: qos::DurabilityKind::TRANSIENT_LOCAL,
+            });
+            qos.history = Some(History {
+                kind: qos::HistoryKind::KEEP_LAST,
                 depth: 1,
-            };
-            qos.ignore_local_participant = true;
+            });
+            qos.ignore_local = Some(IgnoreLocal {
+                kind: IgnoreLocalKind::PARTICIPANT,
+            });
             let qos_native = qos.to_qos_native();
             let writer = dds_create_writer(participant, t, qos_native, std::ptr::null());
             Qos::delete_qos_native(qos_native);
