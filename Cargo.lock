@@ -790,7 +790,7 @@ dependencies = [
 [[package]]
 name = "cyclors"
 version = "0.2.0"
-source = "git+https://github.com/gmartin82/cyclors?branch=qos-update#2c2624c8e1da95dfb679e58f91cd02d71fe9d7d4"
+source = "git+https://github.com/kydos/cyclors?branch=master#af479da89e41b89169cfcf219adeb8d63998ce60"
 dependencies = [
  "bincode",
  "bindgen",
