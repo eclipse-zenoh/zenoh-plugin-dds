@@ -164,10 +164,7 @@ impl DDSRawSample {
         }
         #[cfg(not(feature = "dds_shm"))]
         {
-            DDSRawSample {
-                sdref,
-                data,
-            }
+            DDSRawSample { sdref, data }
         }
     }
 
@@ -182,7 +179,7 @@ impl DDSRawSample {
             #[cfg(feature = "dds_shm")]
             {
                 if let Some(iox_chunk) = self.iox_chunk.as_ref() {
-                    return iox_chunk.as_slice()
+                    return iox_chunk.as_slice();
                 }
             }
             &slice::from_raw_parts(self.data.iov_base as *const u8, self.data.iov_len as usize)[4..]
@@ -224,7 +221,7 @@ impl fmt::Debug for DDSRawSample {
                     "[{:02x?}, {:02x?}]",
                     self.data_as_slice(),
                     iox_chunk.as_slice()
-                )
+                );
             }
         }
         write!(f, "{:02x?}", self.data_as_slice())
@@ -239,7 +236,7 @@ impl From<DDSRawSample> for Value {
                 let mut zbuf = ZBuf::default();
                 zbuf.push_zslice(ZSlice::from(buf.data_as_slice().to_vec()));
                 zbuf.push_zslice(ZSlice::from(iox_chunk.as_slice().to_vec()));
-                return zbuf.into()
+                return zbuf.into();
             }
         }
         buf.data_as_slice().into()
