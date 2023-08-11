@@ -42,7 +42,7 @@ pub(crate) enum RouteStatus {
     _QoSConflict,         // A route was already established but with conflicting QoS
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub(crate) struct TypeInfo {
     ptr: *mut dds_typeinfo_t,
 }
@@ -54,7 +54,6 @@ impl TypeInfo {
     }
 }
 
-/* FIXME: This segfaults
 impl Drop for TypeInfo {
     fn drop(&mut self) {
         unsafe {
@@ -62,7 +61,6 @@ impl Drop for TypeInfo {
         }
     }
 }
-*/
 
 unsafe impl Send for TypeInfo {}
 unsafe impl Sync for TypeInfo {}
@@ -488,7 +486,7 @@ pub(crate) fn create_forwarding_dds_reader(
     dp: dds_entity_t,
     topic_name: String,
     type_name: String,
-    type_info: Option<TypeInfo>,
+    type_info: &Option<TypeInfo>,
     keyless: bool,
     mut qos: Qos,
     z_key: KeyExpr,
@@ -497,7 +495,7 @@ pub(crate) fn create_forwarding_dds_reader(
     congestion_ctrl: CongestionControl,
 ) -> Result<dds_entity_t, String> {
     unsafe {
-        let t = create_topic(dp, &topic_name, &type_name, &type_info, keyless);
+        let t = create_topic(dp, &topic_name, &type_name, type_info, keyless);
 
         match read_period {
             None => {

@@ -83,7 +83,7 @@ impl RouteDDSZenoh<'_> {
         plugin: &DdsPluginRuntime<'a>,
         topic_name: String,
         topic_type: String,
-        type_info: Option<TypeInfo>,
+        type_info: &Option<TypeInfo>,
         keyless: bool,
         reader_qos: Qos,
         ke: OwnedKeyExpr,
