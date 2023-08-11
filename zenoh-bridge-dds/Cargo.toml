@@ -22,6 +22,9 @@ license = { workspace = true }
 categories = ["network-programming"]
 description = "Zenoh bridge for ROS2 and DDS in general"
 
+[features]
+dds_shm = ["zenoh-plugin-dds/dds_shm"]
+
 [dependencies]
 async-std = { workspace = true, features = ["unstable", "attributes"] }
 async-liveliness-monitor = { workspace = true }

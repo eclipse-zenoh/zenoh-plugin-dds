@@ -51,6 +51,7 @@ pub struct Config {
     #[serde(default = "default_localhost_only")]
     pub localhost_only: bool,
     #[serde(default)]
+    #[cfg(feature = "dds_shm")]
     pub shm_enabled: bool,
     #[serde(
         default = "default_queries_timeout",

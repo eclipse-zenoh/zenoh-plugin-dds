@@ -25,6 +25,7 @@ use std::os::raw;
 use std::slice;
 use std::sync::Arc;
 use std::time::Duration;
+#[cfg(feature = "dds_shm")]
 use zenoh::buffers::{ZBuf, ZSlice};
 use zenoh::prelude::*;
 use zenoh::publication::CongestionControl;
@@ -53,13 +54,15 @@ impl TypeInfo {
     }
 }
 
+/* FIXME: This segfaults
 impl Drop for TypeInfo {
     fn drop(&mut self) {
         unsafe {
-            dds_free_typeinfo(self.ptr);
+            ddsi_typeinfo_free(self.ptr);
         }
     }
 }
+*/
 
 unsafe impl Send for TypeInfo {}
 unsafe impl Sync for TypeInfo {}
@@ -110,12 +113,14 @@ impl fmt::Display for DiscoveryType {
     }
 }
 
+#[cfg(feature = "dds_shm")]
 #[derive(Clone, Copy)]
 struct IoxChunk {
     ptr: *mut std::ffi::c_void,
     header: *mut iceoryx_header_t,
 }
 
+#[cfg(feature = "dds_shm")]
 impl IoxChunk {
     fn as_slice(&self) -> &[u8] {
         unsafe { slice::from_raw_parts(self.ptr as *const u8, (*self.header).data_size as usize) }
@@ -125,6 +130,7 @@ impl IoxChunk {
 pub(crate) struct DDSRawSample {
     sdref: *mut ddsi_serdata,
     data: ddsrt_iovec_t,
+    #[cfg(feature = "dds_shm")]
     iox_chunk: Option<IoxChunk>,
 }
 
@@ -138,22 +144,32 @@ impl DDSRawSample {
         let size = ddsi_serdata_size(serdata);
         let sdref = ddsi_serdata_to_ser_ref(serdata, 0, size as usize, &mut data);
 
-        let iox_chunk_ptr = (*serdata).iox_chunk;
-        let iox_chunk: Option<IoxChunk> = match iox_chunk_ptr.is_null() {
-            false => {
-                let header = iceoryx_header_from_chunk(iox_chunk_ptr);
-                Some(IoxChunk {
-                    ptr: iox_chunk_ptr,
-                    header,
-                })
-            }
-            true => None,
-        };
+        #[cfg(feature = "dds_shm")]
+        {
+            let iox_chunk_ptr = (*serdata).iox_chunk;
+            let iox_chunk = match iox_chunk_ptr.is_null() {
+                false => {
+                    let header = iceoryx_header_from_chunk(iox_chunk_ptr);
+                    Some(IoxChunk {
+                        ptr: iox_chunk_ptr,
+                        header,
+                    })
+                }
+                true => None,
+            };
 
-        DDSRawSample {
-            sdref,
-            data,
-            iox_chunk,
+            DDSRawSample {
+                sdref,
+                data,
+                iox_chunk,
+            }
+        }
+        #[cfg(not(feature = "dds_shm"))]
+        {
+            DDSRawSample {
+                sdref,
+                data,
+            }
         }
     }
 
@@ -165,21 +181,27 @@ impl DDSRawSample {
 
     pub(crate) fn payload_as_slice(&self) -> &[u8] {
         unsafe {
-            if let Some(iox_chunk) = self.iox_chunk.as_ref() {
-                iox_chunk.as_slice()
-            } else {
-                &slice::from_raw_parts(self.data.iov_base as *const u8, self.data.iov_len as usize)
-                    [4..]
+            #[cfg(feature = "dds_shm")]
+            {
+                if let Some(iox_chunk) = self.iox_chunk.as_ref() {
+                    return iox_chunk.as_slice()
+                }
             }
+            &slice::from_raw_parts(self.data.iov_base as *const u8, self.data.iov_len as usize)[4..]
         }
     }
 
     pub(crate) fn hex_encode(&self) -> String {
-        let mut encoded = hex::encode(self.data_as_slice());
+        let mut encoded = String::new();
+        let data_encoded = hex::encode(self.data_as_slice());
+        encoded.push_str(data_encoded.as_str());
 
-        if let Some(iox_chunk) = self.iox_chunk.as_ref() {
-            let iox_encoded = hex::encode(iox_chunk.as_slice());
-            encoded.push_str(iox_encoded.as_str());
+        #[cfg(feature = "dds_shm")]
+        {
+            if let Some(iox_chunk) = self.iox_chunk.as_ref() {
+                let iox_encoded = hex::encode(iox_chunk.as_slice());
+                encoded.push_str(iox_encoded.as_str());
+            }
         }
 
         encoded
@@ -196,30 +218,33 @@ impl Drop for DDSRawSample {
 
 impl fmt::Debug for DDSRawSample {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if let Some(iox_chunk) = self.iox_chunk {
-            write!(
-                f,
-                "[{:02x?}, {:02x?}]",
-                self.data_as_slice(),
-                iox_chunk.as_slice()
-            )
-        } else {
-            write!(f, "{:02x?}", self.data_as_slice())
+        #[cfg(feature = "dds_shm")]
+        {
+            if let Some(iox_chunk) = self.iox_chunk {
+                return write!(
+                    f,
+                    "[{:02x?}, {:02x?}]",
+                    self.data_as_slice(),
+                    iox_chunk.as_slice()
+                )
+            }
         }
+        write!(f, "{:02x?}", self.data_as_slice())
     }
 }
 
 impl From<DDSRawSample> for Value {
     fn from(buf: DDSRawSample) -> Self {
-        match buf.iox_chunk {
-            Some(iox_chunk) => {
+        #[cfg(feature = "dds_shm")]
+        {
+            if let Some(iox_chunk) = buf.iox_chunk {
                 let mut zbuf = ZBuf::default();
                 zbuf.push_zslice(ZSlice::from(buf.data_as_slice().to_vec()));
                 zbuf.push_zslice(ZSlice::from(iox_chunk.as_slice().to_vec()));
-                zbuf.into()
+                return zbuf.into()
             }
-            _ => buf.data_as_slice().into(),
         }
+        buf.data_as_slice().into()
     }
 }
 

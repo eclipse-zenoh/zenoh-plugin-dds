@@ -96,6 +96,7 @@ lazy_static::lazy_static!(
 const CYCLONEDDS_CONFIG_LOCALHOST_ONLY: &str = r#"<CycloneDDS><Domain><General><Interfaces><NetworkInterface address="127.0.0.1" multicast="true"/></Interfaces></General></Domain></CycloneDDS>,"#;
 
 // CycloneDDS' enable-shm: enable usage of Iceoryx shared memory
+#[cfg(feature = "dds_shm")]
 const CYCLONEDDS_CONFIG_ENABLE_SHM: &str = r#"<CycloneDDS><Domain><SharedMemory><Enable>true</Enable></SharedMemory></Domain></CycloneDDS>,"#;
 
 const ROS_DISCOVERY_INFO_POLL_INTERVAL_MS: u64 = 500;
@@ -206,15 +207,21 @@ pub async fn run(runtime: Runtime, config: Config) {
     }
 
     // if "enable_shm" is set, configure CycloneDDS to use Iceoryx shared memory
-    if config.shm_enabled {
-        env::set_var(
-            "CYCLONEDDS_URI",
-            format!(
-                "{}{}",
-                CYCLONEDDS_CONFIG_ENABLE_SHM,
-                env::var("CYCLONEDDS_URI").unwrap_or_default()
-            ),
-        );
+    #[cfg(feature = "dds_shm")]
+    {
+        if config.shm_enabled {
+            env::set_var(
+                "CYCLONEDDS_URI",
+                format!(
+                    "{}{}",
+                    CYCLONEDDS_CONFIG_ENABLE_SHM,
+                    env::var("CYCLONEDDS_URI").unwrap_or_default()
+                ),
+            );
+            if config.forward_discovery {
+                warn!("DDS shared memory support enabled but will not be used as forward discovery mode is active.");
+            }
+        }
     }
 
     // create DDS Participant
@@ -1646,7 +1653,7 @@ fn adapt_reader_qos_for_writer(qos: &Qos) -> Qos {
     writer_qos.entity_name = None;
 
     // Don't match with readers with the same participant
-    writer_qos.ignore_local = None;Some(IgnoreLocal {
+    writer_qos.ignore_local = Some(IgnoreLocal {
         kind: IgnoreLocalKind::PARTICIPANT,
     });
 
