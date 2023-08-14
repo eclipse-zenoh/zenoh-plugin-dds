@@ -232,6 +232,8 @@ impl From<DDSRawSample> for Value {
     fn from(buf: DDSRawSample) -> Self {
         #[cfg(feature = "dds_shm")]
         {
+            // Where data was received via Iceoryx return both the header (contained in buf.data) and
+            // payload (contained in buf.iox_chunk) in a buffer.
             if let Some(iox_chunk) = buf.iox_chunk {
                 let mut zbuf = ZBuf::default();
                 zbuf.push_zslice(ZSlice::from(buf.data_as_slice().to_vec()));
