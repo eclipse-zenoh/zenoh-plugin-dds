@@ -131,7 +131,7 @@ $ cargo build --release -p zenoh-bridge-dds --features dds_shm
 
 **Note:** Iceoryx does not need to be installed to build the bridge when the `dds_shm` feature is enabled. Iceoryx will be automatically downloaded, compiled, and statically linked into the zenoh bridge as part of the cargo build process.
 
-When the zenoh bridge is configured to use DDS shared memory (see [Configuration])(#configuration)) the **Iceoryx RouDi daemon (`iox-roudi`)** must be running in order for the bridge to start successfully. If not started the bridge will wait for a period of time for the daemon to become available before timing out and terminating.
+When the zenoh bridge is configured to use DDS shared memory (see [Configuration](#configuration)) the **Iceoryx RouDi daemon (`iox-roudi`)** must be running in order for the bridge to start successfully. If not started the bridge will wait for a period of time for the daemon to become available before timing out and terminating.
 
 When building the zenoh bridge with the `dds_shm` feature enabled the `iox-roudi` daemon is also built for convenience. The daemon can be found under `target/debug|release/build/cyclors-<hash>/out/iceoryx-build/bin/iox-roudi`.
 
