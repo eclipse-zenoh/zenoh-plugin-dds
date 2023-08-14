@@ -215,6 +215,8 @@ impl fmt::Debug for DDSRawSample {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         #[cfg(feature = "dds_shm")]
         {
+            // Where data was received via Iceoryx write both the header (contained in buf.data) and
+            // payload (contained in buf.iox_chunk) to the formatter.
             if let Some(iox_chunk) = self.iox_chunk {
                 return write!(
                     f,
