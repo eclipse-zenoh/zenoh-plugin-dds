@@ -78,10 +78,12 @@ impl fmt::Display for RouteDDSZenoh<'_> {
 }
 
 impl RouteDDSZenoh<'_> {
+    #[allow(clippy::too_many_arguments)]
     pub(crate) async fn new<'a>(
         plugin: &DdsPluginRuntime<'a>,
         topic_name: String,
         topic_type: String,
+        type_info: &Option<TypeInfo>,
         keyless: bool,
         reader_qos: Qos,
         ke: OwnedKeyExpr,
@@ -172,6 +174,7 @@ impl RouteDDSZenoh<'_> {
             plugin.dp,
             topic_name.clone(),
             topic_type.clone(),
+            type_info,
             keyless,
             reader_qos,
             declared_ke,

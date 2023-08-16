@@ -28,6 +28,13 @@
       // localhost_only: true,
 
       ////
+      //// shm_enabled: If set to true, the DDS implementation will use Iceoryx shared memory.
+      ////              Requires the bridge to be built with the 'dds_shm' feature for this option to valid.
+      ////              By default set to false.
+      ////
+      // shm_enabled: false,
+
+      ////
       //// group_member_id: A custom identifier for the bridge, that will be used in group management
       ////                  (if not specified, the zenoh UUID is used).
       ////

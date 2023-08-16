@@ -95,6 +95,10 @@ lazy_static::lazy_static!(
 // Empty configuration fragments are ignored, so it is safe to unconditionally append a comma.
 const CYCLONEDDS_CONFIG_LOCALHOST_ONLY: &str = r#"<CycloneDDS><Domain><General><Interfaces><NetworkInterface address="127.0.0.1" multicast="true"/></Interfaces></General></Domain></CycloneDDS>,"#;
 
+// CycloneDDS' enable-shm: enable usage of Iceoryx shared memory
+#[cfg(feature = "dds_shm")]
+const CYCLONEDDS_CONFIG_ENABLE_SHM: &str = r#"<CycloneDDS><Domain><SharedMemory><Enable>true</Enable></SharedMemory></Domain></CycloneDDS>,"#;
+
 const ROS_DISCOVERY_INFO_POLL_INTERVAL_MS: u64 = 500;
 
 zenoh_plugin_trait::declare_plugin!(DDSPlugin);
@@ -200,6 +204,24 @@ pub async fn run(runtime: Runtime, config: Config) {
                 env::var("CYCLONEDDS_URI").unwrap_or_default()
             ),
         );
+    }
+
+    // if "enable_shm" is set, configure CycloneDDS to use Iceoryx shared memory
+    #[cfg(feature = "dds_shm")]
+    {
+        if config.shm_enabled {
+            env::set_var(
+                "CYCLONEDDS_URI",
+                format!(
+                    "{}{}",
+                    CYCLONEDDS_CONFIG_ENABLE_SHM,
+                    env::var("CYCLONEDDS_URI").unwrap_or_default()
+                ),
+            );
+            if config.forward_discovery {
+                warn!("DDS shared memory support enabled but will not be used as forward discovery mode is active.");
+            }
+        }
     }
 
     // create DDS Participant
@@ -434,11 +456,13 @@ impl<'a> DdsPluginRuntime<'a> {
         self.routes_to_dds.insert(ke, r);
     }
 
+    #[allow(clippy::too_many_arguments)]
     async fn try_add_route_from_dds(
         &mut self,
         ke: OwnedKeyExpr,
         topic_name: &str,
         topic_type: &str,
+        type_info: &Option<TypeInfo>,
         keyless: bool,
         reader_qos: Qos,
         congestion_ctrl: CongestionControl,
@@ -465,6 +489,7 @@ impl<'a> DdsPluginRuntime<'a> {
             self,
             topic_name.into(),
             topic_type.into(),
+            type_info,
             keyless,
             reader_qos,
             ke.clone(),
@@ -749,7 +774,7 @@ impl<'a> DdsPluginRuntime<'a> {
                             // create 1 route per partition, or just 1 if no partition
                             if partition_is_empty(&entity.qos.partition) {
                                 let ke = self.topic_to_keyexpr(&entity.topic_name, &self.config.scope, None).unwrap();
-                                let route_status = self.try_add_route_from_dds(ke, &entity.topic_name, &entity.type_name, entity.keyless, qos, congestion_ctrl).await;
+                                let route_status = self.try_add_route_from_dds(ke, &entity.topic_name, &entity.type_name, &entity.type_info, entity.keyless, qos, congestion_ctrl).await;
                                 if let RouteStatus::Routed(ref route_key) = route_status {
                                     if let Some(r) = self.routes_from_dds.get_mut(route_key) {
                                         // add Writer's key to the route
@@ -760,7 +785,7 @@ impl<'a> DdsPluginRuntime<'a> {
                             } else {
                                 for p in entity.qos.partition.as_deref().unwrap() {
                                     let ke = self.topic_to_keyexpr(&entity.topic_name, &self.config.scope, Some(p)).unwrap();
-                                    let route_status = self.try_add_route_from_dds(ke, &entity.topic_name, &entity.type_name, entity.keyless, qos.clone(), congestion_ctrl).await;
+                                    let route_status = self.try_add_route_from_dds(ke, &entity.topic_name, &entity.type_name, &entity.type_info, entity.keyless, qos.clone(), congestion_ctrl).await;
                                     if let RouteStatus::Routed(ref route_key) = route_status {
                                         if let Some(r) = self.routes_from_dds.get_mut(route_key) {
                                             // if route has been created, add this Writer in its routed_writers list
@@ -1247,7 +1272,7 @@ impl<'a> DdsPluginRuntime<'a> {
                                     // create 1 'from_dds" route per partition, or just 1 if no partition
                                     if partition_is_empty(&entity.qos.partition) {
                                         let ke = self.topic_to_keyexpr(&entity.topic_name, &scope, None).unwrap();
-                                        let route_status = self.try_add_route_from_dds(ke, &entity.topic_name, &entity.type_name, entity.keyless, qos, congestion_ctrl).await;
+                                        let route_status = self.try_add_route_from_dds(ke, &entity.topic_name, &entity.type_name, &entity.type_info, entity.keyless, qos, congestion_ctrl).await;
                                         if let RouteStatus::Routed(ref route_key) = route_status {
                                             if let Some(r) = self.routes_from_dds.get_mut(route_key) {
                                                 // add the reader's admin keyexpr to the list of remote_routed_writers
@@ -1264,7 +1289,7 @@ impl<'a> DdsPluginRuntime<'a> {
                                     } else {
                                         for p in &entity.qos.partition.unwrap() {
                                             let ke = self.topic_to_keyexpr(&entity.topic_name, &scope, Some(p)).unwrap();
-                                            let route_status = self.try_add_route_from_dds(ke, &entity.topic_name, &entity.type_name, entity.keyless, qos.clone(), congestion_ctrl).await;
+                                            let route_status = self.try_add_route_from_dds(ke, &entity.topic_name, &entity.type_name, &entity.type_info, entity.keyless, qos.clone(), congestion_ctrl).await;
                                             if let RouteStatus::Routed(ref route_key) = route_status {
                                                 if let Some(r) = self.routes_from_dds.get_mut(route_key) {
                                                     // add the reader's admin keyexpr to the list of remote_routed_writers
@@ -1431,10 +1456,10 @@ impl<'a> DdsPluginRuntime<'a> {
                 _ = ros_disco_timer_rcv.recv_async() => {
                     let infos = ros_disco_mgr.read();
                     for (gid, buf) in infos {
-                        trace!("Received ros_discovery_info from DDS for {}, forward via zenoh: {}", gid, hex::encode(buf.as_slice()));
+                        trace!("Received ros_discovery_info from DDS for {}, forward via zenoh: {}", gid, buf.hex_encode());
                         // forward the payload on zenoh
                         let ke = &fwd_ros_discovery_key_declared / ke_for_sure!(&gid);
-                        if let Err(e) = self.zsession.put(ke, buf.as_slice()).res_sync() {
+                        if let Err(e) = self.zsession.put(ke, buf).res_sync() {
                             error!("Forward ROS discovery info failed: {}", e);
                         }
                     }
@@ -1586,11 +1611,7 @@ fn adapt_writer_qos_for_reader(qos: &Qos) -> Qos {
     // Unset proprietary QoS which shouldn't apply
     reader_qos.properties = None;
     reader_qos.entity_name = None;
-
-    // Ignore own messages
-    reader_qos.ignore_local = Some(IgnoreLocal {
-        kind: IgnoreLocalKind::PARTICIPANT,
-    });
+    reader_qos.ignore_local = None;
 
     // Set default Reliability QoS if not set for writer
     if reader_qos.reliability.is_none() {
@@ -1613,7 +1634,7 @@ fn adapt_writer_qos_for_proxy_writer(qos: &Qos) -> Qos {
     writer_qos.properties = None;
     writer_qos.entity_name = None;
 
-    // Ignore own messages
+    // Don't match with readers with the same participant
     writer_qos.ignore_local = Some(IgnoreLocal {
         kind: IgnoreLocalKind::PARTICIPANT,
     });
@@ -1631,7 +1652,7 @@ fn adapt_reader_qos_for_writer(qos: &Qos) -> Qos {
     writer_qos.properties = None;
     writer_qos.entity_name = None;
 
-    // Ignore own messages
+    // Don't match with readers with the same participant
     writer_qos.ignore_local = Some(IgnoreLocal {
         kind: IgnoreLocalKind::PARTICIPANT,
     });
@@ -1676,11 +1697,7 @@ fn adapt_reader_qos_for_proxy_reader(qos: &Qos) -> Qos {
     // Unset proprietary QoS which shouldn't apply
     reader_qos.properties = None;
     reader_qos.entity_name = None;
-
-    // Ignore own messages
-    reader_qos.ignore_local = Some(IgnoreLocal {
-        kind: IgnoreLocalKind::PARTICIPANT,
-    });
+    reader_qos.ignore_local = None;
 
     reader_qos
 }

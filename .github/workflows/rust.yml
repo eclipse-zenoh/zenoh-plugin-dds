@@ -34,6 +34,10 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
+      - name: Install ACL
+        if: startsWith(matrix.os,'ubuntu')
+        run: sudo apt-get -y install libacl1-dev
+
       - name: Install Rust toolchain
         uses: actions-rs/toolchain@v1
         with:
@@ -57,11 +61,23 @@ jobs:
           command: build
           args: -p zenoh-plugin-dds --verbose --all-targets
 
+      - name: Build zenoh-plugin-dds (with dds_shm)
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: -p zenoh-plugin-dds --features dds_shm --verbose --all-targets
+
       - name: Build zenoh-bridge-dds
         uses: actions-rs/cargo@v1
         with:
           command: build
-          args: -p zenoh-bridge-dds --verbose --all-targets
+          args: -p zenoh-bridge-dds  --verbose --all-targets
+
+      - name: Build zenoh-bridge-dds (with dds_shm)
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: -p zenoh-bridge-dds --features dds_shm  --verbose --all-targets
 
       - name: Run tests
         uses: actions-rs/cargo@v1

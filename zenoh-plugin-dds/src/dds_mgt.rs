@@ -25,6 +25,8 @@ use std::os::raw;
 use std::slice;
 use std::sync::Arc;
 use std::time::Duration;
+#[cfg(feature = "dds_shm")]
+use zenoh::buffers::{ZBuf, ZSlice};
 use zenoh::prelude::*;
 use zenoh::publication::CongestionControl;
 use zenoh::Session;
@@ -40,12 +42,37 @@ pub(crate) enum RouteStatus {
     _QoSConflict,         // A route was already established but with conflicting QoS
 }
 
+#[derive(Debug)]
+pub(crate) struct TypeInfo {
+    ptr: *mut dds_typeinfo_t,
+}
+
+impl TypeInfo {
+    pub(crate) unsafe fn new(ptr: *const dds_typeinfo_t) -> TypeInfo {
+        let ptr = ddsi_typeinfo_dup(ptr);
+        TypeInfo { ptr }
+    }
+}
+
+impl Drop for TypeInfo {
+    fn drop(&mut self) {
+        unsafe {
+            ddsi_typeinfo_free(self.ptr);
+        }
+    }
+}
+
+unsafe impl Send for TypeInfo {}
+unsafe impl Sync for TypeInfo {}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct DdsEntity {
     pub(crate) key: String,
     pub(crate) participant_key: String,
     pub(crate) topic_name: String,
     pub(crate) type_name: String,
+    #[serde(skip)]
+    pub(crate) type_info: Option<TypeInfo>,
     pub(crate) keyless: bool,
     pub(crate) qos: Qos,
     pub(crate) routes: HashMap<String, RouteStatus>, // map of routes statuses indexed by partition ("*" only if no partition)
@@ -84,30 +111,95 @@ impl fmt::Display for DiscoveryType {
     }
 }
 
+#[cfg(feature = "dds_shm")]
+#[derive(Clone, Copy)]
+struct IoxChunk {
+    ptr: *mut std::ffi::c_void,
+    header: *mut iceoryx_header_t,
+}
+
+#[cfg(feature = "dds_shm")]
+impl IoxChunk {
+    fn as_slice(&self) -> &[u8] {
+        unsafe { slice::from_raw_parts(self.ptr as *const u8, (*self.header).data_size as usize) }
+    }
+}
+
 pub(crate) struct DDSRawSample {
     sdref: *mut ddsi_serdata,
     data: ddsrt_iovec_t,
+    #[cfg(feature = "dds_shm")]
+    iox_chunk: Option<IoxChunk>,
 }
 
 impl DDSRawSample {
-    pub(crate) fn create(serdata: *const ddsi_serdata) -> DDSRawSample {
-        unsafe {
-            let mut data = ddsrt_iovec_t {
-                iov_base: std::ptr::null_mut(),
-                iov_len: 0,
+    pub(crate) unsafe fn create(serdata: *const ddsi_serdata) -> DDSRawSample {
+        let mut data = ddsrt_iovec_t {
+            iov_base: std::ptr::null_mut(),
+            iov_len: 0,
+        };
+
+        let size = ddsi_serdata_size(serdata);
+        let sdref = ddsi_serdata_to_ser_ref(serdata, 0, size as usize, &mut data);
+
+        #[cfg(feature = "dds_shm")]
+        {
+            let iox_chunk_ptr = (*serdata).iox_chunk;
+            let iox_chunk = match iox_chunk_ptr.is_null() {
+                false => {
+                    let header = iceoryx_header_from_chunk(iox_chunk_ptr);
+                    Some(IoxChunk {
+                        ptr: iox_chunk_ptr,
+                        header,
+                    })
+                }
+                true => None,
             };
 
-            let size = ddsi_serdata_size(serdata);
-            let sdref = ddsi_serdata_to_ser_ref(serdata, 0, size as usize, &mut data);
-
+            DDSRawSample {
+                sdref,
+                data,
+                iox_chunk,
+            }
+        }
+        #[cfg(not(feature = "dds_shm"))]
+        {
             DDSRawSample { sdref, data }
         }
     }
 
-    pub(crate) fn as_slice(&self) -> &[u8] {
+    fn data_as_slice(&self) -> &[u8] {
         unsafe {
             slice::from_raw_parts(self.data.iov_base as *const u8, self.data.iov_len as usize)
         }
+    }
+
+    pub(crate) fn payload_as_slice(&self) -> &[u8] {
+        unsafe {
+            #[cfg(feature = "dds_shm")]
+            {
+                if let Some(iox_chunk) = self.iox_chunk.as_ref() {
+                    return iox_chunk.as_slice();
+                }
+            }
+            &slice::from_raw_parts(self.data.iov_base as *const u8, self.data.iov_len as usize)[4..]
+        }
+    }
+
+    pub(crate) fn hex_encode(&self) -> String {
+        let mut encoded = String::new();
+        let data_encoded = hex::encode(self.data_as_slice());
+        encoded.push_str(data_encoded.as_str());
+
+        #[cfg(feature = "dds_shm")]
+        {
+            if let Some(iox_chunk) = self.iox_chunk.as_ref() {
+                let iox_encoded = hex::encode(iox_chunk.as_slice());
+                encoded.push_str(iox_encoded.as_str());
+            }
+        }
+
+        encoded
     }
 }
 
@@ -116,6 +208,42 @@ impl Drop for DDSRawSample {
         unsafe {
             ddsi_serdata_to_ser_unref(self.sdref, &self.data);
         }
+    }
+}
+
+impl fmt::Debug for DDSRawSample {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        #[cfg(feature = "dds_shm")]
+        {
+            // Where data was received via Iceoryx write both the header (contained in buf.data) and
+            // payload (contained in buf.iox_chunk) to the formatter.
+            if let Some(iox_chunk) = self.iox_chunk {
+                return write!(
+                    f,
+                    "[{:02x?}, {:02x?}]",
+                    self.data_as_slice(),
+                    iox_chunk.as_slice()
+                );
+            }
+        }
+        write!(f, "{:02x?}", self.data_as_slice())
+    }
+}
+
+impl From<DDSRawSample> for Value {
+    fn from(buf: DDSRawSample) -> Self {
+        #[cfg(feature = "dds_shm")]
+        {
+            // Where data was received via Iceoryx return both the header (contained in buf.data) and
+            // payload (contained in buf.iox_chunk) in a buffer.
+            if let Some(iox_chunk) = buf.iox_chunk {
+                let mut zbuf = ZBuf::default();
+                zbuf.push_zslice(ZSlice::from(buf.data_as_slice().to_vec()));
+                zbuf.push_zslice(ZSlice::from(iox_chunk.as_slice().to_vec()));
+                return zbuf.into();
+            }
+        }
+        buf.data_as_slice().into()
     }
 }
 
@@ -184,6 +312,28 @@ unsafe extern "C" fn on_data(dr: dds_entity_t, arg: *mut std::os::raw::c_void) {
                         discovery_type, key, participant_key, topic_name, type_name, keyless
                     );
 
+                    let mut type_info: *const dds_typeinfo_t = std::ptr::null();
+                    let ret = dds_builtintopic_get_endpoint_type_info(sample, &mut type_info);
+
+                    let type_info = match ret {
+                        0 => match type_info.is_null() {
+                            false => Some(TypeInfo::new(type_info)),
+                            true => {
+                                debug!("Type information not available for type {}", type_name);
+                                None
+                            }
+                        },
+                        _ => {
+                            warn!(
+                                "Failed to lookup type information({})",
+                                CStr::from_ptr(dds_strretcode(ret))
+                                    .to_str()
+                                    .unwrap_or("unrecoverable DDS retcode")
+                            );
+                            None
+                        }
+                    };
+
                     // send a DiscoveryEvent
                     let entity = DdsEntity {
                         key: key.clone(),
@@ -191,6 +341,7 @@ unsafe extern "C" fn on_data(dr: dds_entity_t, arg: *mut std::os::raw::c_void) {
                         topic_name: String::from(topic_name),
                         type_name: String::from(type_name),
                         keyless,
+                        type_info,
                         qos: Qos::from_qos_native((*sample).qos),
                         routes: HashMap::<String, RouteStatus>::new(),
                     };
@@ -310,21 +461,20 @@ unsafe extern "C" fn data_forwarder_listener(dr: dds_entity_t, arg: *mut std::os
         let si = si.assume_init();
         if si[0].valid_data {
             let raw_sample = DDSRawSample::create(zp);
-            let data_in_slice = raw_sample.as_slice();
 
             if *crate::LOG_PAYLOAD {
                 log::trace!(
                     "Route data from DDS {} to zenoh key={} - payload: {:02x?}",
                     &(*pa).0,
                     &(*pa).1,
-                    data_in_slice
+                    raw_sample
                 );
             } else {
                 log::trace!("Route data from DDS {} to zenoh key={}", &(*pa).0, &(*pa).1);
             }
             let _ = (*pa)
                 .2
-                .put(&(*pa).1, data_in_slice)
+                .put(&(*pa).1, raw_sample)
                 .congestion_control((*pa).3)
                 .res_sync();
         }
@@ -333,10 +483,11 @@ unsafe extern "C" fn data_forwarder_listener(dr: dds_entity_t, arg: *mut std::os
 }
 
 #[allow(clippy::too_many_arguments)]
-pub fn create_forwarding_dds_reader(
+pub(crate) fn create_forwarding_dds_reader(
     dp: dds_entity_t,
     topic_name: String,
     type_name: String,
+    type_info: &Option<TypeInfo>,
     keyless: bool,
     mut qos: Qos,
     z_key: KeyExpr,
@@ -344,11 +495,8 @@ pub fn create_forwarding_dds_reader(
     read_period: Option<Duration>,
     congestion_ctrl: CongestionControl,
 ) -> Result<dds_entity_t, String> {
-    let cton = CString::new(topic_name.clone()).unwrap().into_raw();
-    let ctyn = CString::new(type_name).unwrap().into_raw();
-
     unsafe {
-        let t = cdds_create_blob_topic(dp, cton, ctyn, keyless);
+        let t = create_topic(dp, &topic_name, &type_name, type_info, keyless);
 
         match read_period {
             None => {
@@ -421,10 +569,9 @@ pub fn create_forwarding_dds_reader(
                                 );
 
                                 let raw_sample = DDSRawSample::create(zp);
-                                let data_in_slice = raw_sample.as_slice();
 
                                 let _ = z
-                                    .put(&z_key, data_in_slice)
+                                    .put(&z_key, raw_sample)
                                     .congestion_control(congestion_ctrl)
                                     .res_sync();
                             }
@@ -434,6 +581,39 @@ pub fn create_forwarding_dds_reader(
                 });
                 Ok(reader)
             }
+        }
+    }
+}
+
+unsafe fn create_topic(
+    dp: dds_entity_t,
+    topic_name: &str,
+    type_name: &str,
+    type_info: &Option<TypeInfo>,
+    keyless: bool,
+) -> dds_entity_t {
+    let cton = CString::new(topic_name.to_owned()).unwrap().into_raw();
+    let ctyn = CString::new(type_name.to_owned()).unwrap().into_raw();
+
+    match type_info {
+        None => cdds_create_blob_topic(dp, cton, ctyn, keyless),
+        Some(type_info) => {
+            let mut descriptor: *mut dds_topic_descriptor_t = std::ptr::null_mut();
+
+            let ret = dds_create_topic_descriptor(
+                dds_find_scope_DDS_FIND_SCOPE_GLOBAL,
+                dp,
+                type_info.ptr,
+                500000000,
+                &mut descriptor,
+            );
+            let mut topic: dds_entity_t = 0;
+            if ret == (DDS_RETCODE_OK as i32) {
+                topic = dds_create_topic(dp, descriptor, cton, std::ptr::null(), std::ptr::null());
+                assert!(topic >= 0);
+                dds_delete_topic_descriptor(descriptor);
+            }
+            topic
         }
     }
 }
@@ -451,7 +631,7 @@ pub fn create_forwarding_dds_writer(
     unsafe {
         let t = cdds_create_blob_topic(dp, cton, ctyn, keyless);
         let qos_native = qos.to_qos_native();
-        let writer = dds_create_writer(dp, t, qos_native, std::ptr::null_mut());
+        let writer: i32 = dds_create_writer(dp, t, qos_native, std::ptr::null_mut());
         Qos::delete_qos_native(qos_native);
         if writer >= 0 {
             Ok(writer)
