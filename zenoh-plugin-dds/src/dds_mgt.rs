@@ -153,11 +153,12 @@ impl DDSRawSample {
                         (*serdata).kind,
                         (*serdata).iox_chunk,
                     );
-                
+
                     let size = ddsi_serdata_size(serialized_serdata);
-                    sdref = ddsi_serdata_to_ser_ref(serialized_serdata, 0, size as usize, &mut data);
+                    sdref =
+                        ddsi_serdata_to_ser_ref(serialized_serdata, 0, size as usize, &mut data);
                     ddsi_serdata_unref(serialized_serdata);
-                    
+
                     // IoxChunk not needed where raw data has been serialized
                     None
                 } else {
@@ -180,10 +181,13 @@ impl DDSRawSample {
         }
 
         #[cfg(feature = "dds_shm")]
-        return DDSRawSample { sdref, data, iox_chunk };
+        return DDSRawSample {
+            sdref,
+            data,
+            iox_chunk,
+        };
         #[cfg(not(feature = "dds_shm"))]
         return DDSRawSample { sdref, data };
-
     }
 
     fn data_as_slice(&self) -> &[u8] {
