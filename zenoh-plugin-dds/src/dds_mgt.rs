@@ -134,38 +134,56 @@ pub(crate) struct DDSRawSample {
 
 impl DDSRawSample {
     pub(crate) unsafe fn create(serdata: *const ddsi_serdata) -> DDSRawSample {
+        let mut sdref: *mut ddsi_serdata = std::ptr::null_mut();
         let mut data = ddsrt_iovec_t {
             iov_base: std::ptr::null_mut(),
             iov_len: 0,
         };
 
-        let size = ddsi_serdata_size(serdata);
-        let sdref = ddsi_serdata_to_ser_ref(serdata, 0, size as usize, &mut data);
-
         #[cfg(feature = "dds_shm")]
-        {
-            let iox_chunk_ptr = (*serdata).iox_chunk;
-            let iox_chunk = match iox_chunk_ptr.is_null() {
-                false => {
-                    let header = iceoryx_header_from_chunk(iox_chunk_ptr);
+        let iox_chunk: Option<IoxChunk> = match ((*serdata).iox_chunk).is_null() {
+            false => {
+                let iox_chunk_ptr = (*serdata).iox_chunk;
+                let header = iceoryx_header_from_chunk(iox_chunk_ptr);
+
+                // If the Iceoryx chunk contains raw sample data this needs to be serialized before forwading to Zenoh
+                if (*header).shm_data_state == iox_shm_data_state_t_IOX_CHUNK_CONTAINS_RAW_DATA {
+                    let serialized_serdata = ddsi_serdata_from_sample(
+                        (*serdata).type_,
+                        (*serdata).kind,
+                        (*serdata).iox_chunk,
+                    );
+                
+                    let size = ddsi_serdata_size(serialized_serdata);
+                    sdref = ddsi_serdata_to_ser_ref(serialized_serdata, 0, size as usize, &mut data);
+                    ddsi_serdata_unref(serialized_serdata);
+                    
+                    // IoxChunk not needed where raw data has been serialized
+                    None
+                } else {
                     Some(IoxChunk {
                         ptr: iox_chunk_ptr,
                         header,
                     })
                 }
-                true => None,
-            };
-
-            DDSRawSample {
-                sdref,
-                data,
-                iox_chunk,
             }
+            true => None,
+        };
+
+        // At this point sdref will be null if:
+        //
+        // * Iceoryx was not enabled/used - in this case data will contain the CDR header and payload
+        // * Iceoryx chunk contained serialized data - in this case data will contain the CDR header
+        if sdref.is_null() {
+            let size = ddsi_serdata_size(serdata);
+            sdref = ddsi_serdata_to_ser_ref(serdata, 0, size as usize, &mut data);
         }
+
+        #[cfg(feature = "dds_shm")]
+        return DDSRawSample { sdref, data, iox_chunk };
         #[cfg(not(feature = "dds_shm"))]
-        {
-            DDSRawSample { sdref, data }
-        }
+        return DDSRawSample { sdref, data };
+
     }
 
     fn data_as_slice(&self) -> &[u8] {
