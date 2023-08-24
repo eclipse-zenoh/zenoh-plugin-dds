@@ -146,6 +146,15 @@ colcon build --packages-select zenoh_bridge_dds --cmake-args -DCMAKE_BUILD_TYPE=
 ```
 The `rosdep` command will automatically install *Rust* and *clang* as build dependencies.
 
+If you want to cross-compile the package on x86 device for any target, you can use the following command:
+```bash
+rosdep install --from-paths . --ignore-src -r -y
+colcon build --packages-select zenoh_bridge_dds --cmake-args -DCMAKE_BUILD_TYPE=Release  --cmake-args -DCROSS_ARCH=<target>
+```
+where `<target>` is the target architecture (e.g. `aarch64-unknown-linux-gnu`). The architechture list can be found [here](https://doc.rust-lang.org/nightly/rustc/platform-support.html).
+
+The cross-compilation uses `zig` as a linker. You can install it with instructions in [here](https://ziglang.org/download/). Also, the `zigbuild` package is required to be installed on the target device. You can install it with instructions in [here](https://github.com/rust-cross/cargo-zigbuild#installation).
+
 ## Docker image
 The **`zenoh-bridge-dds`** standalone executable is also available as a [Docker images](https://hub.docker.com/r/eclipse/zenoh-bridge-dds/tags?page=1&ordering=last_updated) for both amd64 and arm64. To get it, do:
   - `docker pull eclipse/zenoh-bridge-dds:latest` for the latest release
