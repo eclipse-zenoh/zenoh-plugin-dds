@@ -14,11 +14,10 @@
 
 use cyclors::{
     dds_entity_t, dds_get_entity_sertype, dds_strretcode, dds_writecdr, ddsi_serdata_from_ser_iov,
-    ddsi_serdata_kind_SDK_DATA, ddsi_sertype, ddsrt_iov_len_t, ddsrt_iovec_t,
+    ddsi_serdata_kind_SDK_DATA, ddsi_sertype, ddsrt_iovec_t,
 };
 use serde::{Serialize, Serializer};
 use std::collections::HashSet;
-use std::convert::TryInto;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::{ffi::CStr, fmt, sync::atomic::AtomicI32, time::Duration};
@@ -380,23 +379,22 @@ fn do_route_data(s: Sample, topic_name: &str, data_writer: dds_entity_t) {
         // that is not necessarily safe or guaranteed to be leak free.
         // TODO replace when stable https://github.com/rust-lang/rust/issues/65816
         let (ptr, len, capacity) = vec_into_raw_parts(bs);
-        let size: ddsrt_iov_len_t = match len.try_into() {
-            Ok(s) => s,
-            Err(_) => {
-                log::warn!(
-                    "Route Zenoh->DDS ({} -> {}): can't route data; excessive payload size ({})",
-                    s.key_expr,
-                    topic_name,
-                    len
-                );
-                return;
-            }
-        };
 
-        let data_out = ddsrt_iovec_t {
-            iov_base: ptr as *mut std::ffi::c_void,
-            iov_len: size,
-        };
+        let data_out: ddsrt_iovec_t;
+        #[cfg(not(target_os = "windows"))]
+        {
+            data_out = ddsrt_iovec_t {
+                iov_base: ptr as *mut std::ffi::c_void,
+                iov_len: len,
+            };
+        }
+        #[cfg(target_os = "windows")]
+        {
+            data_out = ddsrt_iovec_t {
+                iov_base: ptr as *mut std::ffi::c_void,
+                iov_len: len as u32,
+            };
+        }
 
         let mut sertype_ptr: *const ddsi_sertype = std::ptr::null_mut();
         let ret = dds_get_entity_sertype(data_writer, &mut sertype_ptr);
@@ -412,13 +410,8 @@ fn do_route_data(s: Sample, topic_name: &str, data_writer: dds_entity_t) {
             return;
         }
 
-        let fwdp = ddsi_serdata_from_ser_iov(
-            sertype_ptr,
-            ddsi_serdata_kind_SDK_DATA,
-            1,
-            &data_out,
-            size as usize,
-        );
+        let fwdp =
+            ddsi_serdata_from_ser_iov(sertype_ptr, ddsi_serdata_kind_SDK_DATA, 1, &data_out, len);
 
         dds_writecdr(data_writer, fwdp);
         drop(Vec::from_raw_parts(ptr, len, capacity));

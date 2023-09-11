@@ -184,22 +184,25 @@ impl RosDiscoveryInfoMgr {
             // that is not necessarily safe or guaranteed to be leak free.
             // TODO replace when stable https://github.com/rust-lang/rust/issues/65816
             let (ptr, len, capacity) = crate::vec_into_raw_parts(buf);
-            let size: ddsrt_iov_len_t = len.try_into().map_err(|e| {
-                format!("Error creating payload for ParticipantEntitiesInfo, excessive payload size: {e}")
-            })?;
 
-            let data_out = ddsrt_iovec_t {
-                iov_base: ptr as *mut std::ffi::c_void,
-                iov_len: size,
-            };
+            let data_out: ddsrt_iovec_t;
+            #[cfg(not(target_os = "windows"))]
+            {
+                data_out = ddsrt_iovec_t {
+                    iov_base: ptr as *mut std::ffi::c_void,
+                    iov_len: len,
+                };
+            }
+            #[cfg(target_os = "windows")]
+            {
+                data_out = ddsrt_iovec_t {
+                    iov_base: ptr as *mut std::ffi::c_void,
+                    iov_len: len as u32,
+                };
+            }
 
-            let fwdp = ddsi_serdata_from_ser_iov(
-                sertype,
-                ddsi_serdata_kind_SDK_DATA,
-                1,
-                &data_out,
-                size as usize,
-            );
+            let fwdp =
+                ddsi_serdata_from_ser_iov(sertype, ddsi_serdata_kind_SDK_DATA, 1, &data_out, len);
             dds_writecdr(self.writer, fwdp);
             drop(Vec::from_raw_parts(ptr, len, capacity));
             Ok(())
