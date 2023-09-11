@@ -380,10 +380,21 @@ fn do_route_data(s: Sample, topic_name: &str, data_writer: dds_entity_t) {
         // TODO replace when stable https://github.com/rust-lang/rust/issues/65816
         let (ptr, len, capacity) = vec_into_raw_parts(bs);
 
-        let data_out = ddsrt_iovec_t {
-            iov_base: ptr as *mut std::ffi::c_void,
-            iov_len: len,
-        };
+        let data_out: ddsrt_iovec_t;
+        #[cfg(not(target_os = "windows"))]
+        {
+            data_out = ddsrt_iovec_t {
+                iov_base: ptr as *mut std::ffi::c_void,
+                iov_len: len,
+            };
+        }
+        #[cfg(target_os = "windows")]
+        {
+            data_out = ddsrt_iovec_t {
+                iov_base: ptr as *mut std::ffi::c_void,
+                iov_len: len as u32,
+            };
+        }
 
         let mut sertype_ptr: *const ddsi_sertype = std::ptr::null_mut();
         let ret = dds_get_entity_sertype(data_writer, &mut sertype_ptr);

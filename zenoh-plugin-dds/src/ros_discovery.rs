@@ -185,10 +185,21 @@ impl RosDiscoveryInfoMgr {
             // TODO replace when stable https://github.com/rust-lang/rust/issues/65816
             let (ptr, len, capacity) = crate::vec_into_raw_parts(buf);
 
-            let data_out = ddsrt_iovec_t {
-                iov_base: ptr as *mut std::ffi::c_void,
-                iov_len: len,
-            };
+            let data_out: ddsrt_iovec_t;
+            #[cfg(not(target_os = "windows"))]
+            {
+                data_out = ddsrt_iovec_t {
+                    iov_base: ptr as *mut std::ffi::c_void,
+                    iov_len: len,
+                };
+            }
+            #[cfg(target_os = "windows")]
+            {
+                data_out = ddsrt_iovec_t {
+                    iov_base: ptr as *mut std::ffi::c_void,
+                    iov_len: len as u32,
+                };
+            }
 
             let fwdp =
                 ddsi_serdata_from_ser_iov(sertype, ddsi_serdata_kind_SDK_DATA, 1, &data_out, len);

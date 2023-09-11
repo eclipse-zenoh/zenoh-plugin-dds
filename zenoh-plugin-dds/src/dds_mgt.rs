@@ -191,7 +191,14 @@ impl DDSRawSample {
     }
 
     fn data_as_slice(&self) -> &[u8] {
-        unsafe { slice::from_raw_parts(self.data.iov_base as *const u8, self.data.iov_len) }
+        #[cfg(not(target_os = "windows"))]
+        unsafe {
+            slice::from_raw_parts(self.data.iov_base as *const u8, self.data.iov_len)
+        }
+        #[cfg(target_os = "windows")]
+        unsafe {
+            slice::from_raw_parts(self.data.iov_base as *const u8, self.data.iov_len as usize)
+        }
     }
 
     pub(crate) fn payload_as_slice(&self) -> &[u8] {
@@ -202,7 +209,15 @@ impl DDSRawSample {
                     return iox_chunk.as_slice();
                 }
             }
-            &slice::from_raw_parts(self.data.iov_base as *const u8, self.data.iov_len)[4..]
+            #[cfg(not(target_os = "windows"))]
+            {
+                &slice::from_raw_parts(self.data.iov_base as *const u8, self.data.iov_len)[4..]
+            }
+            #[cfg(target_os = "windows")]
+            {
+                &slice::from_raw_parts(self.data.iov_base as *const u8, self.data.iov_len as usize)
+                    [4..]
+            }
         }
     }
 
