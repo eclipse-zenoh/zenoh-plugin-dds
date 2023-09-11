@@ -929,7 +929,7 @@ dependencies = [
 [[package]]
 name = "cyclors"
 version = "0.2.0"
-source = "git+https://github.com/gmartin82/cyclors?branch=update-bindgen#cac8063207d4b60f2ed7979728741a5a9521d861"
+source = "git+https://github.com/kydos/cyclors?branch=master#8f831b3b0a7fc8a63098a82a5c079dc3562405a7"
 dependencies = [
  "bincode",
  "bindgen",
