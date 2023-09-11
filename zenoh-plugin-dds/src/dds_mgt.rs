@@ -32,7 +32,7 @@ use zenoh::publication::CongestionControl;
 use zenoh::Session;
 use zenoh_core::SyncResolve;
 
-const MAX_SAMPLES: u32 = 32;
+const MAX_SAMPLES: usize = 32;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub(crate) enum RouteStatus {
@@ -191,9 +191,7 @@ impl DDSRawSample {
     }
 
     fn data_as_slice(&self) -> &[u8] {
-        unsafe {
-            slice::from_raw_parts(self.data.iov_base as *const u8, self.data.iov_len as usize)
-        }
+        unsafe { slice::from_raw_parts(self.data.iov_base as *const u8, self.data.iov_len) }
     }
 
     pub(crate) fn payload_as_slice(&self) -> &[u8] {
@@ -204,7 +202,7 @@ impl DDSRawSample {
                     return iox_chunk.as_slice();
                 }
             }
-            &slice::from_raw_parts(self.data.iov_base as *const u8, self.data.iov_len as usize)[4..]
+            &slice::from_raw_parts(self.data.iov_base as *const u8, self.data.iov_len)[4..]
         }
     }
 
@@ -278,17 +276,17 @@ unsafe extern "C" fn on_data(dr: dds_entity_t, arg: *mut std::os::raw::c_void) {
     let _ = dds_get_instance_handle(dp, &mut dpih);
 
     #[allow(clippy::uninit_assumed_init)]
-    let mut si = MaybeUninit::<[dds_sample_info_t; MAX_SAMPLES as usize]>::uninit();
-    let mut samples: [*mut ::std::os::raw::c_void; MAX_SAMPLES as usize] =
-        [std::ptr::null_mut(); MAX_SAMPLES as usize];
+    let mut si = MaybeUninit::<[dds_sample_info_t; MAX_SAMPLES]>::uninit();
+    let mut samples: [*mut ::std::os::raw::c_void; MAX_SAMPLES] =
+        [std::ptr::null_mut(); MAX_SAMPLES];
     samples[0] = std::ptr::null_mut();
 
     let n = dds_take(
         dr,
         samples.as_mut_ptr() as *mut *mut raw::c_void,
         si.as_mut_ptr() as *mut dds_sample_info_t,
-        MAX_SAMPLES.into(),
         MAX_SAMPLES,
+        MAX_SAMPLES as u32,
     );
     let si = si.assume_init();
 
