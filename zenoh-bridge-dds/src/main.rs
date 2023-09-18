@@ -48,10 +48,10 @@ fn parse_args() -> (Config, Option<f32>) {
         // zenoh related arguments:
         //
         .arg(Arg::from_usage(
-r#"-i, --id=[HEX_STRING] \
+r"-i, --id=[HEX_STRING] \
 'The identifier (as an hexadecimal string, with odd number of chars - e.g.: 0A0B23...) that zenohd must use.
 WARNING: this identifier must be unique in the system and must be 16 bytes maximum (32 chars)!
-If not set, a random UUIDv4 will be used.'"#,
+If not set, a random UUIDv4 will be used.'",
             ))
         .arg(Arg::from_usage(
 r#"-m, --mode=[MODE]  'The zenoh session mode.'"#)
@@ -59,30 +59,30 @@ r#"-m, --mode=[MODE]  'The zenoh session mode.'"#)
             .default_value("peer")
         )
         .arg(Arg::from_usage(
-r#"-c, --config=[FILE] \
-'The configuration file. Currently, this file must be a valid JSON5 file.'"#,
+r"-c, --config=[FILE] \
+'The configuration file. Currently, this file must be a valid JSON5 file.'",
             ))
         .arg(Arg::from_usage(
-r#"-l, --listen=[ENDPOINT]... \
+r"-l, --listen=[ENDPOINT]... \
 'A locator on which this router will listen for incoming sessions.
-Repeat this option to open several listeners.'"#,
+Repeat this option to open several listeners.'",
                 ),
             )
         .arg(Arg::from_usage(
-r#"-e, --connect=[ENDPOINT]... \
+r"-e, --connect=[ENDPOINT]... \
 'A peer locator this router will try to connect to.
-Repeat this option to connect to several peers.'"#,
+Repeat this option to connect to several peers.'",
             ))
         .arg(Arg::from_usage(
-r#"--no-multicast-scouting \
+r"--no-multicast-scouting \
 'By default the zenoh bridge listens and replies to UDP multicast scouting messages for being discovered by peers and routers.
-This option disables this feature.'"#
+This option disables this feature.'"
         ))
         .arg(Arg::from_usage(
-r#"--rest-http-port=[PORT | IP:PORT] \
+r"--rest-http-port=[PORT | IP:PORT] \
 'Configures HTTP interface for the REST API (disabled by default, setting this option enables it). Accepted values:'
   - a port number
-  - a string with format `<local_ip>:<port_number>` (to bind the HTTP server to a specific interface)."#
+  - a string with format `<local_ip>:<port_number>` (to bind the HTTP server to a specific interface)."
         ))
         //
         // DDS related arguments:
