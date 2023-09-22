@@ -30,6 +30,7 @@ crate-type = ["cdylib", "rlib"]
 default = ["no_mangle"]
 no_mangle = ["zenoh-plugin-trait/no_mangle"]
 dds_shm = ["cyclors/iceoryx"]
+stats = ["zenoh/stats"]
 
 [dependencies]
 async-std = { workspace = true, features = ["unstable", "attributes"] }
