@@ -62,7 +62,7 @@ rustc_version = { workspace = true }
 [package.metadata.deb]
 name = "zenoh-plugin-dds"
 maintainer = "zenoh-dev@eclipse.org"
-copyright = "2017, 2022 ZettaScale Technology Inc."
+copyright = "2017, 2023 ZettaScale Technology Inc."
 section = "net"
 license-file = ["../LICENSE", "0"]
 depends = "zenohd (=0.10.0-rc)"

@@ -45,7 +45,7 @@ path = "src/main.rs"
 [package.metadata.deb]
 name = "zenoh-bridge-dds"
 maintainer = "zenoh-dev@eclipse.org"
-copyright = "2017, 2022 ZettaScale Technology Inc."
+copyright = "2017, 2023 ZettaScale Technology Inc."
 section = "net"
 license-file = ["../LICENSE", "0"]
 depends = "$auto"
