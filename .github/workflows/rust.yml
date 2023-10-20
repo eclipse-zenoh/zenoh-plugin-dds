@@ -39,9 +39,9 @@ jobs:
         run: sudo apt-get -y install libacl1-dev
 
       - name: Install Rust toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          components: rustfmt, clippy
+        run: |
+          rustup show
+          rustup component add rustfmt clippy
 
       - name: Code format check
         uses: actions-rs/cargo@v1
