@@ -138,13 +138,21 @@ impl DDSRawSample {
             // Based on the current Cyclone DDS implementation loan should only contain RAW sample data at this point
             if (*metadata).sample_state == dds_loaned_sample_state_DDS_LOANED_SAMPLE_STATE_RAW_DATA
             {
-                // Before forwarding to Zenoh this data first needs to be serialized
-                let serialized_serdata =
+                // Before forwarding to Zenoh the data first needs to be serialized
+                if (*(*serdata).ops).from_sample.is_some() {
+                    // We have the type information necessary to serialize so use from_sample()
+                    let serialized_serdata =
                     ddsi_serdata_from_sample((*serdata).type_, (*serdata).kind, (*loan).sample_ptr);
 
-                let size = ddsi_serdata_size(serialized_serdata);
-                sdref = ddsi_serdata_to_ser_ref(serialized_serdata, 0, size as usize, &mut data);
-                ddsi_serdata_unref(serialized_serdata);
+                    let size = ddsi_serdata_size(serialized_serdata);
+                    sdref = ddsi_serdata_to_ser_ref(serialized_serdata, 0, size as usize, &mut data);
+                    ddsi_serdata_unref(serialized_serdata);
+                } else {
+                    // Type information not available so unable to serialize sample using from_sample()
+                    return Err(String::from(
+                        "Received sample from DDS contains a loan for which incomplete type information is held",
+                    ));
+                }
             } else {
                 return Err(String::from(
                     "Received sample from DDS contains a loan with an unexpected sample state",
