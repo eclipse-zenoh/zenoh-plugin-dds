@@ -141,11 +141,15 @@ impl DDSRawSample {
                 // Before forwarding to Zenoh the data first needs to be serialized
                 if (*(*serdata).ops).from_sample.is_some() {
                     // We have the type information necessary to serialize so use from_sample()
-                    let serialized_serdata =
-                    ddsi_serdata_from_sample((*serdata).type_, (*serdata).kind, (*loan).sample_ptr);
+                    let serialized_serdata = ddsi_serdata_from_sample(
+                        (*serdata).type_,
+                        (*serdata).kind,
+                        (*loan).sample_ptr,
+                    );
 
                     let size = ddsi_serdata_size(serialized_serdata);
-                    sdref = ddsi_serdata_to_ser_ref(serialized_serdata, 0, size as usize, &mut data);
+                    sdref =
+                        ddsi_serdata_to_ser_ref(serialized_serdata, 0, size as usize, &mut data);
                     ddsi_serdata_unref(serialized_serdata);
                 } else {
                     // Type information not available so unable to serialize sample using from_sample()
