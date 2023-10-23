@@ -113,9 +113,9 @@ This option is not active by default, unless the "ROS_LOCALHOST_ONLY" environmen
     #[cfg(feature = "dds_shm")]
     {
         app = app.arg(Arg::from_usage(
-                r#"--dds-enable-shm \
-                'Configure CycloneDDS to use the Iceoryx shared memory PSMX plugin. If not set, CycloneDDS will instead use any shared memory settings defined in "$CYCLONEDDS_URI" configuration.
-                This option is not active by default.'"#
+r#"--dds-enable-shm \
+'Configure CycloneDDS to use the Iceoryx shared memory PSMX plugin with default config. If not set, CycloneDDS will instead use any shared memory settings defined in "$CYCLONEDDS_URI" configuration.
+This option is not active by default.'"#
             ));
     }
 
