@@ -530,7 +530,6 @@ impl<'a> DdsPluginRuntime<'a> {
         }
 
         if let Some(route) = self.routes_to_dds.get(&ke) {
-            // TODO: check if there is no type or QoS conflict with existing route
             debug!(
                 "Route from resource {} to DDS already exists -- ignoring",
                 ke
@@ -539,6 +538,13 @@ impl<'a> DdsPluginRuntime<'a> {
             //       (just to declare the Zenoh Subscriber). Thus, try to set a DDS Writer to the route here.
             //       If already set, nothing will happen.
             if let Some(qos) = writer_qos {
+                if let Some(exiting_qos) = route.get_qos() {
+                    if qos.clone().reliability.unwrap().kind as isize > exiting_qos.reliability.unwrap().kind as isize {
+                        // new reliability is higher than existing one. Destroy and create new reader
+                        route.delete_dds_writer();
+                        // and then continue to create the route again
+                    }
+                }
                 if let Err(e) = route.set_dds_writer(self.dp, qos) {
                     error!(
                         "{}: failed to set a DDS Writer after creation: {}",

@@ -13,7 +13,7 @@
 //
 
 use cyclors::{
-    dds_entity_t, dds_get_entity_sertype, dds_strretcode, dds_writecdr, ddsi_serdata_from_ser_iov,
+    dds_entity_t, dds_qos_t, dds_get_entity_sertype, dds_strretcode, dds_writecdr, ddsi_serdata_from_ser_iov, dds_get_qos,
     ddsi_serdata_kind_SDK_DATA, ddsi_sertype, ddsrt_iovec_t,
 };
 use serde::{Serialize, Serializer};
@@ -352,6 +352,21 @@ impl RouteZenohDDS<'_> {
     pub(crate) fn has_local_routed_reader(&self) -> bool {
         !self.local_routed_readers.is_empty()
     }
+
+    pub(crate) fn get_qos(&self) -> Option<Qos> {
+        let qos_ptr: *mut dds_qos_t = std::ptr::null_mut();
+        
+        unsafe {
+            dds_get_qos(self.dds_writer.load(Ordering::Acquire), qos_ptr);
+
+            if qos_ptr.is_null() {
+                return Option::None;
+            } else {
+                return Option::Some(Qos::from_qos_native(qos_ptr));
+            }
+        }
+    }
+
 }
 
 fn do_route_data(s: Sample, topic_name: &str, data_writer: dds_entity_t) {
