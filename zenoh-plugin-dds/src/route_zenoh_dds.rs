@@ -13,7 +13,7 @@
 //
 
 use cyclors::{
-    dds_entity_t, dds_qos_t, dds_get_entity_sertype, dds_strretcode, dds_writecdr, ddsi_serdata_from_ser_iov, dds_get_qos,
+    dds_entity_t, dds_get_entity_sertype, dds_strretcode, dds_writecdr, ddsi_serdata_from_ser_iov, dds_get_qos, dds_create_qos,
     ddsi_serdata_kind_SDK_DATA, ddsi_sertype, ddsrt_iovec_t,
 };
 use serde::{Serialize, Serializer};
@@ -354,19 +354,22 @@ impl RouteZenohDDS<'_> {
     }
 
     pub(crate) fn get_qos(&self) -> Option<Qos> {
-        let qos_ptr: *mut dds_qos_t = std::ptr::null_mut();
-        
         unsafe {
-            dds_get_qos(self.dds_writer.load(Ordering::Acquire), qos_ptr);
-
-            if qos_ptr.is_null() {
-                return Option::None;
+            let qos = dds_create_qos();
+            let ret = dds_get_qos(self.dds_writer.load(Ordering::Relaxed), qos);
+            if ret == 0 {
+                return Option::Some(Qos::from_qos_native(qos));
             } else {
-                return Option::Some(Qos::from_qos_native(qos_ptr));
+                log::warn!(
+                    "Retrieving QoS failed: {}",
+                    CStr::from_ptr(dds_strretcode(ret))
+                        .to_str()
+                        .unwrap_or("unrecoverable DDS retcode")
+                );
+                return Option::None;
             }
         }
     }
-
 }
 
 fn do_route_data(s: Sample, topic_name: &str, data_writer: dds_entity_t) {

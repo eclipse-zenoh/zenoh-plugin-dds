@@ -537,21 +537,38 @@ impl<'a> DdsPluginRuntime<'a> {
             // #102: in forwarding mode, it might happen that the route have been created but without DDS Writer
             //       (just to declare the Zenoh Subscriber). Thus, try to set a DDS Writer to the route here.
             //       If already set, nothing will happen.
-            if let Some(qos) = writer_qos {
-                if let Some(exiting_qos) = route.get_qos() {
-                    if qos.clone().reliability.unwrap().kind as isize > exiting_qos.reliability.unwrap().kind as isize {
-                        // new reliability is higher than existing one. Destroy and create new reader
-                        route.delete_dds_writer();
-                        // and then continue to create the route again
-                    }
-                }
-                if let Err(e) = route.set_dds_writer(self.dp, qos) {
-                    error!(
-                        "{}: failed to set a DDS Writer after creation: {}",
-                        route, e
+            match (writer_qos.clone(), route.get_qos()) {
+                (Some(new_qos), Some(exiting_qos)) => {
+                    info!("Route Zenoh->DDS ({} -> {}): Upgrading QoS {}->{}", 
+                        ke, topic_name,
+                        exiting_qos.clone().reliability.unwrap().kind as isize, 
+                        new_qos.clone().reliability.unwrap().kind as isize
                     );
-                    return RouteStatus::CreationFailure(e);
-                }
+                    
+                    // new reliability is higher than existing one. Destroy existing writer before creating new one
+                    if new_qos.clone().reliability.unwrap().kind as isize > exiting_qos.reliability.unwrap().kind as isize {
+                        route.delete_dds_writer();
+                        // route.set_qos(new_qos);
+                        if let Err(e) = route.set_dds_writer(self.dp, new_qos) {
+                            error!(
+                                "{}: failed to set a DDS Writer after creation: {}",
+                                route, e
+                            );
+                            return RouteStatus::CreationFailure(e);
+                        }
+                    }
+                },
+                (Some(new_qos), None) => {
+                    // no writer existing yet. Only create new one
+                    if let Err(e) = route.set_dds_writer(self.dp, new_qos) {
+                        error!(
+                            "{}: failed to set a DDS Writer after creation: {}",
+                            route, e
+                        );
+                        return RouteStatus::CreationFailure(e);
+                    }
+                },
+                _ => { } // no need to delete writer in any case if no QoS exists already
             }
             return RouteStatus::Routed(ke);
         }
