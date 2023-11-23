@@ -33,17 +33,19 @@ use std::sync::Arc;
 use std::time::Duration;
 use zenoh::buffers::SplitBuffer;
 use zenoh::liveliness::LivelinessToken;
-use zenoh::plugins::{Plugin, RunningPluginTrait, Runtime, ZenohPlugin};
+use zenoh::plugins::{RunningPluginTrait, ZenohPlugin};
 use zenoh::prelude::r#async::AsyncResolve;
 use zenoh::prelude::r#sync::SyncResolve;
 use zenoh::prelude::*;
 use zenoh::publication::CongestionControl;
 use zenoh::query::{ConsolidationMode, QueryTarget};
 use zenoh::queryable::{Query, Queryable};
+use zenoh::runtime::Runtime;
 use zenoh::Result as ZResult;
 use zenoh::Session;
 use zenoh_core::{bail, zerror};
 use zenoh_ext::{SessionExt, SubscriberBuilderExt};
+use zenoh_plugin_trait::{Plugin, PluginControl};
 use zenoh_util::{Timed, TimedEvent, Timer};
 
 pub mod config;
@@ -106,12 +108,14 @@ zenoh_plugin_trait::declare_plugin!(DDSPlugin);
 #[allow(clippy::upper_case_acronyms)]
 pub struct DDSPlugin;
 
+impl PluginControl for DDSPlugin {}
 impl ZenohPlugin for DDSPlugin {}
 impl Plugin for DDSPlugin {
     type StartArgs = Runtime;
-    type RunningPlugin = zenoh::plugins::RunningPlugin;
+    type Instance = zenoh::plugins::RunningPlugin;
 
-    const STATIC_NAME: &'static str = "zenoh-plugin-dds";
+    const DEFAULT_NAME: &'static str = "zenoh-plugin-dds";
+    const PLUGIN_VERSION: &'static str = env!("CARGO_PKG_VERSION");
 
     fn start(name: &str, runtime: &Self::StartArgs) -> ZResult<zenoh::plugins::RunningPlugin> {
         // Try to initiate login.
@@ -119,7 +123,7 @@ impl Plugin for DDSPlugin {
         // But cannot be done twice in case of static link.
         let _ = env_logger::try_init();
 
-        let runtime_conf = runtime.config.lock();
+        let runtime_conf = runtime.config().lock();
         let plugin_conf = runtime_conf
             .plugin(name)
             .ok_or_else(|| zerror!("Plugin `{}`: missing config", name))?;
@@ -130,8 +134,13 @@ impl Plugin for DDSPlugin {
     }
 }
 impl RunningPluginTrait for DDSPlugin {
-    fn config_checker(&self) -> zenoh::plugins::ValidationFunction {
-        Arc::new(|_, _, _| bail!("DDSPlugin does not support hot configuration changes."))
+    fn config_checker(
+        &self,
+        _path: &str,
+        _old: &serde_json::Map<String, serde_json::Value>,
+        _new: &serde_json::Map<String, serde_json::Value>,
+    ) -> ZResult<Option<serde_json::Map<String, serde_json::Value>>> {
+        bail!("DDSPlugin does not support hot configuration changes.")
     }
 
     fn adminspace_getter<'a>(
