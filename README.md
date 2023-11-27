@@ -40,7 +40,7 @@ Thanks to a better integration with ROS 2 concepts, this new plugin comes with t
 - Services and Action as **Zenoh Queryables** with more efficiency and scalability that RPC over DDS
 - Even more **compact discovery information** between the bridges (not forwarding all `ros_discovery_info` messages as such)
 
-This DDS plugin for Zenoh will eventually be deprecated for ROS 2 usage.
+This Zenoh plugin for DDS will eventually be deprecated for ROS 2 usage.
 
 ## Plugin or bridge ?
 
