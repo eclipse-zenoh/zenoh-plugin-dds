@@ -29,8 +29,8 @@ use std::collections::HashMap;
 use std::convert::TryInto;
 use std::env;
 use std::mem::ManuallyDrop;
-use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
+use std::sync::Arc;
 use std::time::Duration;
 use zenoh::buffers::SplitBuffer;
 use zenoh::liveliness::LivelinessToken;
@@ -106,11 +106,12 @@ const ROS_DISCOVERY_INFO_POLL_INTERVAL_MS: u64 = 500;
 
 zenoh_plugin_trait::declare_plugin!(DDSPlugin);
 
-
 fn log_ros2_deprecation_warning() {
-    if ! LOG_ROS2_DEPRECATION_WARNING_FLAG.swap(true, std::sync::atomic::Ordering::Relaxed) {
+    if !LOG_ROS2_DEPRECATION_WARNING_FLAG.swap(true, std::sync::atomic::Ordering::Relaxed) {
         log::warn!("------------------------------------------------------------------------------------------");
-        log::warn!("ROS 2 system detected. Did you now a new Zenoh bridge dedicated to ROS 2 exists ?");
+        log::warn!(
+            "ROS 2 system detected. Did you now a new Zenoh bridge dedicated to ROS 2 exists ?"
+        );
         log::warn!("Check it out on https://github.com/eclipse-zenoh/zenoh-plugin-ros2dds");
         log::warn!("This DDS bridge will eventually be deprecated for ROS 2 usage in favor of this new bridge.");
         log::warn!("------------------------------------------------------------------------------------------");
