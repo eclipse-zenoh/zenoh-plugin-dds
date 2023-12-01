@@ -32,7 +32,6 @@ use std::mem::ManuallyDrop;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use std::time::Duration;
-use zenoh::buffers::SplitBuffer;
 use zenoh::liveliness::LivelinessToken;
 use zenoh::plugins::{Plugin, RunningPluginTrait, Runtime, ZenohPlugin};
 use zenoh::prelude::r#async::AsyncResolve;
@@ -1017,7 +1016,7 @@ impl<'a> DdsPluginRuntime<'a> {
             .expect("Failed to declare PublicationCache for Fwd Discovery");
 
         // Subscribe to remote DDS plugins publications of new Readers/Writers on admin space
-        let mut fwd_disco_sub = self
+        let fwd_disco_sub = self
             .zsession
             .declare_subscriber(fwd_discovery_subscription_key)
             .querying()
