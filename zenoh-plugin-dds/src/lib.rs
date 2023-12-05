@@ -33,7 +33,7 @@ use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use std::time::Duration;
 use zenoh::liveliness::LivelinessToken;
-use zenoh::plugins::{RunningPluginTrait, ZenohPlugin};
+use zenoh::plugins::{RunningPluginTrait, ZenohPlugin, RunningPlugin};
 use zenoh::prelude::r#async::AsyncResolve;
 use zenoh::prelude::r#sync::SyncResolve;
 use zenoh::prelude::*;
@@ -126,12 +126,12 @@ impl PluginControl for DDSPlugin {}
 impl ZenohPlugin for DDSPlugin {}
 impl Plugin for DDSPlugin {
     type StartArgs = Runtime;
-    type Instance = zenoh::plugins::RunningPlugin;
+    type Instance = RunningPlugin;
 
     const DEFAULT_NAME: &'static str = "zenoh-plugin-dds";
     const PLUGIN_VERSION: &'static str = env!("CARGO_PKG_VERSION");
 
-    fn start(name: &str, runtime: &Self::StartArgs) -> ZResult<zenoh::plugins::RunningPlugin> {
+    fn start(name: &str, runtime: &Self::StartArgs) -> ZResult<RunningPlugin> {
         // Try to initiate login.
         // Required in case of dynamic lib, otherwise no logs.
         // But cannot be done twice in case of static link.
