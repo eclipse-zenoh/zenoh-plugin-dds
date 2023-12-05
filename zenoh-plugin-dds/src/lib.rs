@@ -29,9 +29,9 @@ use std::collections::HashMap;
 use std::convert::TryInto;
 use std::env;
 use std::mem::ManuallyDrop;
+use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use std::time::Duration;
-use zenoh::buffers::SplitBuffer;
 use zenoh::liveliness::LivelinessToken;
 use zenoh::plugins::{RunningPluginTrait, ZenohPlugin};
 use zenoh::prelude::r#async::AsyncResolve;
@@ -90,6 +90,8 @@ lazy_static::lazy_static!(
 
     static ref KE_ANY_1_SEGMENT: &'static keyexpr = ke_for_sure!("*");
     static ref KE_ANY_N_SEGMENT: &'static keyexpr = ke_for_sure!("**");
+
+    static ref LOG_ROS2_DEPRECATION_WARNING_FLAG: AtomicBool = AtomicBool::new(false);
 );
 
 // CycloneDDS' localhost-only: set network interface address (shortened form of config would be
@@ -104,6 +106,18 @@ const CYCLONEDDS_CONFIG_ENABLE_SHM: &str = r#"<CycloneDDS><Domain><SharedMemory>
 const ROS_DISCOVERY_INFO_POLL_INTERVAL_MS: u64 = 500;
 
 zenoh_plugin_trait::declare_plugin!(DDSPlugin);
+
+fn log_ros2_deprecation_warning() {
+    if !LOG_ROS2_DEPRECATION_WARNING_FLAG.swap(true, std::sync::atomic::Ordering::Relaxed) {
+        log::warn!("------------------------------------------------------------------------------------------");
+        log::warn!(
+            "ROS 2 system detected. Did you now a new Zenoh bridge dedicated to ROS 2 exists ?"
+        );
+        log::warn!("Check it out on https://github.com/eclipse-zenoh/zenoh-plugin-ros2dds");
+        log::warn!("This DDS bridge will eventually be deprecated for ROS 2 usage in favor of this new bridge.");
+        log::warn!("------------------------------------------------------------------------------------------");
+    }
+}
 
 #[allow(clippy::upper_case_acronyms)]
 pub struct DDSPlugin;
@@ -344,6 +358,10 @@ lazy_static::lazy_static! {
 
 impl<'a> DdsPluginRuntime<'a> {
     fn is_allowed(&self, ke: &keyexpr) -> bool {
+        if ke.ends_with(ROS_DISCOVERY_INFO_TOPIC_NAME) {
+            log_ros2_deprecation_warning();
+        }
+
         if self.config.forward_discovery && ke.ends_with(ROS_DISCOVERY_INFO_TOPIC_NAME) {
             // If fwd-discovery mode is enabled, don't route "ros_discovery_info"
             return false;
@@ -1007,7 +1025,7 @@ impl<'a> DdsPluginRuntime<'a> {
             .expect("Failed to declare PublicationCache for Fwd Discovery");
 
         // Subscribe to remote DDS plugins publications of new Readers/Writers on admin space
-        let mut fwd_disco_sub = self
+        let fwd_disco_sub = self
             .zsession
             .declare_subscriber(fwd_discovery_subscription_key)
             .querying()
