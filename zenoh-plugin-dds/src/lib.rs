@@ -33,7 +33,7 @@ use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use std::time::Duration;
 use zenoh::liveliness::LivelinessToken;
-use zenoh::plugins::{RunningPluginTrait, ZenohPlugin, RunningPlugin};
+use zenoh::plugins::{RunningPlugin, RunningPluginTrait, ZenohPlugin};
 use zenoh::prelude::r#async::AsyncResolve;
 use zenoh::prelude::r#sync::SyncResolve;
 use zenoh::prelude::*;
