@@ -27,7 +27,7 @@ Check the website [zenoh.io](http://zenoh.io) and the [roadmap](https://github.c
 ## Background
 The Data Distribution Service (DDS) is a standard for data-centric publish subscribe. Whilst DDS has been around for quite some time and has a long history of deployments in various industries, it has recently gained quite a bit of attentions thanks to its adoption by the Robotic Operating System (ROS 2) -- where it is used for communication between ROS 2 nodes.
 
-### :warning: On usage with ROS 2 :warning: 
+### ⚠️ On usage with ROS 2 ⚠️ 
 
 This plugin is based on the DDS standard, and thus can work with ROS 2 to some extent.
 
