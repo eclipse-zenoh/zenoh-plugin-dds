@@ -201,8 +201,8 @@ impl<'de> Visitor<'de> for RegexVisitor {
 
     // for `null` value
     fn visit_unit<E>(self) -> Result<Self::Value, E>
-        where
-            E: de::Error,
+    where
+        E: de::Error,
     {
         Ok(None)
     }
