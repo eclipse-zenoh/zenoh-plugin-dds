@@ -199,6 +199,14 @@ impl<'de> Visitor<'de> for RegexVisitor {
         formatter.write_str(r#"either a string or a list of strings"#)
     }
 
+    // for `null` value
+    fn visit_unit<E>(self) -> Result<Self::Value, E>
+    where
+        E: de::Error,
+    {
+        Ok(None)
+    }
+
     fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
     where
         E: de::Error,
