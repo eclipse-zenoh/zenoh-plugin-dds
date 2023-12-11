@@ -109,7 +109,7 @@ fn log_ros2_deprecation_warning() {
     if !LOG_ROS2_DEPRECATION_WARNING_FLAG.swap(true, std::sync::atomic::Ordering::Relaxed) {
         log::warn!("------------------------------------------------------------------------------------------");
         log::warn!(
-            "ROS 2 system detected. Did you now a new Zenoh bridge dedicated to ROS 2 exists ?"
+            "ROS 2 system detected. Did you know a new Zenoh bridge dedicated to ROS 2 exists ?"
         );
         log::warn!("Check it out on https://github.com/eclipse-zenoh/zenoh-plugin-ros2dds");
         log::warn!("This DDS bridge will eventually be deprecated for ROS 2 usage in favor of this new bridge.");
