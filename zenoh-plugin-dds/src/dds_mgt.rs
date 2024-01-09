@@ -653,13 +653,25 @@ pub fn create_forwarding_dds_writer(
     topic_name: String,
     type_name: String,
     keyless: bool,
-    qos: Qos,
+    mut qos: Qos,
 ) -> Result<dds_entity_t, String> {
     let cton = CString::new(topic_name).unwrap().into_raw();
     let ctyn = CString::new(type_name).unwrap().into_raw();
 
     unsafe {
         let t = cdds_create_blob_topic(dp, cton, ctyn, keyless);
+
+        // force RELIABLE QoS for Writers (#165)
+        if let Some(qos::Reliability {
+            kind: qos::ReliabilityKind::BEST_EFFORT,
+            ..
+        }) = &mut qos.reliability
+        {
+            // Per DDS specification, the default Reliability value for DataWriters is RELIABLE with max_blocking_time=100ms
+            // Thus just use default value.
+            qos.reliability = None;
+        }
+
         let qos_native = qos.to_qos_native();
         let writer: i32 = dds_create_writer(dp, t, qos_native, std::ptr::null_mut());
         Qos::delete_qos_native(qos_native);
