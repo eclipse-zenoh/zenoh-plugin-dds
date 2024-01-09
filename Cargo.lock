@@ -214,7 +214,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "81953c529336010edd6d8e358f886d9581267795c61b19475b71314bffa46d35"
 dependencies = [
  "concurrent-queue",
- "event-listener 2.5.3",
+ "event-listener",
  "futures-core",
 ]
 
@@ -306,7 +306,7 @@ version = "2.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "287272293e9d8c41773cec55e365490fe034813a2f172f502d6ddcf75b2f582b"
 dependencies = [
- "event-listener 2.5.3",
+ "event-listener",
 ]
 
 [[package]]
@@ -320,7 +320,7 @@ dependencies = [
  "autocfg",
  "blocking",
  "cfg-if 1.0.0",
- "event-listener 2.5.3",
+ "event-listener",
  "futures-lite",
  "rustix 0.37.25",
  "signal-hook",
@@ -1101,17 +1101,6 @@ name = "event-listener"
 version = "2.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0206175f82b8d6bf6652ff7d71a1e27fd2e4efde587fd368662814d6ec1d9ce0"
-
-[[package]]
-name = "event-listener"
-version = "4.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "770d968249b5d99410d61f5bf89057f3199a077a04d087092f58e7d10692baae"
-dependencies = [
- "concurrent-queue",
- "parking",
- "pin-project-lite 0.2.13",
-]
 
 [[package]]
 name = "fancy-regex"
@@ -2115,9 +2104,9 @@ checksum = "04744f49eae99ab78e0d5c0b603ab218f515ea8cfe5a456d7629ad883a3b6e7d"
 
 [[package]]
 name = "ordered-float"
-version = "4.1.1"
+version = "3.9.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "536900a8093134cf9ccf00a27deb3532421099e958d9dd431135d0c7543ca1e8"
+checksum = "f1e1c390732d15f1d48471625cd92d154e66db2c56645e29a9cd26f4699f72dc"
 dependencies = [
  "num-traits",
 ]
@@ -2472,10 +2461,10 @@ checksum = "e13f81c9a9d574310b8351f8666f5a93ac3b0069c45c28ad52c10291389a7cf9"
 dependencies = [
  "bytes",
  "rand 0.8.5",
- "ring 0.16.20",
+ "ring",
  "rustc-hash",
  "rustls",
- "rustls-native-certs 0.6.3",
+ "rustls-native-certs",
  "slab",
  "thiserror",
  "tinyvec",
@@ -2677,23 +2666,9 @@ dependencies = [
  "libc",
  "once_cell",
  "spin 0.5.2",
- "untrusted 0.7.1",
+ "untrusted",
  "web-sys",
  "winapi",
-]
-
-[[package]]
-name = "ring"
-version = "0.17.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "684d5e6e18f669ccebf64a92236bb7db9a34f07be010e3627368182027180866"
-dependencies = [
- "cc",
- "getrandom 0.2.10",
- "libc",
- "spin 0.9.8",
- "untrusted 0.9.0",
- "windows-sys 0.48.0",
 ]
 
 [[package]]
@@ -2798,8 +2773,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cd8d6c9f025a446bc4d18ad9632e69aec8f287aa84499ee335599fabd20c3fd8"
 dependencies = [
  "log",
- "ring 0.16.20",
- "rustls-webpki 0.101.5",
+ "ring",
+ "rustls-webpki",
  "sct",
 ]
 
@@ -2810,20 +2785,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a9aace74cb666635c918e9c12bc0d348266037aa8eb599b5cba565709a8dff00"
 dependencies = [
  "openssl-probe",
- "rustls-pemfile 1.0.3",
- "schannel",
- "security-framework",
-]
-
-[[package]]
-name = "rustls-native-certs"
-version = "0.7.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8f1fb85efa936c42c6d5fc28d2629bb51e4b2f4b8a5211e297d599cc5a093792"
-dependencies = [
- "openssl-probe",
- "rustls-pemfile 2.0.0",
- "rustls-pki-types",
+ "rustls-pemfile",
  "schannel",
  "security-framework",
 ]
@@ -2838,40 +2800,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "rustls-pemfile"
-version = "2.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "35e4980fa29e4c4b212ffb3db068a564cbf560e51d3944b7c88bd8bf5bec64f4"
-dependencies = [
- "base64 0.21.4",
- "rustls-pki-types",
-]
-
-[[package]]
-name = "rustls-pki-types"
-version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eb0a1f9b9efec70d32e6d6aa3e58ebd88c3754ec98dfe9145c63cf54cc829b83"
-
-[[package]]
 name = "rustls-webpki"
 version = "0.101.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "45a27e3b59326c16e23d30aeb7a36a24cc0d29e71d68ff611cdfb4a01d013bed"
 dependencies = [
- "ring 0.16.20",
- "untrusted 0.7.1",
-]
-
-[[package]]
-name = "rustls-webpki"
-version = "0.102.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "de2635c8bc2b88d367767c5de8ea1d8db9af3f6219eba28442242d9ab81d1b89"
-dependencies = [
- "ring 0.17.6",
- "rustls-pki-types",
- "untrusted 0.9.0",
+ "ring",
+ "untrusted",
 ]
 
 [[package]]
@@ -2925,8 +2860,8 @@ version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d53dcdb7c9f8158937a7981b48accfd39a43af418591a5d008c7b22b5e1b7ca4"
 dependencies = [
- "ring 0.16.20",
- "untrusted 0.7.1",
+ "ring",
+ "untrusted",
 ]
 
 [[package]]
@@ -3180,7 +3115,7 @@ version = "1.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "38aabbeafa6f6dead8cebf246fe9fae1f9215c8d29b3a69f93bd62a9e4a3dcd6"
 dependencies = [
- "event-listener 2.5.3",
+ "event-listener",
 ]
 
 [[package]]
@@ -3772,12 +3707,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a156c684c91ea7d62626509bce3cb4e1d9ed5c4d978f7b4352658f96a4c26b4a"
 
 [[package]]
-name = "untrusted"
-version = "0.9.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8ecb6da28b8a351d773b68d5825ac39017e680750f980f3a1a85cd8dd28a47c1"
-
-[[package]]
 name = "unzip-n"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4000,12 +3929,9 @@ dependencies = [
 
 [[package]]
 name = "webpki-roots"
-version = "0.26.0"
+version = "0.25.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0de2cfda980f21be5a7ed2eadb3e6fe074d56022bea2cdeb1a62eb220fc04188"
-dependencies = [
- "rustls-pki-types",
-]
+checksum = "1778a42e8b3b90bff8d0f5032bf22250792889a5cdc752aa0020c84abe3aaf10"
 
 [[package]]
 name = "which"
@@ -4212,7 +4138,7 @@ dependencies = [
  "base64 0.21.4",
  "const_format",
  "env_logger",
- "event-listener 4.0.0",
+ "event-listener",
  "flume",
  "form_urlencoded",
  "futures",
@@ -4416,9 +4342,9 @@ dependencies = [
  "log",
  "quinn",
  "rustls",
- "rustls-native-certs 0.7.0",
- "rustls-pemfile 2.0.0",
- "rustls-webpki 0.102.0",
+ "rustls-native-certs",
+ "rustls-pemfile",
+ "rustls-webpki",
  "secrecy",
  "zenoh-config",
  "zenoh-core",
@@ -4457,8 +4383,8 @@ dependencies = [
  "futures",
  "log",
  "rustls",
- "rustls-pemfile 2.0.0",
- "rustls-webpki 0.102.0",
+ "rustls-pemfile",
+ "rustls-webpki",
  "secrecy",
  "webpki-roots",
  "zenoh-config",
@@ -4577,7 +4503,7 @@ dependencies = [
  "anyhow",
  "async-std",
  "base64 0.21.4",
- "clap 4.4.11",
+ "clap 3.2.25",
  "env_logger",
  "flume",
  "futures",
@@ -4643,7 +4569,7 @@ version = "0.11.0-dev"
 source = "git+https://github.com/eclipse-zenoh/zenoh?branch=simplified_load_plugin#51d5eb381b5954cbdec6c4bcb9e1b1d5aa3f934a"
 dependencies = [
  "async-std",
- "event-listener 4.0.0",
+ "event-listener",
  "flume",
  "futures",
  "tokio",
@@ -4690,7 +4616,7 @@ source = "git+https://github.com/eclipse-zenoh/zenoh?branch=simplified_load_plug
 dependencies = [
  "async-std",
  "async-trait",
- "clap 4.4.11",
+ "clap 3.2.25",
  "const_format",
  "flume",
  "futures",
