@@ -45,7 +45,7 @@ use zenoh::Result as ZResult;
 use zenoh::Session;
 use zenoh_core::{bail, zerror};
 use zenoh_ext::{SessionExt, SubscriberBuilderExt};
-use zenoh_plugin_trait::{Plugin, PluginControl};
+use zenoh_plugin_trait::{plugin_version, Plugin, PluginControl};
 use zenoh_util::{Timed, TimedEvent, Timer};
 
 pub mod config;
@@ -129,7 +129,7 @@ impl Plugin for DDSPlugin {
     type Instance = RunningPlugin;
 
     const DEFAULT_NAME: &'static str = "zenoh-plugin-dds";
-    const PLUGIN_VERSION: &'static str = env!("CARGO_PKG_VERSION");
+    const PLUGIN_VERSION: &'static str = plugin_version!();
 
     fn start(name: &str, runtime: &Self::StartArgs) -> ZResult<RunningPlugin> {
         // Try to initiate login.
