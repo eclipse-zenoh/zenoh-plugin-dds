@@ -932,7 +932,7 @@ dependencies = [
 [[package]]
 name = "cyclors"
 version = "0.2.0"
-source = "git+https://github.com/kydos/cyclors?branch=master#c1be4c46e652e4234bd5c25369f990ad0fc3f386"
+source = "git+https://github.com/ZettaScaleLabs/cyclors?branch=master#c1be4c46e652e4234bd5c25369f990ad0fc3f386"
 dependencies = [
  "bincode",
  "bindgen",
