@@ -33,10 +33,10 @@ env_logger = { workspace = true }
 lazy_static = { workspace = true }
 log = { workspace = true }
 serde_json = { workspace = true }
-zenoh  = { workspace = true }
+zenoh = { workspace = true }
 zenoh-plugin-rest = { workspace = true }
 zenoh-plugin-trait = { workspace = true }
-zenoh-plugin-dds = { path = "../zenoh-plugin-dds/", default-features = false }
+zenoh-plugin-dds = { version = "0.11.0-dev", path = "../zenoh-plugin-dds/", default-features = false }
 
 [[bin]]
 name = "zenoh-bridge-dds"
