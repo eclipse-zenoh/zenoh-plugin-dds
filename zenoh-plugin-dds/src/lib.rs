@@ -19,7 +19,6 @@ use cyclors::qos::{
 use cyclors::*;
 use flume::{unbounded, Receiver, Sender};
 use futures::select;
-use git_version::git_version;
 use log::{debug, error, info, trace, warn};
 use route_dds_zenoh::RouteDDSZenoh;
 use serde::ser::SerializeStruct;
@@ -43,9 +42,9 @@ use zenoh::queryable::{Query, Queryable};
 use zenoh::runtime::Runtime;
 use zenoh::Result as ZResult;
 use zenoh::Session;
-use zenoh_core::{bail, zerror};
+use zenoh_core::zerror;
 use zenoh_ext::{SessionExt, SubscriberBuilderExt};
-use zenoh_plugin_trait::{plugin_version, Plugin, PluginControl};
+use zenoh_plugin_trait::{plugin_long_version, plugin_version, Plugin, PluginControl};
 use zenoh_util::{Timed, TimedEvent, Timer};
 
 pub mod config;
@@ -63,8 +62,6 @@ use crate::ros_discovery::{
 };
 use crate::route_zenoh_dds::RouteZenohDDS;
 
-pub const GIT_VERSION: &str = git_version!(prefix = "v", cargo_prefix = "v");
-
 macro_rules! ke_for_sure {
     ($val:expr) => {
         unsafe { keyexpr::from_str_unchecked($val) }
@@ -78,7 +75,6 @@ macro_rules! member_id {
 }
 
 lazy_static::lazy_static!(
-    pub static ref LONG_VERSION: String = format!("{} built with {}", GIT_VERSION, env!("RUSTC_VERSION"));
     static ref LOG_PAYLOAD: bool = std::env::var("Z_LOG_PAYLOAD").is_ok();
 
     static ref KE_PREFIX_ADMIN_SPACE: &'static keyexpr = ke_for_sure!("@/service");
@@ -130,6 +126,7 @@ impl Plugin for DDSPlugin {
 
     const DEFAULT_NAME: &'static str = "zenoh-plugin-dds";
     const PLUGIN_VERSION: &'static str = plugin_version!();
+    const PLUGIN_LONG_VERSION: &'static str = plugin_long_version!();
 
     fn start(name: &str, runtime: &Self::StartArgs) -> ZResult<RunningPlugin> {
         // Try to initiate login.
@@ -147,39 +144,14 @@ impl Plugin for DDSPlugin {
         Ok(Box::new(DDSPlugin))
     }
 }
-impl RunningPluginTrait for DDSPlugin {
-    fn config_checker(
-        &self,
-        _path: &str,
-        _old: &serde_json::Map<String, serde_json::Value>,
-        _new: &serde_json::Map<String, serde_json::Value>,
-    ) -> ZResult<Option<serde_json::Map<String, serde_json::Value>>> {
-        bail!("DDSPlugin does not support hot configuration changes.")
-    }
-
-    fn adminspace_getter<'a>(
-        &'a self,
-        selector: &'a Selector<'a>,
-        plugin_status_key: &str,
-    ) -> ZResult<Vec<zenoh::plugins::Response>> {
-        let mut responses = Vec::new();
-        let version_key = [plugin_status_key, "/__version__"].concat();
-        if selector.key_expr.intersects(ke_for_sure!(&version_key)) {
-            responses.push(zenoh::plugins::Response::new(
-                version_key,
-                GIT_VERSION.into(),
-            ));
-        }
-        Ok(responses)
-    }
-}
+impl RunningPluginTrait for DDSPlugin {}
 
 pub async fn run(runtime: Runtime, config: Config) {
     // Try to initiate login.
     // Required in case of dynamic lib, otherwise no logs.
     // But cannot be done twice in case of static link.
     let _ = env_logger::try_init();
-    debug!("DDS plugin {}", LONG_VERSION.as_str());
+    debug!("DDS plugin {}", DDSPlugin::PLUGIN_LONG_VERSION);
     debug!("DDS plugin {:?}", config);
 
     // open zenoh-net Session
@@ -645,7 +617,7 @@ impl<'a> DdsPluginRuntime<'a> {
                 .map(serde_json::to_value)
                 .transpose(),
             AdminRef::Config => Some(serde_json::to_value(self)).transpose(),
-            AdminRef::Version => Ok(Some(Value::String(LONG_VERSION.clone()))),
+            AdminRef::Version => Ok(Some(DDSPlugin::PLUGIN_LONG_VERSION.into())),
         }
     }
 

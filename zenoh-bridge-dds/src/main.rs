@@ -13,6 +13,8 @@ use async_liveliness_monitor::LivelinessMonitor;
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 use clap::{App, Arg};
+use zenoh_plugin_dds::DDSPlugin;
+use zenoh_plugin_trait::Plugin;
 use std::str::FromStr;
 use std::time::{Duration, SystemTime};
 use zenoh::config::{Config, ModeDependentValue};
@@ -42,8 +44,8 @@ macro_rules! insert_json5 {
 
 fn parse_args() -> (Config, Option<f32>) {
     let mut app = App::new("zenoh bridge for DDS")
-        .version(zenoh_plugin_dds::GIT_VERSION)
-        .long_version(zenoh_plugin_dds::LONG_VERSION.as_str())
+        .version(DDSPlugin::PLUGIN_VERSION)
+        .long_version(DDSPlugin::PLUGIN_LONG_VERSION)
         //
         // zenoh related arguments:
         //
@@ -234,7 +236,7 @@ r#"--watchdog=[PERIOD]   'Experimental!! Run a watchdog thread that monitors the
 #[async_std::main]
 async fn main() {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("z=info")).init();
-    log::info!("zenoh-bridge-dds {}", *zenoh_plugin_dds::LONG_VERSION);
+    log::info!("zenoh-bridge-dds {}", DDSPlugin::PLUGIN_LONG_VERSION);
 
     let (config, watchdog_period) = parse_args();
     let rest_plugin = config.plugin("rest").is_some();
