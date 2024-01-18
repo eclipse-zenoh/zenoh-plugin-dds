@@ -13,12 +13,12 @@ use async_liveliness_monitor::LivelinessMonitor;
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 use clap::{App, Arg};
-use zenoh_plugin_dds::DDSPlugin;
-use zenoh_plugin_trait::Plugin;
 use std::str::FromStr;
 use std::time::{Duration, SystemTime};
 use zenoh::config::{Config, ModeDependentValue};
 use zenoh::prelude::*;
+use zenoh_plugin_dds::DDSPlugin;
+use zenoh_plugin_trait::Plugin;
 
 lazy_static::lazy_static!(
     pub static ref DEFAULT_DOMAIN_STR: String = zenoh_plugin_dds::config::DEFAULT_DOMAIN.to_string();
