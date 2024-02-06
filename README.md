@@ -1,4 +1,4 @@
-<img src="https://raw.githubusercontent.com/eclipse-zenoh/zenoh/master/zenoh-dragon.png" height="150">
+<img src="https://raw.githubusercontent.com/eclipse-zenoh/zenoh/main/zenoh-dragon.png" height="150">
 
 <!--- 
 [![CI](https://github.com/eclipse-zenoh/zenoh-plugin-dds/workflows/Rust/badge.svg)](https://github.com/eclipse-zenoh/zenoh-plugin-dds/actions?query=workflow%3ARust)
@@ -22,7 +22,7 @@ Check the website [zenoh.io](http://zenoh.io) and the [roadmap](https://github.c
 
 :point_right: **Docker image:** see [below](#Docker-image)
 
-:point_right: **Build "master" branch:** see [below](#How-to-build-it)
+:point_right: **Build "main" branch:** see [below](#How-to-build-it)
 
 ## Background
 The Data Distribution Service (DDS) is a standard for data-centric publish subscribe. Whilst DDS has been around for quite some time and has a long history of deployments in various industries, it has recently gained quite a bit of attentions thanks to its adoption by the Robotic Operating System (ROS 2) -- where it is used for communication between ROS 2 nodes.
@@ -169,7 +169,7 @@ The cross-compilation uses `zig` as a linker. You can install it with instructio
 ## Docker image
 The **`zenoh-bridge-dds`** standalone executable is also available as a [Docker images](https://hub.docker.com/r/eclipse/zenoh-bridge-dds/tags?page=1&ordering=last_updated) for both amd64 and arm64. To get it, do:
   - `docker pull eclipse/zenoh-bridge-dds:latest` for the latest release
-  - `docker pull eclipse/zenoh-bridge-dds:master` for the master branch version (nightly build)
+  - `docker pull eclipse/zenoh-bridge-dds:main` for the main branch version (nightly build)
 
 :warning: **However, notice that it's usage is limited to Docker on Linux and using the `--net host` option.**  
 The cause being that DDS uses UDP multicast and Docker doesn't support UDP multicast between a container and its host (see cases [moby/moby#23659](https://github.com/moby/moby/issues/23659), [moby/libnetwork#2397](https://github.com/moby/libnetwork/issues/2397) or [moby/libnetwork#552](https://github.com/moby/libnetwork/issues/552)). The only known way to make it work is to use the `--net host` option that is [only supported on Linux hosts](https://docs.docker.com/network/host/).
