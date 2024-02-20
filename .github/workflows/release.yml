@@ -20,6 +20,10 @@ on:
     - cron: "0 1 * * 1-5"
   workflow_dispatch:
 
+env:
+  VERSION_CROSS: 0.2.4
+  VERSION_CARGO_DEB: 1.44.1
+
 jobs:
   checks:
     name: Code checks
@@ -165,7 +169,7 @@ jobs:
         shell: bash
         run: |
           case ${{ matrix.job.target }} in
-            *-linux-gnu*) cargo install cargo-deb;;
+            *-linux-gnu*) cargo install --version ${{ env.VERSION_CARGO_DEB }} cargo-deb ;;
           esac
 
           case ${{ matrix.job.target }} in
@@ -183,7 +187,7 @@ jobs:
               ;;
           esac
 
-          cargo install cross --git https://github.com/cross-rs/cross
+          cargo install --version ${{ env.VERSION_CROSS }} cargo-cross
 
       - name: Install Rust toolchain
         run: |
