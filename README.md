@@ -107,22 +107,11 @@ Once these dependencies are in place, you may clone the repository on your machi
 ```bash
 $ git clone https://github.com/eclipse-zenoh/zenoh-plugin-dds.git
 $ cd zenoh-plugin-dds
+$ cargo build --release
 ```
-> :warning: **WARNING** :warning: : On Linux, don't use `cargo build` command without specifying a package with `-p`. Building both `zenoh-plugin-dds` (plugin library) and `zenoh-bridge-dds` (standalone executable) together will lead to a `multiple definition of `load_plugin'` error at link time. See [#117](https://github.com/eclipse-zenoh/zenoh-plugin-dds/issues/117#issuecomment-1439694331) for explanations.
 
-You can then choose between building the zenoh bridge for DDS:
-- as a plugin library that can be dynamically loaded by the zenoh router (`zenohd`):
-```bash
-$ cargo build --release -p zenoh-plugin-dds
-```
-The plugin shared library (`*.so` on Linux, `*.dylib` on Mac OS, `*.dll` on Windows) will be generated in the `target/release` subdirectory.
-
-- or as a standalone executable binary:
-```bash
-$ cargo build --release -p zenoh-bridge-dds
-```
-The **`zenoh-bridge-dds`** binary will be generated in the `target/release` sub-directory.
-
+The standalone executable binary `zenoh-bridge-dds` and a plugin shared library (`*.so` on Linux, `*.dylib` on Mac OS, `*.dll` on Windows) to be dynamically 
+loaded by the zenoh router `zenohd` will be generated in the `target/release` subdirectory.
 
 ### Enabling Cyclone DDS Shared Memory Support
 
