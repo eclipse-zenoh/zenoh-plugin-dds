@@ -29,14 +29,14 @@ dds_shm = ["zenoh-plugin-dds/dds_shm"]
 async-std = { workspace = true, features = ["unstable", "attributes"] }
 async-liveliness-monitor = { workspace = true }
 clap = { workspace = true }
-env_logger = { workspace = true }
 lazy_static = { workspace = true }
-log = { workspace = true }
 serde_json = { workspace = true }
+tracing = { workspace = true }
 zenoh = { workspace = true }
 zenoh-plugin-rest = { workspace = true }
 zenoh-plugin-trait = { workspace = true }
 zenoh-plugin-dds = { version = "0.11.0-dev", path = "../zenoh-plugin-dds/", default-features = false }
+zenoh-util = { workspace = true }
 
 [[bin]]
 name = "zenoh-bridge-dds"

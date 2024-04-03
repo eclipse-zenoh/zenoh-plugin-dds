@@ -17,7 +17,6 @@ use cyclors::qos::{
     Durability, History, IgnoreLocal, IgnoreLocalKind, Qos, Reliability, DDS_INFINITE_TIME,
 };
 use cyclors::*;
-use log::warn;
 use serde::ser::SerializeSeq;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::convert::TryInto;
@@ -26,6 +25,7 @@ use std::{
     ffi::{CStr, CString},
     mem::MaybeUninit,
 };
+use tracing::warn;
 
 pub(crate) const ROS_DISCOVERY_INFO_TOPIC_NAME: &str = "ros_discovery_info";
 const ROS_DISCOVERY_INFO_TOPIC_TYPE: &str = "rmw_dds_common::msg::dds_::ParticipantEntitiesInfo_";

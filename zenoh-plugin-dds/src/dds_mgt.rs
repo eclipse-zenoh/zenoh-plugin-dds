@@ -15,7 +15,6 @@ use async_std::task;
 use cyclors::qos::{History, HistoryKind, Qos};
 use cyclors::*;
 use flume::Sender;
-use log::{debug, error, warn};
 use serde::{Deserialize, Serialize, Serializer};
 use std::collections::HashMap;
 use std::ffi::{CStr, CString};
@@ -24,6 +23,7 @@ use std::mem::MaybeUninit;
 use std::slice;
 use std::sync::Arc;
 use std::time::Duration;
+use tracing::{debug, error, warn};
 #[cfg(feature = "dds_shm")]
 use zenoh::buffers::{ZBuf, ZSlice};
 use zenoh::prelude::*;
@@ -493,14 +493,14 @@ unsafe extern "C" fn data_forwarder_listener(dr: dds_entity_t, arg: *mut std::os
             let raw_sample = DDSRawSample::create(zp);
 
             if *crate::LOG_PAYLOAD {
-                log::trace!(
+                tracing::trace!(
                     "Route data from DDS {} to zenoh key={} - payload: {:02x?}",
                     &(*pa).0,
                     &(*pa).1,
                     raw_sample
                 );
             } else {
-                log::trace!("Route data from DDS {} to zenoh key={}", &(*pa).0, &(*pa).1);
+                tracing::trace!("Route data from DDS {} to zenoh key={}", &(*pa).0, &(*pa).1);
             }
             let _ = (*pa)
                 .2
@@ -541,7 +541,7 @@ pub(crate) fn create_forwarding_dds_reader(
                 if reader >= 0 {
                     let res = dds_reader_wait_for_historical_data(reader, qos::DDS_100MS_DURATION);
                     if res < 0 {
-                        log::error!(
+                        tracing::error!(
                             "Error calling dds_reader_wait_for_historical_data(): {}",
                             CStr::from_ptr(dds_strretcode(-res))
                                 .to_str()
@@ -593,7 +593,7 @@ pub(crate) fn create_forwarding_dds_reader(
                         {
                             let si = si.assume_init();
                             if si[0].valid_data {
-                                log::trace!(
+                                tracing::trace!(
                                     "Route (periodic) data to zenoh resource with rid={}",
                                     z_key
                                 );
