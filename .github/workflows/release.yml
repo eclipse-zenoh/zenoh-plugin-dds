@@ -160,7 +160,7 @@ jobs:
       version: ${{ needs.tag.outputs.version }}
       branch: ${{ needs.tag.outputs.branch }}
       repo: ${{ github.repository }}
-      tags: "eclipse/zenoh-plugin-dds:${{ needs.tag.outputs.version }}"
+      tags: "eclipse/zenoh-bridge-dds:${{ needs.tag.outputs.version }}"
       binary: zenoh-bridge-dds
       files: |
         zenoh-bridge-dds
