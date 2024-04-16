@@ -19,7 +19,6 @@ use cyclors::qos::{
 use cyclors::*;
 use flume::{unbounded, Receiver, Sender};
 use futures::select;
-use log::{debug, error, info, trace, warn};
 use route_dds_zenoh::RouteDDSZenoh;
 use serde::ser::SerializeStruct;
 use serde::{Serialize, Serializer};
@@ -31,6 +30,7 @@ use std::mem::ManuallyDrop;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use std::time::Duration;
+use tracing::{debug, error, info, trace, warn};
 use zenoh::liveliness::LivelinessToken;
 use zenoh::plugins::{RunningPlugin, RunningPluginTrait, ZenohPlugin};
 use zenoh::prelude::r#async::AsyncResolve;
@@ -106,13 +106,13 @@ zenoh_plugin_trait::declare_plugin!(DDSPlugin);
 
 fn log_ros2_deprecation_warning() {
     if !LOG_ROS2_DEPRECATION_WARNING_FLAG.swap(true, std::sync::atomic::Ordering::Relaxed) {
-        log::warn!("------------------------------------------------------------------------------------------");
-        log::warn!(
+        tracing::warn!("------------------------------------------------------------------------------------------");
+        tracing::warn!(
             "ROS 2 system detected. Did you know a new Zenoh bridge dedicated to ROS 2 exists ?"
         );
-        log::warn!("Check it out on https://github.com/eclipse-zenoh/zenoh-plugin-ros2dds");
-        log::warn!("This DDS bridge will eventually be deprecated for ROS 2 usage in favor of this new bridge.");
-        log::warn!("------------------------------------------------------------------------------------------");
+        tracing::warn!("Check it out on https://github.com/eclipse-zenoh/zenoh-plugin-ros2dds");
+        tracing::warn!("This DDS bridge will eventually be deprecated for ROS 2 usage in favor of this new bridge.");
+        tracing::warn!("------------------------------------------------------------------------------------------");
     }
 }
 
@@ -133,7 +133,7 @@ impl Plugin for DDSPlugin {
         // Try to initiate login.
         // Required in case of dynamic lib, otherwise no logs.
         // But cannot be done twice in case of static link.
-        let _ = env_logger::try_init();
+        zenoh_util::init_log_from_env();
 
         let runtime_conf = runtime.config().lock();
         let plugin_conf = runtime_conf
@@ -151,7 +151,7 @@ pub async fn run(runtime: Runtime, config: Config) {
     // Try to initiate login.
     // Required in case of dynamic lib, otherwise no logs.
     // But cannot be done twice in case of static link.
-    let _ = env_logger::try_init();
+    zenoh_util::init_log_from_env();
     debug!("DDS plugin {}", DDSPlugin::PLUGIN_LONG_VERSION);
     debug!("DDS plugin {:?}", config);
 
@@ -164,7 +164,7 @@ pub async fn run(runtime: Runtime, config: Config) {
     {
         Ok(session) => Arc::new(session),
         Err(e) => {
-            log::error!("Unable to init zenoh session for DDS plugin : {:?}", e);
+            tracing::error!("Unable to init zenoh session for DDS plugin : {:?}", e);
             return;
         }
     };
@@ -182,7 +182,7 @@ pub async fn run(runtime: Runtime, config: Config) {
     {
         Ok(member) => member,
         Err(e) => {
-            log::error!(
+            tracing::error!(
                 "Unable to declare liveliness token for DDS plugin : {:?}",
                 e
             );

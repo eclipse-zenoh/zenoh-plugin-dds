@@ -61,7 +61,7 @@ pub(crate) struct RouteDDSZenoh<'a> {
 impl Drop for RouteDDSZenoh<'_> {
     fn drop(&mut self) {
         if let Err(e) = delete_dds_entity(self.dds_reader) {
-            log::warn!("{}: error deleting DDS Reader:  {}", self, e);
+            tracing::warn!("{}: error deleting DDS Reader:  {}", self, e);
         }
     }
 }
@@ -89,7 +89,7 @@ impl RouteDDSZenoh<'_> {
         ke: OwnedKeyExpr,
         congestion_ctrl: CongestionControl,
     ) -> Result<RouteDDSZenoh<'a>, String> {
-        log::debug!(
+        tracing::debug!(
             "Route DDS->Zenoh ({} -> {}): creation with topic_type={}",
             topic_name,
             ke,
@@ -134,7 +134,7 @@ impl RouteDDSZenoh<'_> {
                 }
                 (HistoryKind::KEEP_ALL, _) => usize::MAX,
             };
-            log::debug!(
+            tracing::debug!(
                 "Caching publications for TRANSIENT_LOCAL Writer on resource {} with history {} (Writer uses {:?} and DurabilityService.max_instances={})",
                 ke, history, reader_qos.history, durability_service_qos.max_instances
             );
@@ -157,7 +157,7 @@ impl RouteDDSZenoh<'_> {
                 .res()
                 .await
             {
-                log::warn!(
+                tracing::warn!(
                     "Failed to declare publisher for key {} (rid={}): {}",
                     ke,
                     declared_ke,

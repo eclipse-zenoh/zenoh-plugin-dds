@@ -111,7 +111,7 @@ impl RouteZenohDDS<'_> {
         topic_type: String,
         keyless: bool,
     ) -> Result<RouteZenohDDS<'a>, String> {
-        log::debug!(
+        tracing::debug!(
             "Route Zenoh->DDS ({} -> {}): creation with topic_type={} querying_subscriber={}",
             ke,
             topic_name,
@@ -133,7 +133,7 @@ impl RouteZenohDDS<'_> {
             } else {
                 // delay the routing of data for few ms in case this publication arrived
                 // before the discovery message provoking the creation of the Data Writer
-                log::debug!(
+                tracing::debug!(
                     "Route Zenoh->DDS ({} -> {}): data arrived but no DDS Writer yet to route it... wait 3s for discovery forwarding msg",
                     s.key_expr,
                     &ton
@@ -149,7 +149,7 @@ impl RouteZenohDDS<'_> {
                             do_route_data(s, &ton2, dw);
                             break;
                         } else {
-                            log::warn!(
+                            tracing::warn!(
                                 "Route Zenoh->DDS ({} -> {}): still no DDS Writer after 3s - drop incoming data!",
                                 ke,
                                 &ton2
@@ -164,7 +164,7 @@ impl RouteZenohDDS<'_> {
         let zenoh_subscriber = if querying_subscriber {
             // query all PublicationCaches on "<KE_PREFIX_PUB_CACHE>/*/<routing_keyexpr>"
             let query_selector: Selector = (*KE_PREFIX_PUB_CACHE / *KE_ANY_1_SEGMENT / &ke).into();
-            log::debug!(
+            tracing::debug!(
                     "Route Zenoh->DDS ({} -> {}): query historical data from everybody for TRANSIENT_LOCAL Reader on {}",
                     ke,
                     topic_name,
@@ -227,7 +227,7 @@ impl RouteZenohDDS<'_> {
         let old = self.dds_writer.load(Ordering::SeqCst);
 
         if old == DDS_ENTITY_NULL {
-            log::debug!("{}: create DDS Writer", self);
+            tracing::debug!("{}: create DDS Writer", self);
             let dw = create_forwarding_dds_writer(
                 data_participant,
                 self.topic_name.clone(),
@@ -242,12 +242,12 @@ impl RouteZenohDDS<'_> {
             {
                 // another task managed to create the DDS Writer before this task
                 // delete the DDS Writer created here
-                log::debug!(
+                tracing::debug!(
                     "{}: delete DDS Writer since another task created one concurrently",
                     self
                 );
                 if let Err(e) = delete_dds_entity(dw) {
-                    log::warn!(
+                    tracing::warn!(
                         "{}: failed to delete DDS Writer created in concurrence of another task: {}",
                         self, e
                     )
@@ -263,7 +263,7 @@ impl RouteZenohDDS<'_> {
             .swap(DDS_ENTITY_NULL, std::sync::atomic::Ordering::Relaxed);
         if dds_entity != DDS_ENTITY_NULL {
             if let Err(e) = delete_dds_entity(dds_entity) {
-                log::warn!("{}: error deleting DDS Writer:  {}", self, e);
+                tracing::warn!("{}: error deleting DDS Writer:  {}", self, e);
             }
         }
     }
@@ -279,7 +279,7 @@ impl RouteZenohDDS<'_> {
     {
         if let ZSubscriber::FetchingSubscriber(sub) = &mut self.zenoh_subscriber {
             let s = selector();
-            log::debug!(
+            tracing::debug!(
                 "Route Zenoh->DDS ({} -> {}): query historical publications from {}",
                 sub.key_expr(),
                 self.topic_name,
@@ -304,7 +304,7 @@ impl RouteZenohDDS<'_> {
                 .res()
                 .await
             {
-                log::warn!(
+                tracing::warn!(
                     "{}: query for historical publications on {} failed: {}",
                     self,
                     s,
@@ -356,14 +356,14 @@ impl RouteZenohDDS<'_> {
 
 fn do_route_data(s: Sample, topic_name: &str, data_writer: dds_entity_t) {
     if *LOG_PAYLOAD {
-        log::trace!(
+        tracing::trace!(
             "Route Zenoh->DDS ({} -> {}): routing data - payload: {:?}",
             s.key_expr,
             &topic_name,
             s.value.payload
         );
     } else {
-        log::trace!(
+        tracing::trace!(
             "Route Zenoh->DDS ({} -> {}): routing data",
             s.key_expr,
             &topic_name
@@ -399,7 +399,7 @@ fn do_route_data(s: Sample, topic_name: &str, data_writer: dds_entity_t) {
         let mut sertype_ptr: *const ddsi_sertype = std::ptr::null_mut();
         let ret = dds_get_entity_sertype(data_writer, &mut sertype_ptr);
         if ret < 0 {
-            log::warn!(
+            tracing::warn!(
                 "Route Zenoh->DDS ({} -> {}): can't route data; sertype lookup failed ({})",
                 s.key_expr,
                 topic_name,
