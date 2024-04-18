@@ -1,28 +1,10 @@
-#
-# Copyright (c) 2022 ZettaScale Technology
-#
-# This program and the accompanying materials are made available under the
-# terms of the Eclipse Public License 2.0 which is available at
-# http://www.eclipse.org/legal/epl-2.0, or the Apache License, Version 2.0
-# which is available at https://www.apache.org/licenses/LICENSE-2.0.
-#
-# SPDX-License-Identifier: EPL-2.0 OR Apache-2.0
-#
-# Contributors:
-#   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
-#
 [workspace]
 resolver = "2"
-members = ["zenoh-bridge-dds", "zenoh-plugin-dds"]
+members = [ "zenoh-bridge-dds", "zenoh-plugin-dds" ]
 
 [workspace.package]
-version = "0.11.0-dev"
-authors = [
-  "kydos <angelo@icorsaro.net>",
-  "Esteve Fernandez <esteve.fernandez@gmail.com>",
-  "Julien Enoch <julien@enoch.fr>",
-  "Pierre Avital <pierre.avital@adlinktech.com>",
-]
+version = "0.11.0-dev-93-gdcae468"
+authors = [ "kydos <angelo@icorsaro.net>", "Esteve Fernandez <esteve.fernandez@gmail.com>", "Julien Enoch <julien@enoch.fr>", "Pierre Avital <pierre.avital@adlinktech.com>" ]
 edition = "2021"
 repository = "https://github.com/eclipse-zenoh/zenoh-plugin-dds"
 homepage = "http://zenoh.io"
@@ -35,7 +17,6 @@ async-trait = "0.1.66"
 bincode = "1.3.3"
 cdr = "0.2.4"
 clap = "3.2.23"
-cyclors = { version = "0.2.0", git = "https://github.com/ZettaScaleLabs/cyclors.git", branch = "master" }
 derivative = "2.2.0"
 flume = "0.11.0"
 futures = "0.3.26"
@@ -47,18 +28,53 @@ rustc_version = "0.4"
 serde = "1.0.154"
 serde_json = "1.0.94"
 tracing = "0.1"
-zenoh = { version = "0.11.0-dev", git = "https://github.com/eclipse-zenoh/zenoh.git", branch = "main", features = [
-    "unstable",
-] }
-zenoh-collections = { version = "0.11.0-dev", git = "https://github.com/eclipse-zenoh/zenoh.git", branch = "main" }
-zenoh-core = { version = "0.11.0-dev", git = "https://github.com/eclipse-zenoh/zenoh.git", branch = "main" }
-zenoh-ext = { version = "0.11.0-dev", git = "https://github.com/eclipse-zenoh/zenoh.git", branch = "main", features = [
-    "unstable",
-] }
-zenoh-plugin-rest = { version = "0.11.0-dev", git = "https://github.com/eclipse-zenoh/zenoh.git", branch = "main", default-features = false }
-zenoh-plugin-trait = { version = "0.11.0-dev", git = "https://github.com/eclipse-zenoh/zenoh.git", branch = "main", default-features = false }
-zenoh-util = { version = "0.11.0-dev", git = "https://github.com/eclipse-zenoh/zenoh.git", branch = "main", default-features = false }
 
+[workspace.dependencies.cyclors]
+version = "0.2.0"
+git = "https://github.com/ZettaScaleLabs/cyclors.git"
+branch = "master"
+
+[workspace.dependencies.zenoh]
+version = "0.11.0-dev"
+git = "https://github.com/eclipse-zenoh/zenoh.git"
+branch = "main"
+features = [ "unstable" ]
+
+[workspace.dependencies.zenoh-collections]
+version = "0.11.0-dev"
+git = "https://github.com/eclipse-zenoh/zenoh.git"
+branch = "main"
+
+[workspace.dependencies.zenoh-core]
+version = "0.11.0-dev"
+git = "https://github.com/eclipse-zenoh/zenoh.git"
+branch = "main"
+
+[workspace.dependencies.zenoh-ext]
+version = "0.11.0-dev"
+git = "https://github.com/eclipse-zenoh/zenoh.git"
+branch = "main"
+features = [ "unstable" ]
+
+[workspace.dependencies.zenoh-plugin-rest]
+version = "0.11.0-dev"
+git = "https://github.com/eclipse-zenoh/zenoh.git"
+branch = "main"
+default-features = false
+
+[workspace.dependencies.zenoh-plugin-trait]
+version = "0.11.0-dev"
+git = "https://github.com/eclipse-zenoh/zenoh.git"
+branch = "main"
+default-features = false
+
+[workspace.dependencies.zenoh-util]
+version = "0.11.0-dev"
+git = "https://github.com/eclipse-zenoh/zenoh.git"
+branch = "main"
+default-features = false
+
+[profile]
 [profile.release]
 debug = false
 lto = "fat"
