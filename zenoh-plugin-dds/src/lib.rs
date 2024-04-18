@@ -133,7 +133,7 @@ impl Plugin for DDSPlugin {
         // Try to initiate login.
         // Required in case of dynamic lib, otherwise no logs.
         // But cannot be done twice in case of static link.
-        zenoh_util::init_log_from_env();
+        zenoh_util::try_init_log_from_env();
 
         let runtime_conf = runtime.config().lock();
         let plugin_conf = runtime_conf
@@ -151,7 +151,7 @@ pub async fn run(runtime: Runtime, config: Config) {
     // Try to initiate login.
     // Required in case of dynamic lib, otherwise no logs.
     // But cannot be done twice in case of static link.
-    zenoh_util::init_log_from_env();
+    zenoh_util::try_init_log_from_env();
     debug!("DDS plugin {}", DDSPlugin::PLUGIN_LONG_VERSION);
     debug!("DDS plugin {:?}", config);
 
