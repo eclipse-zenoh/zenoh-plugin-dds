@@ -58,10 +58,9 @@ pub struct Config {
         deserialize_with = "deserialize_duration"
     )]
     pub queries_timeout: Duration,
-    #[serde(default)]
-    __required__: bool,
-    #[serde(default, deserialize_with = "deserialize_paths")]
-    __path__: Vec<String>,
+    __required__: Option<bool>,
+    #[serde(default, deserialize_with = "deserialize_path")]
+    __path__: Option<Vec<String>>,
 }
 
 fn default_domain() -> u32 {
@@ -72,38 +71,67 @@ fn default_domain() -> u32 {
     }
 }
 
-fn deserialize_paths<'de, D>(deserializer: D) -> Result<Vec<String>, D::Error>
+fn deserialize_path<'de, D>(deserializer: D) -> Result<Option<Vec<String>>, D::Error>
 where
     D: Deserializer<'de>,
 {
-    struct V;
-    impl<'de> serde::de::Visitor<'de> for V {
-        type Value = Vec<String>;
-        fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-            write!(formatter, "a string or vector of strings")
-        }
-        fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
-        where
-            E: de::Error,
-        {
-            Ok(vec![v.into()])
-        }
-        fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
-        where
-            A: de::SeqAccess<'de>,
-        {
-            let mut v = if let Some(l) = seq.size_hint() {
-                Vec::with_capacity(l)
-            } else {
-                Vec::new()
-            };
-            while let Some(s) = seq.next_element()? {
-                v.push(s);
-            }
-            Ok(v)
-        }
+    deserializer.deserialize_option(OptPathVisitor)
+}
+
+struct OptPathVisitor;
+
+impl<'de> serde::de::Visitor<'de> for OptPathVisitor {
+    type Value = Option<Vec<String>>;
+
+    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(formatter, "none or a string or an array of strings")
     }
-    deserializer.deserialize_any(V)
+
+    fn visit_none<E>(self) -> Result<Self::Value, E>
+    where
+        E: de::Error,
+    {
+        Ok(None)
+    }
+
+    fn visit_some<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        deserializer.deserialize_any(PathVisitor).map(Some)
+    }
+}
+
+struct PathVisitor;
+
+impl<'de> serde::de::Visitor<'de> for PathVisitor {
+    type Value = Vec<String>;
+
+    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(formatter, "a string or an array of strings")
+    }
+
+    fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+    where
+        E: de::Error,
+    {
+        Ok(vec![v.into()])
+    }
+
+    fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+    where
+        A: de::SeqAccess<'de>,
+    {
+        let mut v = if let Some(l) = seq.size_hint() {
+            Vec::with_capacity(l)
+        } else {
+            Vec::new()
+        };
+        while let Some(s) = seq.next_element()? {
+            v.push(s);
+        }
+        Ok(v)
+    }
 }
 
 fn deserialize_regex<'de, D>(deserializer: D) -> Result<Option<Regex>, D::Error>
@@ -171,6 +199,14 @@ impl<'de> Visitor<'de> for RegexVisitor {
         formatter.write_str(r#"either a string or a list of strings"#)
     }
 
+    // for `null` value
+    fn visit_unit<E>(self) -> Result<Self::Value, E>
+    where
+        E: de::Error,
+    {
+        Ok(None)
+    }
+
     fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
     where
         E: de::Error,
@@ -192,5 +228,75 @@ impl<'de> Visitor<'de> for RegexVisitor {
         Regex::new(&s)
             .map(Some)
             .map_err(|e| de::Error::custom(format!("Invalid regex '{s}': {e}")))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Config;
+
+    #[test]
+    fn test_path_field() {
+        // See: https://github.com/eclipse-zenoh/zenoh-plugin-webserver/issues/19
+        let config = serde_json::from_str::<Config>(r#"{"__path__": "/example/path"}"#);
+
+        assert!(config.is_ok());
+        let Config {
+            __required__,
+            __path__,
+            ..
+        } = config.unwrap();
+
+        assert_eq!(__path__, Some(vec![String::from("/example/path")]));
+        assert_eq!(__required__, None);
+    }
+
+    #[test]
+    fn test_required_field() {
+        // See: https://github.com/eclipse-zenoh/zenoh-plugin-webserver/issues/19
+        let config = serde_json::from_str::<Config>(r#"{"__required__": true}"#);
+        assert!(config.is_ok());
+        let Config {
+            __required__,
+            __path__,
+            ..
+        } = config.unwrap();
+
+        assert_eq!(__path__, None);
+        assert_eq!(__required__, Some(true));
+    }
+
+    #[test]
+    fn test_path_field_and_required_field() {
+        // See: https://github.com/eclipse-zenoh/zenoh-plugin-webserver/issues/19
+        let config = serde_json::from_str::<Config>(
+            r#"{"__path__": "/example/path", "__required__": true}"#,
+        );
+
+        assert!(config.is_ok());
+        let Config {
+            __required__,
+            __path__,
+            ..
+        } = config.unwrap();
+
+        assert_eq!(__path__, Some(vec![String::from("/example/path")]));
+        assert_eq!(__required__, Some(true));
+    }
+
+    #[test]
+    fn test_no_path_field_and_no_required_field() {
+        // See: https://github.com/eclipse-zenoh/zenoh-plugin-webserver/issues/19
+        let config = serde_json::from_str::<Config>("{}");
+
+        assert!(config.is_ok());
+        let Config {
+            __required__,
+            __path__,
+            ..
+        } = config.unwrap();
+
+        assert_eq!(__path__, None);
+        assert_eq!(__required__, None);
     }
 }

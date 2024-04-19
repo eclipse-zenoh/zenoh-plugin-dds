@@ -20,7 +20,12 @@ set -e
 
 case "$1" in
     configure)
-        id -u zenoh-bridge-dds  >/dev/null 2>&1 ||  sudo useradd -r -s /bin/false zenoh-bridge-dds
+        if ! command -v systemctl &> /dev/null
+        then
+            echo "WARNING: 'systemctl' not found - cannot install zenoh-bridge-dds as a service."
+            exit 0
+        fi
+        id -u zenoh-bridge-dds  &> /dev/null || useradd -r -s /bin/false zenoh-bridge-dds
         systemctl daemon-reload
         systemctl disable zenoh-bridge-dds
     ;;

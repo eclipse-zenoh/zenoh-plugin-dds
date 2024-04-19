@@ -28,7 +28,7 @@ crate-type = ["cdylib", "rlib"]
 
 [features]
 default = ["no_mangle"]
-no_mangle = ["zenoh-plugin-trait/no_mangle"]
+no_mangle = []
 dds_shm = ["cyclors/iceoryx"]
 stats = ["zenoh/stats"]
 
@@ -39,16 +39,15 @@ bincode = { workspace = true }
 cdr = { workspace = true }
 cyclors = { workspace = true }
 derivative = { workspace = true }
-env_logger = { workspace = true }
 flume = { workspace = true }
 futures = { workspace = true }
 git-version = { workspace = true }
 hex = { workspace = true }
 lazy_static = { workspace = true }
-log = { workspace = true }
 regex = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+tracing = { workspace = true }
 zenoh = { workspace = true }
 zenoh-collections = { workspace = true }
 zenoh-core = { workspace = true }
@@ -65,4 +64,4 @@ maintainer = "zenoh-dev@eclipse.org"
 copyright = "2017, 2022 ZettaScale Technology Inc."
 section = "net"
 license-file = ["../LICENSE", "0"]
-depends = "zenohd (=0.11.0-dev)"
+depends = "zenohd (=0.11.0-dev-1)"

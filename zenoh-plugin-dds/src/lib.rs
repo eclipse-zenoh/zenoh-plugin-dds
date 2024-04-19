@@ -19,8 +19,6 @@ use cyclors::qos::{
 use cyclors::*;
 use flume::{unbounded, Receiver, Sender};
 use futures::select;
-use git_version::git_version;
-use log::{debug, error, info, trace, warn};
 use route_dds_zenoh::RouteDDSZenoh;
 use serde::ser::SerializeStruct;
 use serde::{Serialize, Serializer};
@@ -29,21 +27,24 @@ use std::collections::HashMap;
 use std::convert::TryInto;
 use std::env;
 use std::mem::ManuallyDrop;
+use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use std::time::Duration;
-use zenoh::buffers::SplitBuffer;
+use tracing::{debug, error, info, trace, warn};
 use zenoh::liveliness::LivelinessToken;
-use zenoh::plugins::{Plugin, RunningPluginTrait, Runtime, ZenohPlugin};
+use zenoh::plugins::{RunningPlugin, RunningPluginTrait, ZenohPlugin};
 use zenoh::prelude::r#async::AsyncResolve;
 use zenoh::prelude::r#sync::SyncResolve;
 use zenoh::prelude::*;
 use zenoh::publication::CongestionControl;
 use zenoh::query::{ConsolidationMode, QueryTarget};
 use zenoh::queryable::{Query, Queryable};
+use zenoh::runtime::Runtime;
 use zenoh::Result as ZResult;
 use zenoh::Session;
-use zenoh_core::{bail, zerror};
+use zenoh_core::zerror;
 use zenoh_ext::{SessionExt, SubscriberBuilderExt};
+use zenoh_plugin_trait::{plugin_long_version, plugin_version, Plugin, PluginControl};
 use zenoh_util::{Timed, TimedEvent, Timer};
 
 pub mod config;
@@ -61,8 +62,6 @@ use crate::ros_discovery::{
 };
 use crate::route_zenoh_dds::RouteZenohDDS;
 
-pub const GIT_VERSION: &str = git_version!(prefix = "v", cargo_prefix = "v");
-
 macro_rules! ke_for_sure {
     ($val:expr) => {
         unsafe { keyexpr::from_str_unchecked($val) }
@@ -76,7 +75,6 @@ macro_rules! member_id {
 }
 
 lazy_static::lazy_static!(
-    pub static ref LONG_VERSION: String = format!("{} built with {}", GIT_VERSION, env!("RUSTC_VERSION"));
     static ref LOG_PAYLOAD: bool = std::env::var("Z_LOG_PAYLOAD").is_ok();
 
     static ref KE_PREFIX_ADMIN_SPACE: &'static keyexpr = ke_for_sure!("@/service");
@@ -88,38 +86,56 @@ lazy_static::lazy_static!(
 
     static ref KE_ANY_1_SEGMENT: &'static keyexpr = ke_for_sure!("*");
     static ref KE_ANY_N_SEGMENT: &'static keyexpr = ke_for_sure!("**");
+
+    static ref LOG_ROS2_DEPRECATION_WARNING_FLAG: AtomicBool = AtomicBool::new(false);
 );
 
 // CycloneDDS' localhost-only: set network interface address (shortened form of config would be
 // possible, too, but I think it is clearer to spell it out completely).
 // Empty configuration fragments are ignored, so it is safe to unconditionally append a comma.
-const CYCLONEDDS_CONFIG_LOCALHOST_ONLY: &str = r#"<CycloneDDS><Domain><General><Interfaces><NetworkInterface address="127.0.0.1" multicast="true"/></Interfaces></General></Domain></CycloneDDS>,"#;
+const CYCLONEDDS_CONFIG_LOCALHOST_ONLY: &str = r#"<CycloneDDS><Domain><General><Interfaces><NetworkInterface address="127.0.0.1"/></Interfaces></General></Domain></CycloneDDS>,"#;
 
 // CycloneDDS' enable-shm: enable usage of Iceoryx PSMX plugin
 #[cfg(feature = "dds_shm")]
-const CYCLONEDDS_CONFIG_ENABLE_SHM: &str = r#"<CycloneDDS><Domain><General><Interfaces><PubSubMessageExchange name="iox" library="psmx_iox" priority="1000000"/></Interfaces></General></Domain></CycloneDDS>,"#;
+const CYCLONEDDS_CONFIG_ENABLE_SHM: &str = r#"<CycloneDDS><Domain><General><Interfaces><PubSubMessageExchange name="iox" library="psmx_iox"/></Interfaces></General></Domain></CycloneDDS>,"#;
 
 const ROS_DISCOVERY_INFO_POLL_INTERVAL_MS: u64 = 500;
 
+#[cfg(feature = "no_mangle")]
 zenoh_plugin_trait::declare_plugin!(DDSPlugin);
+
+fn log_ros2_deprecation_warning() {
+    if !LOG_ROS2_DEPRECATION_WARNING_FLAG.swap(true, std::sync::atomic::Ordering::Relaxed) {
+        tracing::warn!("------------------------------------------------------------------------------------------");
+        tracing::warn!(
+            "ROS 2 system detected. Did you know a new Zenoh bridge dedicated to ROS 2 exists ?"
+        );
+        tracing::warn!("Check it out on https://github.com/eclipse-zenoh/zenoh-plugin-ros2dds");
+        tracing::warn!("This DDS bridge will eventually be deprecated for ROS 2 usage in favor of this new bridge.");
+        tracing::warn!("------------------------------------------------------------------------------------------");
+    }
+}
 
 #[allow(clippy::upper_case_acronyms)]
 pub struct DDSPlugin;
 
+impl PluginControl for DDSPlugin {}
 impl ZenohPlugin for DDSPlugin {}
 impl Plugin for DDSPlugin {
     type StartArgs = Runtime;
-    type RunningPlugin = zenoh::plugins::RunningPlugin;
+    type Instance = RunningPlugin;
 
-    const STATIC_NAME: &'static str = "zenoh-plugin-dds";
+    const DEFAULT_NAME: &'static str = "zenoh-plugin-dds";
+    const PLUGIN_VERSION: &'static str = plugin_version!();
+    const PLUGIN_LONG_VERSION: &'static str = plugin_long_version!();
 
-    fn start(name: &str, runtime: &Self::StartArgs) -> ZResult<zenoh::plugins::RunningPlugin> {
+    fn start(name: &str, runtime: &Self::StartArgs) -> ZResult<RunningPlugin> {
         // Try to initiate login.
         // Required in case of dynamic lib, otherwise no logs.
         // But cannot be done twice in case of static link.
-        let _ = env_logger::try_init();
+        zenoh_util::try_init_log_from_env();
 
-        let runtime_conf = runtime.config.lock();
+        let runtime_conf = runtime.config().lock();
         let plugin_conf = runtime_conf
             .plugin(name)
             .ok_or_else(|| zerror!("Plugin `{}`: missing config", name))?;
@@ -129,34 +145,14 @@ impl Plugin for DDSPlugin {
         Ok(Box::new(DDSPlugin))
     }
 }
-impl RunningPluginTrait for DDSPlugin {
-    fn config_checker(&self) -> zenoh::plugins::ValidationFunction {
-        Arc::new(|_, _, _| bail!("DDSPlugin does not support hot configuration changes."))
-    }
-
-    fn adminspace_getter<'a>(
-        &'a self,
-        selector: &'a Selector<'a>,
-        plugin_status_key: &str,
-    ) -> ZResult<Vec<zenoh::plugins::Response>> {
-        let mut responses = Vec::new();
-        let version_key = [plugin_status_key, "/__version__"].concat();
-        if selector.key_expr.intersects(ke_for_sure!(&version_key)) {
-            responses.push(zenoh::plugins::Response::new(
-                version_key,
-                GIT_VERSION.into(),
-            ));
-        }
-        Ok(responses)
-    }
-}
+impl RunningPluginTrait for DDSPlugin {}
 
 pub async fn run(runtime: Runtime, config: Config) {
     // Try to initiate login.
     // Required in case of dynamic lib, otherwise no logs.
     // But cannot be done twice in case of static link.
-    let _ = env_logger::try_init();
-    debug!("DDS plugin {}", LONG_VERSION.as_str());
+    zenoh_util::try_init_log_from_env();
+    debug!("DDS plugin {}", DDSPlugin::PLUGIN_LONG_VERSION);
     debug!("DDS plugin {:?}", config);
 
     // open zenoh-net Session
@@ -168,7 +164,7 @@ pub async fn run(runtime: Runtime, config: Config) {
     {
         Ok(session) => Arc::new(session),
         Err(e) => {
-            log::error!("Unable to init zenoh session for DDS plugin : {:?}", e);
+            tracing::error!("Unable to init zenoh session for DDS plugin : {:?}", e);
             return;
         }
     };
@@ -186,7 +182,7 @@ pub async fn run(runtime: Runtime, config: Config) {
     {
         Ok(member) => member,
         Err(e) => {
-            log::error!(
+            tracing::error!(
                 "Unable to declare liveliness token for DDS plugin : {:?}",
                 e
             );
@@ -335,6 +331,10 @@ lazy_static::lazy_static! {
 
 impl<'a> DdsPluginRuntime<'a> {
     fn is_allowed(&self, ke: &keyexpr) -> bool {
+        if ke.ends_with(ROS_DISCOVERY_INFO_TOPIC_NAME) {
+            log_ros2_deprecation_warning();
+        }
+
         if self.config.forward_discovery && ke.ends_with(ROS_DISCOVERY_INFO_TOPIC_NAME) {
             // If fwd-discovery mode is enabled, don't route "ros_discovery_info"
             return false;
@@ -618,7 +618,7 @@ impl<'a> DdsPluginRuntime<'a> {
                 .map(serde_json::to_value)
                 .transpose(),
             AdminRef::Config => Some(serde_json::to_value(self)).transpose(),
-            AdminRef::Version => Ok(Some(Value::String(LONG_VERSION.clone()))),
+            AdminRef::Version => Ok(Some(DDSPlugin::PLUGIN_LONG_VERSION.into())),
         }
     }
 
@@ -998,7 +998,7 @@ impl<'a> DdsPluginRuntime<'a> {
             .expect("Failed to declare PublicationCache for Fwd Discovery");
 
         // Subscribe to remote DDS plugins publications of new Readers/Writers on admin space
-        let mut fwd_disco_sub = self
+        let fwd_disco_sub = self
             .zsession
             .declare_subscriber(fwd_discovery_subscription_key)
             .querying()

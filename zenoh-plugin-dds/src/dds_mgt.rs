@@ -15,7 +15,6 @@ use async_std::task;
 use cyclors::qos::{History, HistoryKind, Qos};
 use cyclors::*;
 use flume::Sender;
-use log::{debug, error, warn};
 use serde::{Deserialize, Serialize, Serializer};
 use std::collections::HashMap;
 use std::ffi::{CStr, CString};
@@ -24,6 +23,7 @@ use std::mem::MaybeUninit;
 use std::slice;
 use std::sync::Arc;
 use std::time::Duration;
+use tracing::{debug, error, warn};
 use zenoh::prelude::*;
 use zenoh::publication::CongestionControl;
 use zenoh::Session;
@@ -424,14 +424,18 @@ unsafe extern "C" fn data_forwarder_listener(dr: dds_entity_t, arg: *mut std::os
             match raw_sample {
                 Ok(raw_sample) => {
                     if *crate::LOG_PAYLOAD {
-                        log::trace!(
+                        tracing::trace!(
                             "Route data from DDS {} to zenoh key={} - payload: {:02x?}",
                             &(*pa).0,
                             &(*pa).1,
                             raw_sample
                         );
                     } else {
-                        log::trace!("Route data from DDS {} to zenoh key={}", &(*pa).0, &(*pa).1);
+                        tracing::trace!(
+                            "Route data from DDS {} to zenoh key={}",
+                            &(*pa).0,
+                            &(*pa).1
+                        );
                     }
                     let _ = (*pa)
                         .2
@@ -440,7 +444,7 @@ unsafe extern "C" fn data_forwarder_listener(dr: dds_entity_t, arg: *mut std::os
                         .res_sync();
                 }
                 Err(error) => {
-                    log::warn!(
+                    tracing::warn!(
                         "Failed to route data from DDS {} to zenoh key={} (msg: {})",
                         &(*pa).0,
                         &(*pa).1,
@@ -482,7 +486,7 @@ pub(crate) fn create_forwarding_dds_reader(
                 if reader >= 0 {
                     let res = dds_reader_wait_for_historical_data(reader, qos::DDS_100MS_DURATION);
                     if res < 0 {
-                        log::error!(
+                        tracing::error!(
                             "Error calling dds_reader_wait_for_historical_data(): {}",
                             CStr::from_ptr(dds_strretcode(-res))
                                 .to_str()
@@ -534,7 +538,7 @@ pub(crate) fn create_forwarding_dds_reader(
                         {
                             let si = si.assume_init();
                             if si[0].valid_data {
-                                log::trace!(
+                                tracing::trace!(
                                     "Route (periodic) data to zenoh resource with rid={}",
                                     z_key
                                 );
@@ -549,7 +553,7 @@ pub(crate) fn create_forwarding_dds_reader(
                                             .res_sync();
                                     }
                                     Err(error) => {
-                                        log::warn!(
+                                        tracing::warn!(
                                             "Failed to route (periodic) data to zenoh resource with rid={} (msg: {})",
                                             z_key,
                                             error
@@ -605,13 +609,25 @@ pub fn create_forwarding_dds_writer(
     topic_name: String,
     type_name: String,
     keyless: bool,
-    qos: Qos,
+    mut qos: Qos,
 ) -> Result<dds_entity_t, String> {
     let cton = CString::new(topic_name).unwrap().into_raw();
     let ctyn = CString::new(type_name).unwrap().into_raw();
 
     unsafe {
         let t = cdds_create_blob_topic(dp, cton, ctyn, keyless);
+
+        // force RELIABLE QoS for Writers (#165)
+        if let Some(qos::Reliability {
+            kind: qos::ReliabilityKind::BEST_EFFORT,
+            ..
+        }) = &mut qos.reliability
+        {
+            // Per DDS specification, the default Reliability value for DataWriters is RELIABLE with max_blocking_time=100ms
+            // Thus just use default value.
+            qos.reliability = None;
+        }
+
         let qos_native = qos.to_qos_native();
         let writer: i32 = dds_create_writer(dp, t, qos_native, std::ptr::null_mut());
         Qos::delete_qos_native(qos_native);
