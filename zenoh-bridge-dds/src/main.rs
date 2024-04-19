@@ -1,4 +1,3 @@
-use async_liveliness_monitor::LivelinessMonitor;
 //
 // Copyright (c) 2022 ZettaScale Technology
 //
@@ -12,11 +11,12 @@ use async_liveliness_monitor::LivelinessMonitor;
 // Contributors:
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
+use async_liveliness_monitor::LivelinessMonitor;
 use clap::{App, Arg};
 use std::str::FromStr;
 use std::time::{Duration, SystemTime};
 use zenoh::config::{Config, ModeDependentValue};
-use zenoh::prelude::*;
+use zenoh::prelude::r#async::*;
 use zenoh_plugin_dds::DDSPlugin;
 use zenoh_plugin_trait::Plugin;
 
@@ -202,6 +202,10 @@ r#"--watchdog=[PERIOD]   'Experimental!! Run a watchdog thread that monitors the
         .timestamping
         .set_enabled(Some(ModeDependentValue::Unique(true)))
         .unwrap();
+    // Enable admin space
+    config.adminspace.set_enabled(true).unwrap();
+    // Enable loading plugins
+    config.plugins_loading.set_enabled(true).unwrap();
 
     // apply DDS related arguments over config
     insert_json5!(config, args, "plugins/dds/scope", if "scope",);
@@ -239,24 +243,14 @@ async fn main() {
     tracing::info!("zenoh-bridge-dds {}", DDSPlugin::PLUGIN_LONG_VERSION);
 
     let (config, watchdog_period) = parse_args();
-    let rest_plugin = config.plugin("rest").is_some();
 
     if let Some(period) = watchdog_period {
         run_watchdog(period);
     }
 
-    // create a zenoh Runtime (to share with plugins)
-    let runtime = zenoh::runtime::Runtime::new(config).await.unwrap();
+    // Open a zenoh sessions. Plugins are automatically loaded by the open.
+    let _session = zenoh::open(config).res().await.unwrap();
 
-    // start REST plugin
-    if rest_plugin {
-        use zenoh_plugin_trait::Plugin;
-        zenoh_plugin_rest::RestPlugin::start("rest", &runtime).unwrap();
-    }
-
-    // start DDS plugin
-    use zenoh_plugin_trait::Plugin;
-    zenoh_plugin_dds::DDSPlugin::start("dds", &runtime).unwrap();
     async_std::future::pending::<()>().await;
 }
 
