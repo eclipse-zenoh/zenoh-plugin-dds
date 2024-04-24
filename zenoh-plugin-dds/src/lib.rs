@@ -952,7 +952,7 @@ impl<'a> DdsPluginRuntime<'a> {
         //   - ros_discovery_info on <KE_PREFIX_FWD_DISCO>/<uuid>/[<scope>]/ros_disco/<gid>
         // The PublicationCache is declared on <KE_PREFIX_FWD_DISCO>/<uuid>/[<scope>]/**
         // The QuerySubscriber is declared on  <KE_PREFIX_FWD_DISCO>/*/[<scope>]/**
-        let uuid: OwnedKeyExpr = self.zsession.zid().try_into().unwrap();
+        let uuid: OwnedKeyExpr = self.zsession.zid().into();
         let fwd_key_prefix = if let Some(scope) = &self.config.scope {
             *KE_PREFIX_FWD_DISCO / &uuid / scope
         } else {
