@@ -125,7 +125,7 @@ impl Plugin for DDSPlugin {
     type StartArgs = Runtime;
     type Instance = RunningPlugin;
 
-    const DEFAULT_NAME: &'static str = "zenoh-plugin-dds";
+    const DEFAULT_NAME: &'static str = "dds";
     const PLUGIN_VERSION: &'static str = plugin_version!();
     const PLUGIN_LONG_VERSION: &'static str = plugin_long_version!();
 
