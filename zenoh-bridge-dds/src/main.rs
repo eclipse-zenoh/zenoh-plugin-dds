@@ -208,10 +208,6 @@ r#"--watchdog=[PERIOD]   'Experimental!! Run a watchdog thread that monitors the
         .timestamping
         .set_enabled(Some(ModeDependentValue::Unique(true)))
         .unwrap();
-    // Enable admin space
-    config.adminspace.set_enabled(true).unwrap();
-    // Enable loading plugins
-    config.plugins_loading.set_enabled(true).unwrap();
 
     // apply DDS related arguments over config
     insert_json5!(config, args, "plugins/dds/scope", if "scope",);
