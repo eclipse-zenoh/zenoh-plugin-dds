@@ -16,7 +16,9 @@ use clap::{App, Arg};
 use std::str::FromStr;
 use std::time::{Duration, SystemTime};
 use zenoh::config::{Config, ModeDependentValue};
+use zenoh::plugins::PluginsManager;
 use zenoh::prelude::r#async::*;
+use zenoh::runtime::RuntimeBuilder;
 use zenoh_plugin_dds::DDSPlugin;
 use zenoh_plugin_trait::Plugin;
 
@@ -243,13 +245,39 @@ async fn main() {
     tracing::info!("zenoh-bridge-dds {}", DDSPlugin::PLUGIN_LONG_VERSION);
 
     let (config, watchdog_period) = parse_args();
+    tracing::info!("Zenoh {config:?}");
 
     if let Some(period) = watchdog_period {
         run_watchdog(period);
     }
 
-    // Open a zenoh sessions. Plugins are automatically loaded by the open.
-    let _session = zenoh::open(config).res().await.unwrap();
+    let mut plugins_mgr = PluginsManager::static_plugins_only();
+
+    // declare REST plugin if specified in conf
+    if config.plugin("rest").is_some() {
+        plugins_mgr = plugins_mgr.declare_static_plugin::<zenoh_plugin_rest::RestPlugin>(true);
+    }
+
+    // declare DDS plugin
+    plugins_mgr = plugins_mgr.declare_static_plugin::<zenoh_plugin_dds::DDSPlugin>(true);
+
+    // create a zenoh Runtime.
+    let runtime = match RuntimeBuilder::new(config)
+        .plugins_manager(plugins_mgr)
+        .build()
+        .await
+    {
+        Ok(runtime) => runtime,
+        Err(e) => {
+            println!("{e}. Exiting...");
+            std::process::exit(-1);
+        }
+    };
+    // create a zenoh Session.
+    let _session = zenoh::init(runtime).res().await.unwrap_or_else(|e| {
+        println!("{e}. Exiting...");
+        std::process::exit(-1);
+    });
 
     async_std::future::pending::<()>().await;
 }
