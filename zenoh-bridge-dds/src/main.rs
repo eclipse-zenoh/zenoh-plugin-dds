@@ -247,7 +247,6 @@ async fn main() {
     let (config, watchdog_period) = parse_args();
     tracing::info!("Zenoh {config:?}");
 
-
     if let Some(period) = watchdog_period {
         run_watchdog(period);
     }
