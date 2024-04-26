@@ -125,7 +125,7 @@ impl Plugin for DDSPlugin {
     type StartArgs = Runtime;
     type Instance = RunningPlugin;
 
-    const DEFAULT_NAME: &'static str = "zenoh-plugin-dds";
+    const DEFAULT_NAME: &'static str = "dds";
     const PLUGIN_VERSION: &'static str = plugin_version!();
     const PLUGIN_LONG_VERSION: &'static str = plugin_long_version!();
 
@@ -952,7 +952,7 @@ impl<'a> DdsPluginRuntime<'a> {
         //   - ros_discovery_info on <KE_PREFIX_FWD_DISCO>/<uuid>/[<scope>]/ros_disco/<gid>
         // The PublicationCache is declared on <KE_PREFIX_FWD_DISCO>/<uuid>/[<scope>]/**
         // The QuerySubscriber is declared on  <KE_PREFIX_FWD_DISCO>/*/[<scope>]/**
-        let uuid: OwnedKeyExpr = self.zsession.zid().try_into().unwrap();
+        let uuid: OwnedKeyExpr = self.zsession.zid().into();
         let fwd_key_prefix = if let Some(scope) = &self.config.scope {
             *KE_PREFIX_FWD_DISCO / &uuid / scope
         } else {
