@@ -71,3 +71,4 @@ assets = [
         "644",
     ],
 ]
+conf-files = ["/etc/zenoh-bridge-dds/conf.json5"]
