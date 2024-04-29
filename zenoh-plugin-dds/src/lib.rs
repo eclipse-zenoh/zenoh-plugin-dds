@@ -77,7 +77,7 @@ macro_rules! member_id {
 lazy_static::lazy_static!(
     static ref LOG_PAYLOAD: bool = std::env::var("Z_LOG_PAYLOAD").is_ok();
 
-    static ref KE_PREFIX_ADMIN_SPACE: &'static keyexpr = ke_for_sure!("@/service");
+    static ref KE_PREFIX_ADMIN_SPACE: &'static keyexpr = ke_for_sure!("@dds");
     static ref KE_PREFIX_ROUTE_TO_DDS: &'static keyexpr = ke_for_sure!("route/to_dds");
     static ref KE_PREFIX_ROUTE_FROM_DDS: &'static keyexpr = ke_for_sure!("route/from_dds");
     static ref KE_PREFIX_PUB_CACHE: &'static keyexpr = ke_for_sure!("@dds_pub_cache");
@@ -693,8 +693,7 @@ impl<'a> DdsPluginRuntime<'a> {
         run_discovery(self.dp, tx);
 
         // declare admin space queryable
-        let admin_keyexpr_prefix =
-            *KE_PREFIX_ADMIN_SPACE / &self.zsession.zid().into_keyexpr() / ke_for_sure!("dds");
+        let admin_keyexpr_prefix = *KE_PREFIX_ADMIN_SPACE / &self.zsession.zid().into_keyexpr();
         let admin_keyexpr_expr = (&admin_keyexpr_prefix) / *KE_ANY_N_SEGMENT;
         debug!("Declare admin space on {}", admin_keyexpr_expr);
         let admin_queryable = self
@@ -1171,7 +1170,7 @@ impl<'a> DdsPluginRuntime<'a> {
                             // it's a writer discovery message
                             "writer" => {
                                 // reconstruct full admin keyexpr for this entity (i.e. with it's remote plugin's uuid)
-                                let full_admin_keyexpr = *KE_PREFIX_ADMIN_SPACE / remote_uuid / ke_for_sure!("dds") / remaining_ke;
+                                let full_admin_keyexpr = *KE_PREFIX_ADMIN_SPACE / remote_uuid / remaining_ke;
                                 if sample.kind != SampleKind::Delete {
                                     // deserialize payload
                                     let (entity, scope) = match bincode::deserialize::<(DdsEntity, Option<OwnedKeyExpr>)>(&sample.payload.contiguous()) {
@@ -1251,7 +1250,7 @@ impl<'a> DdsPluginRuntime<'a> {
                             // it's a reader discovery message
                             "reader" => {
                                 // reconstruct full admin keyexpr for this entity (i.e. with it's remote plugin's uuid)
-                                let full_admin_keyexpr = *KE_PREFIX_ADMIN_SPACE / remote_uuid / ke_for_sure!("dds") / remaining_ke;
+                                let full_admin_keyexpr = *KE_PREFIX_ADMIN_SPACE / remote_uuid / remaining_ke;
                                 if sample.kind != SampleKind::Delete {
                                     // deserialize payload
                                     let (entity, scope) = match bincode::deserialize::<(DdsEntity, Option<OwnedKeyExpr>)>(&sample.payload.contiguous()) {
@@ -1391,7 +1390,7 @@ impl<'a> DdsPluginRuntime<'a> {
                             // remove all the references to the plugin's enities, removing no longer used routes
                             // and updating/re-publishing ParticipantEntitiesInfo
                             let admin_space = &mut self.admin_space;
-                            let admin_subke = format!("@/service/{mid}/dds/");
+                            let admin_subke = format!("@dds/{mid}/");
                             let mut participant_info_changed = false;
                             self.routes_to_dds.retain(|zkey, route| {
                                 route.remove_remote_routed_writers_containing(&admin_subke);
