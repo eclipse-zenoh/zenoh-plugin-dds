@@ -16,7 +16,7 @@ resolver = "2"
 members = ["zenoh-bridge-dds", "zenoh-plugin-dds"]
 
 [workspace.package]
-version = "0.11.0-dev"
+version = "0.11.0-dev-109-g98ac8dd"
 authors = [
   "kydos <angelo@icorsaro.net>",
   "Esteve Fernandez <esteve.fernandez@gmail.com>",
