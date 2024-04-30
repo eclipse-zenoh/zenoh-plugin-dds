@@ -36,7 +36,7 @@ tracing = { workspace = true }
 zenoh = { workspace = true }
 zenoh-plugin-rest = { workspace = true }
 zenoh-plugin-trait = { workspace = true }
-zenoh-plugin-dds = { version = "0.11.0-dev", path = "../zenoh-plugin-dds/", default-features = false }
+zenoh-plugin-dds = { workspace = true }
 zenoh-util = { workspace = true }
 
 [[bin]]
