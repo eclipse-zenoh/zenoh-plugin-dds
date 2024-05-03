@@ -12,21 +12,21 @@
 #   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 #
 [workspace]
-resolver = "2"
 members = ["zenoh-bridge-dds", "zenoh-plugin-dds"]
+resolver = "2"
 
 [workspace.package]
-version = "0.11.0-dev"
 authors = [
-  "kydos <angelo@icorsaro.net>",
   "Esteve Fernandez <esteve.fernandez@gmail.com>",
   "Julien Enoch <julien@enoch.fr>",
   "Pierre Avital <pierre.avital@adlinktech.com>",
+  "kydos <angelo@icorsaro.net>",
 ]
 edition = "2021"
-repository = "https://github.com/eclipse-zenoh/zenoh-plugin-dds"
 homepage = "http://zenoh.io"
 license = "EPL-2.0 OR Apache-2.0"
+repository = "https://github.com/eclipse-zenoh/zenoh-plugin-dds"
+version = "0.11.0-dev"
 
 [workspace.dependencies]
 async-liveliness-monitor = "0.1.1"
@@ -48,20 +48,22 @@ serde = "1.0.154"
 serde_json = "1.0.94"
 tracing = "0.1"
 zenoh = { version = "0.11.0-dev", git = "https://github.com/eclipse-zenoh/zenoh.git", branch = "main", features = [
-    "unstable", "plugins"
+  "plugins",
+  "unstable",
 ] }
 zenoh-collections = { version = "0.11.0-dev", git = "https://github.com/eclipse-zenoh/zenoh.git", branch = "main" }
 zenoh-core = { version = "0.11.0-dev", git = "https://github.com/eclipse-zenoh/zenoh.git", branch = "main" }
 zenoh-ext = { version = "0.11.0-dev", git = "https://github.com/eclipse-zenoh/zenoh.git", branch = "main", features = [
-    "unstable",
+  "unstable",
 ] }
+zenoh-plugin-dds = { version = "0.11.0-dev", path = "zenoh-plugin-dds/", default-features = false }
 zenoh-plugin-rest = { version = "0.11.0-dev", git = "https://github.com/eclipse-zenoh/zenoh.git", branch = "main", default-features = false }
 zenoh-plugin-trait = { version = "0.11.0-dev", git = "https://github.com/eclipse-zenoh/zenoh.git", branch = "main", default-features = false }
 zenoh-util = { version = "0.11.0-dev", git = "https://github.com/eclipse-zenoh/zenoh.git", branch = "main", default-features = false }
 
 [profile.release]
+codegen-units = 1
 debug = false
 lto = "fat"
-codegen-units = 1
 opt-level = 3
 panic = "abort"

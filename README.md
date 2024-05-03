@@ -236,26 +236,28 @@ The `"dds"` part of this same configuration file can also be used in the configu
 The zenoh bridge for DDS exposes an administration space allowing to browse the DDS entities that have been discovered (with their QoS), and the routes that have been established between DDS and zenoh.
 This administration space is accessible via any zenoh API, including the REST API that you can activate at `zenoh-bridge-dds` startup using the `--rest-http-port` argument.
 
-The `zenoh-bridge-dds` exposes this administration space with paths prefixed by `@/service/<uuid>/dds` (where `<uuid>` is the unique identifier of the bridge instance). The informations are then organized with such paths:
- - `@/service/<uuid>/dds/version` : the bridge version
- - `@/service/<uuid>/dds/config` : the bridge configuration
- - `@/service/<uuid>/dds/participant/<gid>/reader/<gid>/<topic>` : a discovered DDS reader on `<topic>`
- - `@/service/<uuid>/dds/participant/<gid>/writer/<gid>/<topic>` : a discovered DDS reader on `<topic>`
- - `@/service/<uuid>/dds/route/from_dds/<zenoh-resource>` : a route established from a DDS writer to a zenoh key named `<zenoh-resource>` (see [mapping rules](#mapping-dds-topics-to-zenoh-resources)).
- - `@/service/<uuid>/dds/route/to_dds/<zenoh-resource>` : a route established from a zenoh key named `<zenoh-resource>` (see [mapping rules](#mapping-dds-topics-to-zenoh-resources))..
+Starting from version `0.11.0-rc.2`, the `zenoh-bridge-dds` exposes this administration space with paths prefixed by `@dds/<uuid>` (where `<uuid>` is the unique identifier of the bridge instance). The informations are then organized with such paths:
+ - `@dds/<uuid>/version` : the bridge version
+ - `@dds/<uuid>/config` : the bridge configuration
+ - `@dds/<uuid>/participant/<gid>/reader/<gid>/<topic>` : a discovered DDS reader on `<topic>`
+ - `@dds/<uuid>/participant/<gid>/writer/<gid>/<topic>` : a discovered DDS reader on `<topic>`
+ - `@dds/<uuid>/route/from_dds/<zenoh-resource>` : a route established from a DDS writer to a zenoh key named `<zenoh-resource>` (see [mapping rules](#mapping-dds-topics-to-zenoh-resources)).
+ - `@dds/<uuid>/route/to_dds/<zenoh-resource>` : a route established from a zenoh key named `<zenoh-resource>` (see [mapping rules](#mapping-dds-topics-to-zenoh-resources))..
+
+For previous versions, see the corresponding version of README.md: [0.10.1-rc](https://github.com/eclipse-zenoh/zenoh-plugin-dds/blob/0.10.1-rc/README.md#admin-space).
 
 Example of queries on administration space using the REST API with the `curl` command line tool (don't forget to activate the REST API with `--rest-http-port 8000` argument):
  - List all the DDS entities that have been discovered:
     ```bash
-    curl http://localhost:8000/@/service/**/participant/**
+    curl http://localhost:8000/@dds/*/participant/**
     ```
  - List all established routes:
     ```bash
-    curl http://localhost:8000/@/service/**/route/**
+    curl http://localhost:8000/@dds/*/route/**
     ```
  - List all discovered DDS entities and established route for topic `cmd_vel`:
     ```bash
-    curl http://localhost:8000/@/service/**/cmd_vel
+    curl http://localhost:8000/@dds/**/cmd_vel
     ```
 
 > _Pro tip: pipe the result into [**jq**](https://stedolan.github.io/jq/) command for JSON pretty print or transformation._
