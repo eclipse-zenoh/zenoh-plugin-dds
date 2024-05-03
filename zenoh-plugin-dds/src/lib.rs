@@ -101,7 +101,7 @@ const CYCLONEDDS_CONFIG_ENABLE_SHM: &str = r#"<CycloneDDS><Domain><SharedMemory>
 
 const ROS_DISCOVERY_INFO_POLL_INTERVAL_MS: u64 = 500;
 
-#[cfg(feature = "no_mangle")]
+#[cfg(feature = "dynamic_plugin")]
 zenoh_plugin_trait::declare_plugin!(DDSPlugin);
 
 fn log_ros2_deprecation_warning() {

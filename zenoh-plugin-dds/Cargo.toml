@@ -27,8 +27,8 @@ name = "zenoh_plugin_dds"
 crate-type = ["cdylib", "rlib"]
 
 [features]
-default = ["no_mangle"]
-no_mangle = []
+default = ["dynamic_plugin"]
+dynamic_plugin = []
 dds_shm = ["cyclors/iceoryx"]
 stats = ["zenoh/stats"]
 
