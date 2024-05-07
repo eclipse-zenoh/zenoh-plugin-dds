@@ -892,8 +892,8 @@ dependencies = [
 
 [[package]]
 name = "cyclors"
-version = "0.2.0"
-source = "git+https://github.com/gmartin82/cyclors.git?branch=cyclonedds-psmx#0c237b7c58d52ae02144687d724cb535ffe02aa4"
+version = "0.3.0"
+source = "git+https://github.com/gmartin82/cyclors.git?branch=cyclonedds-psmx#7355c1dee5b65a777f338af67e9ef66c5a5ef2a7"
 dependencies = [
  "bincode",
  "bindgen",

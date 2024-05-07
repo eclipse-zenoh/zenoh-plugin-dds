@@ -136,6 +136,12 @@ When building the zenoh bridge with the `dds_shm` feature enabled the `iox-roudi
 
 See [here](https://cyclonedds.io/docs/cyclonedds/latest/shared_memory/shared_memory.html) for more details of shared memory support in Cyclone DDS.
 
+#### Shared Memory Limitations
+
+The following limitations apply to Cyclone DDS shared memory support in the plugin:
+
+* Shared memory is not supported on Windows systems.
+* In forward discovery mode DDS samples will not be forwarded via Zenoh unless the DDS data type is memcpy safe. A date type is memcpy safe if it does not contain indirections.
 
 ## ROS 2 package
 :warning: **Please consider using [`zenoh-bridge-ros2dds`](https://github.com/eclipse-zenoh/zenoh-plugin-ros2dds) which is dedicated to ROS 2.**
