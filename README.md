@@ -141,6 +141,7 @@ See [here](https://cyclonedds.io/docs/cyclonedds/latest/shared_memory/shared_mem
 The following limitations apply to Cyclone DDS shared memory support in the plugin:
 
 * Shared memory is not supported on Windows systems.
+* When DDS shared memory is enabled the Iceoryx PSMX plugin will be instantiated with the default configuration. If additional configuration is required the Iceoryx plugin should be configured via the `CYCLONEDDS_URI` instead.
 * In forward discovery mode DDS samples will not be forwarded via Zenoh unless the DDS data type is memcpy safe. A data type is memcpy safe if it does not contain indirections.
 
 ## ROS 2 package
