@@ -848,7 +848,8 @@ dependencies = [
 [[package]]
 name = "cyclors"
 version = "0.3.0"
-source = "git+https://github.com/gmartin82/cyclors.git?branch=cyclonedds-psmx#914923222354d09026b8302d0c42e9a9779acf55"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0a7ee265b2b6175c7563f47b47b91c89203c400f835d87e53630f85d71643b2d"
 dependencies = [
  "bincode",
  "bindgen",
