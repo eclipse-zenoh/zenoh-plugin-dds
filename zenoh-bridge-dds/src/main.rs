@@ -15,10 +15,12 @@ use async_liveliness_monitor::LivelinessMonitor;
 use clap::{App, Arg};
 use std::str::FromStr;
 use std::time::{Duration, SystemTime};
-use zenoh::config::{Config, ModeDependentValue};
-use zenoh::plugins::PluginsManager;
-use zenoh::prelude::r#async::*;
-use zenoh::runtime::RuntimeBuilder;
+use zenoh::{
+    config::{Config, ModeDependentValue},
+    info::ZenohId,
+    internal::{plugins::PluginsManager, runtime::RuntimeBuilder},
+    prelude::*,
+};
 use zenoh_plugin_dds::DDSPlugin;
 use zenoh_plugin_trait::Plugin;
 
@@ -241,7 +243,7 @@ r#"--watchdog=[PERIOD]   'Experimental!! Run a watchdog thread that monitors the
 
 #[async_std::main]
 async fn main() {
-    zenoh_util::init_log_from_env_or("z=info");
+    zenoh::init_log_from_env_or("z=info");
     tracing::info!("zenoh-bridge-dds {}", DDSPlugin::PLUGIN_LONG_VERSION);
 
     let (config, watchdog_period) = parse_args();
@@ -255,11 +257,13 @@ async fn main() {
 
     // declare REST plugin if specified in conf
     if config.plugin("rest").is_some() {
-        plugins_mgr = plugins_mgr.declare_static_plugin::<zenoh_plugin_rest::RestPlugin>(true);
+        plugins_mgr =
+            plugins_mgr.declare_static_plugin::<zenoh_plugin_rest::RestPlugin, &str>("rest", true);
     }
 
     // declare DDS plugin
-    plugins_mgr = plugins_mgr.declare_static_plugin::<zenoh_plugin_dds::DDSPlugin>(true);
+    plugins_mgr =
+        plugins_mgr.declare_static_plugin::<zenoh_plugin_dds::DDSPlugin, &str>("dds", true);
 
     // create a zenoh Runtime.
     let mut runtime = match RuntimeBuilder::new(config)
