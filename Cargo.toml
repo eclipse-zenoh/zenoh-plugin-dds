@@ -51,15 +51,12 @@ zenoh = { version = "0.11.0-dev", git = "https://github.com/eclipse-zenoh/zenoh.
   "plugins",
   "unstable",
 ] }
-zenoh-collections = { version = "0.11.0-dev", git = "https://github.com/eclipse-zenoh/zenoh.git", branch = "dev/1.0.0" }
-zenoh-core = { version = "0.11.0-dev", git = "https://github.com/eclipse-zenoh/zenoh.git", branch = "dev/1.0.0" }
 zenoh-ext = { version = "0.11.0-dev", git = "https://github.com/eclipse-zenoh/zenoh.git", branch = "dev/1.0.0", features = [
   "unstable",
 ] }
 zenoh-plugin-dds = { version = "0.11.0-dev", path = "zenoh-plugin-dds/", default-features = false }
 zenoh-plugin-rest = { version = "0.11.0-dev", git = "https://github.com/eclipse-zenoh/zenoh.git", branch = "dev/1.0.0", default-features = false }
 zenoh-plugin-trait = { version = "0.11.0-dev", git = "https://github.com/eclipse-zenoh/zenoh.git", branch = "dev/1.0.0", default-features = false }
-zenoh-util = { version = "0.11.0-dev", git = "https://github.com/eclipse-zenoh/zenoh.git", branch = "dev/1.0.0", default-features = false }
 
 [profile.release]
 codegen-units = 1

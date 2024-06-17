@@ -23,8 +23,8 @@ use route_dds_zenoh::RouteDDSZenoh;
 use serde::ser::SerializeStruct;
 use serde::{Serialize, Serializer};
 use serde_json::Value;
+use std::borrow::Cow;
 use std::collections::HashMap;
-use std::convert::TryInto;
 use std::env;
 use std::mem::ManuallyDrop;
 use std::sync::atomic::AtomicBool;
@@ -36,6 +36,7 @@ use zenoh::{
     internal::{
         plugins::{RunningPlugin, RunningPluginTrait, ZenohPlugin},
         runtime::Runtime,
+        zerror, Timed, TimedEvent, Timer,
     },
     key_expr::{keyexpr, KeyExpr, OwnedKeyExpr},
     liveliness::LivelinessToken,
@@ -47,10 +48,8 @@ use zenoh::{
     selector::Selector,
     Result as ZResult, Session,
 };
-use zenoh_core::zerror;
 use zenoh_ext::{SessionExt, SubscriberBuilderExt};
 use zenoh_plugin_trait::{plugin_long_version, plugin_version, Plugin, PluginControl};
-use zenoh_util::{Timed, TimedEvent, Timer};
 
 pub mod config;
 mod dds_mgt;
@@ -138,7 +137,7 @@ impl Plugin for DDSPlugin {
         // Try to initiate login.
         // Required in case of dynamic lib, otherwise no logs.
         // But cannot be done twice in case of static link.
-        zenoh_util::try_init_log_from_env();
+        zenoh::try_init_log_from_env();
 
         let runtime_conf = runtime.config().lock();
         let plugin_conf = runtime_conf
@@ -156,7 +155,7 @@ pub async fn run(runtime: Runtime, config: Config) {
     // Try to initiate login.
     // Required in case of dynamic lib, otherwise no logs.
     // But cannot be done twice in case of static link.
-    zenoh_util::try_init_log_from_env();
+    zenoh::try_init_log_from_env();
     debug!("DDS plugin {}", DDSPlugin::PLUGIN_LONG_VERSION);
     debug!("DDS plugin {:?}", config);
 
@@ -174,10 +173,9 @@ pub async fn run(runtime: Runtime, config: Config) {
     };
 
     // create group member using the group_member_id if configured, or the Session ID otherwise
-    // TODO: Wait for the PR: https://github.com/eclipse-zenoh/zenoh/pull/1149
     let member_id = match config.group_member_id {
         Some(ref id) => id.clone(),
-        None => zsession.zid().to_string().try_into().unwrap(),
+        None => zsession.zid().into(),
     };
     let member = match zsession
         .liveliness()
@@ -671,7 +669,7 @@ impl<'a> DdsPluginRuntime<'a> {
         // send replies
         for (ke, v) in kvs.drain(..) {
             let admin_keyexpr = admin_keyexpr_prefix / &ke;
-            match TryInto::<ZBytes>::try_into(v) {
+            match ZBytes::try_from(v) {
                 Ok(payload) => {
                     if let Err(e) = query.reply(admin_keyexpr, payload).await {
                         warn!("Error replying to admin query {:?}: {}", query, e);
@@ -699,9 +697,8 @@ impl<'a> DdsPluginRuntime<'a> {
         run_discovery(self.dp, tx);
 
         // declare admin space queryable
-        // TODO: Wait for the PR: https://github.com/eclipse-zenoh/zenoh/pull/1149
         let admin_keyexpr_prefix =
-            *KE_PREFIX_ADMIN_SPACE / keyexpr::new(&self.zsession.zid().to_string()).unwrap();
+            *KE_PREFIX_ADMIN_SPACE / &OwnedKeyExpr::from(self.zsession.zid());
         let admin_keyexpr_expr = (&admin_keyexpr_prefix) / *KE_ANY_N_SEGMENT;
         debug!("Declare admin space on {}", admin_keyexpr_expr);
         let admin_queryable = self
@@ -958,13 +955,7 @@ impl<'a> DdsPluginRuntime<'a> {
         //   - ros_discovery_info on <KE_PREFIX_FWD_DISCO>/<uuid>/[<scope>]/ros_disco/<gid>
         // The PublicationCache is declared on <KE_PREFIX_FWD_DISCO>/<uuid>/[<scope>]/**
         // The QuerySubscriber is declared on  <KE_PREFIX_FWD_DISCO>/*/[<scope>]/**
-        // TODO: Wait for the PR: https://github.com/eclipse-zenoh/zenoh/pull/1149
-        let uuid: OwnedKeyExpr = self
-            .zsession
-            .zid()
-            .to_string()
-            .try_into()
-            .expect("The zsession id can't be transformed into key expr");
+        let uuid: OwnedKeyExpr = self.zsession.zid().into();
         let fwd_key_prefix = if let Some(scope) = &self.config.scope {
             *KE_PREFIX_FWD_DISCO / &uuid / scope
         } else {
@@ -1181,7 +1172,7 @@ impl<'a> DdsPluginRuntime<'a> {
                                 let full_admin_keyexpr = *KE_PREFIX_ADMIN_SPACE / remote_uuid / remaining_ke;
                                 if sample.kind() != SampleKind::Delete {
                                     // deserialize payload
-                                    let (entity, scope) = match bincode::deserialize::<(DdsEntity, Option<OwnedKeyExpr>)>(&sample.payload().into::<Vec<u8>>()) {
+                                    let (entity, scope) = match bincode::deserialize::<(DdsEntity, Option<OwnedKeyExpr>)>(&sample.payload().into::<Cow<[u8]>>()) {
                                         Ok(x) => x,
                                         Err(e) => {
                                             warn!("Failed to deserialize discovery msg for {}: {}", full_admin_keyexpr, e);
@@ -1261,7 +1252,7 @@ impl<'a> DdsPluginRuntime<'a> {
                                 let full_admin_keyexpr = *KE_PREFIX_ADMIN_SPACE / remote_uuid / remaining_ke;
                                 if sample.kind() != SampleKind::Delete {
                                     // deserialize payload
-                                    let (entity, scope) = match bincode::deserialize::<(DdsEntity, Option<OwnedKeyExpr>)>(&sample.payload().into::<Vec<u8>>()) {
+                                    let (entity, scope) = match bincode::deserialize::<(DdsEntity, Option<OwnedKeyExpr>)>(&sample.payload().into::<Cow<[u8]>>()) {
                                         Ok(x) => x,
                                         Err(e) => {
                                             warn!("Failed to deserialize discovery msg for {}: {}", full_admin_keyexpr, e);
