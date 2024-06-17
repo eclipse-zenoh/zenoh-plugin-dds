@@ -16,8 +16,12 @@ use cyclors::qos::{HistoryKind, Qos};
 use cyclors::{dds_entity_t, DDS_LENGTH_UNLIMITED};
 use serde::Serialize;
 use std::{collections::HashSet, fmt};
-use zenoh::prelude::r#async::AsyncResolve;
-use zenoh::prelude::*;
+use zenoh::{
+    key_expr::{keyexpr, KeyExpr, OwnedKeyExpr},
+    prelude::*,
+    publisher::CongestionControl,
+    sample::Locality,
+};
 use zenoh_ext::{PublicationCache, SessionExt};
 
 use crate::{dds_mgt::*, qos_helpers::*, DdsPluginRuntime, KE_PREFIX_PUB_CACHE};
@@ -100,7 +104,6 @@ impl RouteDDSZenoh<'_> {
         let declared_ke = plugin
             .zsession
             .declare_keyexpr(ke.clone())
-            .res()
             .await
             .map_err(|e| {
                 format!("Route Zenoh->DDS ({topic_name} -> {ke}): failed to declare KeyExpr: {e}")
@@ -144,19 +147,13 @@ impl RouteDDSZenoh<'_> {
                 .history(history)
                 .queryable_prefix(*KE_PREFIX_PUB_CACHE / &plugin.member_id)
                 .queryable_allowed_origin(Locality::Remote) // Note: don't reply to queries from local QueryingSubscribers
-                .res()
                 .await
                 .map_err(|e| {
                     format!("Failed create PublicationCache for key {ke} (rid={declared_ke}): {e}")
                 })?;
             ZPublisher::PublicationCache(pub_cache)
         } else {
-            if let Err(e) = plugin
-                .zsession
-                .declare_publisher(declared_ke.clone())
-                .res()
-                .await
-            {
+            if let Err(e) = plugin.zsession.declare_publisher(declared_ke.clone()).await {
                 tracing::warn!(
                     "Failed to declare publisher for key {} (rid={}): {}",
                     ke,

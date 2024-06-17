@@ -15,10 +15,12 @@ use async_liveliness_monitor::LivelinessMonitor;
 use clap::{App, Arg};
 use std::str::FromStr;
 use std::time::{Duration, SystemTime};
-use zenoh::config::{Config, ModeDependentValue};
-use zenoh::plugins::PluginsManager;
-use zenoh::prelude::r#async::*;
-use zenoh::runtime::RuntimeBuilder;
+use zenoh::{
+    config::{Config, ModeDependentValue},
+    info::ZenohId,
+    internal::{plugins::PluginsManager, runtime::RuntimeBuilder},
+    prelude::*,
+};
 use zenoh_plugin_dds::DDSPlugin;
 use zenoh_plugin_trait::Plugin;
 

@@ -17,7 +17,7 @@ use serde::{de, Deserialize, Deserializer};
 use std::env;
 use std::fmt;
 use std::time::Duration;
-use zenoh::prelude::*;
+use zenoh::key_expr::OwnedKeyExpr;
 
 pub const DEFAULT_DOMAIN: u32 = 0;
 pub const DEFAULT_FORWARD_DISCOVERY: bool = false;
