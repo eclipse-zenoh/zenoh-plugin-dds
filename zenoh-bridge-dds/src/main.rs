@@ -11,15 +11,18 @@
 // Contributors:
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
+use std::{
+    str::FromStr,
+    time::{Duration, SystemTime},
+};
+
 use async_liveliness_monitor::LivelinessMonitor;
 use clap::{App, Arg};
-use std::str::FromStr;
-use std::time::{Duration, SystemTime};
 use zenoh::{
     config::{Config, ModeDependentValue},
-    info::ZenohId,
     internal::{plugins::PluginsManager, runtime::RuntimeBuilder},
     prelude::*,
+    session::ZenohId,
 };
 use zenoh_plugin_dds::DDSPlugin;
 use zenoh_plugin_trait::Plugin;
