@@ -26,7 +26,7 @@ edition = "2021"
 homepage = "http://zenoh.io"
 license = "EPL-2.0 OR Apache-2.0"
 repository = "https://github.com/eclipse-zenoh/zenoh-plugin-dds"
-version = "0.11.0-dev"
+version = "0.11.0-dev-136-ga1bbf97"
 
 [workspace.dependencies]
 async-liveliness-monitor = "0.1.1"
