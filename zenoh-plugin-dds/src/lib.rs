@@ -11,25 +11,28 @@
 // Contributors:
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
-use async_trait::async_trait;
-use cyclors::qos::{
-    DurabilityService, History, IgnoreLocal, IgnoreLocalKind, Qos, Reliability, ReliabilityKind,
-    DDS_100MS_DURATION, DDS_1S_DURATION,
+use std::{
+    borrow::Cow,
+    collections::HashMap,
+    env,
+    mem::ManuallyDrop,
+    sync::{atomic::AtomicBool, Arc},
+    time::Duration,
 };
-use cyclors::*;
+
+use async_trait::async_trait;
+use cyclors::{
+    qos::{
+        DurabilityService, History, IgnoreLocal, IgnoreLocalKind, Qos, Reliability,
+        ReliabilityKind, DDS_100MS_DURATION, DDS_1S_DURATION,
+    },
+    *,
+};
 use flume::{unbounded, Receiver, Sender};
 use futures::select;
 use route_dds_zenoh::RouteDDSZenoh;
-use serde::ser::SerializeStruct;
-use serde::{Serialize, Serializer};
+use serde::{ser::SerializeStruct, Serialize, Serializer};
 use serde_json::Value;
-use std::borrow::Cow;
-use std::collections::HashMap;
-use std::env;
-use std::mem::ManuallyDrop;
-use std::sync::atomic::AtomicBool;
-use std::sync::Arc;
-use std::time::Duration;
 use tracing::{debug, error, info, trace, warn};
 use zenoh::{
     bytes::ZBytes,
@@ -41,11 +44,9 @@ use zenoh::{
     key_expr::{keyexpr, KeyExpr, OwnedKeyExpr},
     liveliness::LivelinessToken,
     prelude::*,
-    publisher::CongestionControl,
-    query::{ConsolidationMode, Query, QueryTarget},
-    queryable::Queryable,
+    qos::CongestionControl,
+    query::{ConsolidationMode, Query, QueryTarget, Queryable, Selector},
     sample::{Locality, Sample, SampleKind},
-    selector::Selector,
     Result as ZResult, Session,
 };
 use zenoh_ext::{SessionExt, SubscriberBuilderExt};
@@ -60,11 +61,14 @@ mod route_zenoh_dds;
 use config::Config;
 use dds_mgt::*;
 
-use crate::qos_helpers::*;
-use crate::ros_discovery::{
-    NodeEntitiesInfo, ParticipantEntitiesInfo, RosDiscoveryInfoMgr, ROS_DISCOVERY_INFO_TOPIC_NAME,
+use crate::{
+    qos_helpers::*,
+    ros_discovery::{
+        NodeEntitiesInfo, ParticipantEntitiesInfo, RosDiscoveryInfoMgr,
+        ROS_DISCOVERY_INFO_TOPIC_NAME,
+    },
+    route_zenoh_dds::RouteZenohDDS,
 };
-use crate::route_zenoh_dds::RouteZenohDDS;
 
 macro_rules! ke_for_sure {
     ($val:expr) => {

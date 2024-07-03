@@ -12,28 +12,35 @@
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 
+use std::{
+    collections::HashSet,
+    ffi::CStr,
+    fmt,
+    sync::{
+        atomic::{AtomicI32, Ordering},
+        Arc,
+    },
+    time::Duration,
+};
+
 use cyclors::{
     dds_entity_t, dds_get_entity_sertype, dds_strretcode, dds_writecdr, ddsi_serdata_from_ser_iov,
     ddsi_serdata_kind_SDK_DATA, ddsi_sertype, ddsrt_iovec_t,
 };
 use serde::{Serialize, Serializer};
-use std::collections::HashSet;
-use std::sync::atomic::Ordering;
-use std::sync::Arc;
-use std::{ffi::CStr, fmt, sync::atomic::AtomicI32, time::Duration};
 use zenoh::{
     key_expr::{keyexpr, KeyExpr, OwnedKeyExpr},
-    query::{ConsolidationMode, QueryTarget, ReplyKeyExpr},
+    prelude::*,
+    pubsub::Subscriber,
+    query::{ConsolidationMode, QueryTarget, ReplyKeyExpr, Selector},
     sample::{Locality, Sample},
-    selector::Selector,
-    subscriber::Subscriber,
-    {prelude::*, Session},
+    Session,
 };
 use zenoh_ext::{FetchingSubscriber, SubscriberBuilderExt};
 
-use crate::DdsPluginRuntime;
 use crate::{
-    dds_mgt::*, qos::Qos, vec_into_raw_parts, KE_ANY_1_SEGMENT, KE_PREFIX_PUB_CACHE, LOG_PAYLOAD,
+    dds_mgt::*, qos::Qos, vec_into_raw_parts, DdsPluginRuntime, KE_ANY_1_SEGMENT,
+    KE_PREFIX_PUB_CACHE, LOG_PAYLOAD,
 };
 
 type AtomicDDSEntity = AtomicI32;
