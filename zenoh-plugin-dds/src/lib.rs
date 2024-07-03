@@ -911,7 +911,7 @@ impl<'a> DdsPluginRuntime<'a> {
                             if let Ok(zenoh_id) = keyexpr::new(zid) {
                                 // make all QueryingSubscriber to query this new member
                                 for (zkey, route) in &mut self.routes_to_dds {
-                                    route.query_historical_publications(|| (*KE_PREFIX_PUB_CACHE / zenoh_id / zkey).into(), self.config.queries_timeout).await;
+                                    route.query_historical_publications(|| (*KE_PREFIX_ADMIN_SPACE / zenoh_id / *KE_PREFIX_PUB_CACHE / zkey).into(), self.config.queries_timeout).await;
                                 }
                             } else {
                                 error!("Can't convert zenoh id '{}' into a KeyExpr", zid);
@@ -943,25 +943,29 @@ impl<'a> DdsPluginRuntime<'a> {
         debug!(r#"Run in "forward discovery" mode"#);
 
         // The data space where all discovery info are fowarded:
-        //   - writers discovery on <KE_PREFIX_FWD_DISCO>/<uuid>/[<scope>]/writer/<dds_entity_admin_key>
-        //   - readers discovery on <KE_PREFIX_FWD_DISCO>/<uuid>/[<scope>]/reader/<dds_entity_admin_key>
-        //   - ros_discovery_info on <KE_PREFIX_FWD_DISCO>/<uuid>/[<scope>]/ros_disco/<gid>
-        // The PublicationCache is declared on <KE_PREFIX_FWD_DISCO>/<uuid>/[<scope>]/**
-        // The QuerySubscriber is declared on  <KE_PREFIX_FWD_DISCO>/*/[<scope>]/**
+        //   - writers discovery on <KE_PREFIX_ADMIN_SPACE>/<uuid>/<KE_PREFIX_FWD_DISCO>/[<scope>]/writer/<dds_entity_admin_key>
+        //   - readers discovery on <KE_PREFIX_ADMIN_SPACE>/<uuid>/<KE_PREFIX_FWD_DISCO>/[<scope>]/reader/<dds_entity_admin_key>
+        //   - ros_discovery_info on <KE_PREFIX_ADMIN_SPACE>/<uuid>/<KE_PREFIX_FWD_DISCO>/[<scope>]/ros_disco/<gid>
+        // The PublicationCache is declared on <KE_PREFIX_ADMIN_SPACE>/<uuid>/<KE_PREFIX_FWD_DISCO>/[<scope>]/**
+        // The QuerySubscriber is declared on  <KE_PREFIX_ADMIN_SPACE>/*/<KE_PREFIX_FWD_DISCO>/[<scope>]/**
         let uuid: OwnedKeyExpr = self.zsession.zid().into();
         let fwd_key_prefix = if let Some(scope) = &self.config.scope {
-            *KE_PREFIX_FWD_DISCO / &uuid / scope
+            *KE_PREFIX_ADMIN_SPACE / &uuid / *KE_PREFIX_FWD_DISCO / scope
         } else {
-            *KE_PREFIX_FWD_DISCO / &uuid
+            *KE_PREFIX_ADMIN_SPACE / &uuid / *KE_PREFIX_FWD_DISCO
         };
         let fwd_writers_key_prefix = &fwd_key_prefix / ke_for_sure!("writer");
         let fwd_readers_key_prefix = &fwd_key_prefix / ke_for_sure!("reader");
         let fwd_ros_discovery_key = &fwd_key_prefix / ke_for_sure!("ros_disco");
         let fwd_declare_publication_cache_key = &fwd_key_prefix / *KE_ANY_N_SEGMENT;
         let fwd_discovery_subscription_key = if let Some(scope) = &self.config.scope {
-            *KE_PREFIX_FWD_DISCO / *KE_ANY_1_SEGMENT / scope / *KE_ANY_N_SEGMENT
+            *KE_PREFIX_ADMIN_SPACE
+                / *KE_ANY_1_SEGMENT
+                / *KE_PREFIX_FWD_DISCO
+                / scope
+                / *KE_ANY_N_SEGMENT
         } else {
-            *KE_PREFIX_FWD_DISCO / *KE_ANY_1_SEGMENT / *KE_ANY_N_SEGMENT
+            *KE_PREFIX_ADMIN_SPACE / *KE_ANY_1_SEGMENT / *KE_PREFIX_FWD_DISCO / *KE_ANY_N_SEGMENT
         };
 
         // Register prefixes for optimization
@@ -1356,9 +1360,9 @@ impl<'a> DdsPluginRuntime<'a> {
                             if let Ok(zenoh_id) = keyexpr::new(zid) {
                                 // query for past publications of discocvery messages from this new member
                                 let key = if let Some(scope) = &self.config.scope {
-                                    *KE_PREFIX_FWD_DISCO / zenoh_id / scope / *KE_ANY_N_SEGMENT
+                                    *KE_PREFIX_ADMIN_SPACE / zenoh_id / *KE_PREFIX_FWD_DISCO / scope / *KE_ANY_N_SEGMENT
                                 } else {
-                                    *KE_PREFIX_FWD_DISCO / zenoh_id / *KE_ANY_N_SEGMENT
+                                    *KE_PREFIX_ADMIN_SPACE / zenoh_id / *KE_PREFIX_FWD_DISCO / *KE_ANY_N_SEGMENT
                                 };
                                 debug!("Query past discovery messages from {} on {}", zid, key);
                                 if let Err(e) = fwd_disco_sub.fetch( |cb| {
@@ -1374,7 +1378,7 @@ impl<'a> DdsPluginRuntime<'a> {
                                 }
                                 // make all QueryingSubscriber to query this new member
                                 for (zkey, route) in &mut self.routes_to_dds {
-                                    route.query_historical_publications(|| (*KE_PREFIX_PUB_CACHE / zenoh_id / zkey).into(), self.config.queries_timeout).await;
+                                    route.query_historical_publications(|| (*KE_PREFIX_ADMIN_SPACE / zenoh_id / *KE_PREFIX_PUB_CACHE / zkey).into(), self.config.queries_timeout).await;
                                 }
                             } else {
                                 error!("Can't convert zenoh id '{}' into a KeyExpr", zid);
@@ -1464,15 +1468,15 @@ impl<'a> DdsPluginRuntime<'a> {
     }
 
     fn parse_fwd_discovery_keyexpr(fwd_ke: &keyexpr) -> Option<(&keyexpr, &str, &keyexpr)> {
-        // parse fwd_ke which have format: "KE_PREFIX_FWD_DISCO/<uuid>[/scope/possibly/multiple]/<disco_kind>/<remaining_ke...>"
-        if !fwd_ke.starts_with(KE_PREFIX_FWD_DISCO.as_str()) {
+        // parse fwd_ke which have format: "KE_PREFIX_ADMIN_SPACE/<uuid>/KE_PREFIX_FWD_DISCO[/scope/possibly/multiple]/<disco_kind>/<remaining_ke...>"
+        if !fwd_ke.starts_with(KE_PREFIX_ADMIN_SPACE.as_str()) {
             // publication on a key expression matching the fwd_ke: ignore it
             return None;
         }
-        let mut remaining = &fwd_ke[KE_PREFIX_FWD_DISCO.len() + 1..];
+        let mut remaining = &fwd_ke[KE_PREFIX_ADMIN_SPACE.len() + 1..];
         let uuid = if let Some(i) = remaining.find('/') {
             let uuid = ke_for_sure!(&remaining[..i]);
-            remaining = &remaining[i..];
+            remaining = &remaining[i + 1..];
             uuid
         } else {
             error!(
@@ -1481,6 +1485,10 @@ impl<'a> DdsPluginRuntime<'a> {
             );
             return None;
         };
+        if !remaining.starts_with(KE_PREFIX_FWD_DISCO.as_str()) {
+            // publication on a key expression matching the fwd_ke: ignore it
+            return None;
+        }
         let kind = if let Some(i) = remaining.find("/reader/") {
             remaining = &remaining[i + 8..];
             "reader"
