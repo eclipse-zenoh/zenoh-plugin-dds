@@ -48,7 +48,7 @@ This software is built in 2 ways to choose from:
  - `zenoh-plugin-dds`: a Zenoh plugin - a dynamic library that can be loaded by a Zenoh router
  - `zenoh-bridge-dds`: a standalone executable
 
-The features and configurations descibed in this document applies to both.
+The features and configurations described in this document applies to both.
 Meaning the *"plugin"* and *"bridge"*  words are interchangeables in the rest of this document.
 
 ## How to install it
@@ -82,7 +82,7 @@ Then either:
 
 ## How to build it
 
-> :warning: **WARNING** :warning: : Zenoh and its ecosystem are under active development. When you build from git, make sure you also build from git any other Zenoh repository you plan to use (e.g. binding, plugin, backend, etc.). It may happen that some changes in git are not compatible with the most recent packaged Zenoh release (e.g. deb, docker, pip). We put particular effort in mantaining compatibility between the various git repositories in the Zenoh project.
+> :warning: **WARNING** :warning: : Zenoh and its ecosystem are under active development. When you build from git, make sure you also build from git any other Zenoh repository you plan to use (e.g. binding, plugin, backend, etc.). It may happen that some changes in git are not compatible with the most recent packaged Zenoh release (e.g. deb, docker, pip). We put particular effort in maintaining compatibility between the various git repositories in the Zenoh project.
 
 > :warning: **WARNING** :warning: : As Rust doesn't have a stable ABI, the plugins should be
 built with the exact same Rust version than `zenohd`, and using for `zenoh` dependency the same version (or commit number) than 'zenohd'.
@@ -152,7 +152,7 @@ If you want to cross-compile the package on x86 device for any target, you can u
 rosdep install --from-paths . --ignore-src -r -y
 colcon build --packages-select zenoh_bridge_dds --cmake-args -DCMAKE_BUILD_TYPE=Release  --cmake-args -DCROSS_ARCH=<target>
 ```
-where `<target>` is the target architecture (e.g. `aarch64-unknown-linux-gnu`). The architechture list can be found [here](https://doc.rust-lang.org/nightly/rustc/platform-support.html).
+where `<target>` is the target architecture (e.g. `aarch64-unknown-linux-gnu`). The architecture list can be found [here](https://doc.rust-lang.org/nightly/rustc/platform-support.html).
 
 The cross-compilation uses `zig` as a linker. You can install it with instructions in [here](https://ziglang.org/download/). Also, the `zigbuild` package is required to be installed on the target device. You can install it with instructions in [here](https://github.com/rust-cross/cargo-zigbuild#installation).
 
@@ -172,7 +172,7 @@ It supports the same command line arguments than the `zenoh-bridge-dds` (see bel
 
 The use cases of this Zenoh plugin for DDS are various:
 - integration of a DDS System with a Zenoh System
-- communication between DDS System and embeded devices thanks to [zenoh-pico](https://github.com/eclipse-zenoh/zenoh-pico)
+- communication between DDS System and embedded devices thanks to [zenoh-pico](https://github.com/eclipse-zenoh/zenoh-pico)
 - bridging between different DDS Systems, across various transports, via a Zenoh infrastructure (i.e. some routers or directly in peer-to-peer between the bridges)
 - scaling a DDS system up to the Cloud with Zenoh routers
 - integration with any technology supported by other Zenoh Plugins (MQTT, ROS 2 ...) or Storages technology (InfluxDB, RocksDB)
@@ -235,7 +235,7 @@ The `"dds"` part of this same configuration file can also be used in the configu
 The zenoh bridge for DDS exposes an administration space allowing to browse the DDS entities that have been discovered (with their QoS), and the routes that have been established between DDS and zenoh.
 This administration space is accessible via any zenoh API, including the REST API that you can activate at `zenoh-bridge-dds` startup using the `--rest-http-port` argument.
 
-Starting from version `0.11.0-rc.2`, the `zenoh-bridge-dds` exposes this administration space with paths prefixed by `@/<uuid>/dds` (where `<uuid>` is the unique identifier of the bridge instance). The informations are then organized with such paths:
+Starting from version `0.11.0-rc.2`, the `zenoh-bridge-dds` exposes this administration space with paths prefixed by `@/<uuid>/dds` (where `<uuid>` is the unique identifier of the bridge instance). The information is then organized with such paths:
  - `@/<uuid>/dds/version` : the bridge version
  - `@/<uuid>/dds/config` : the bridge configuration
  - `@/<uuid>/dds/participant/<gid>/reader/<gid>/<topic>` : a discovered DDS reader on `<topic>`

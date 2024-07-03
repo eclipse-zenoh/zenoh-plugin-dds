@@ -378,7 +378,7 @@ impl<'a> DdsPluginRuntime<'a> {
     }
 
     fn remove_dds_participant(&mut self, dds_key: &str) -> Option<(OwnedKeyExpr, DdsParticipant)> {
-        // remove fron participants map
+        // remove from participants map
         if let Some(e) = self.discovered_participants.remove(dds_key) {
             // remove from admin_space
             let admin_keyexpr = DdsPluginRuntime::get_participant_admin_keyexpr(&e);
@@ -801,7 +801,7 @@ impl<'a> DdsPluginRuntime<'a> {
                         } => {
                             if let Some((_, e)) = self.remove_dds_writer(&key) {
                                 debug!("Undiscovered DDS Writer {} on topic {}", key, e.topic_name);
-                                // remove it from all the active routes refering it (deleting the route if no longer used)
+                                // remove it from all the active routes referring it (deleting the route if no longer used)
                                 let admin_space = &mut self.admin_space;
                                 self.routes_from_dds.retain(|zkey, route| {
                                         route.remove_local_routed_writer(&key);
@@ -863,7 +863,7 @@ impl<'a> DdsPluginRuntime<'a> {
                         } => {
                             if let Some((_, e)) = self.remove_dds_reader(&key) {
                                 debug!("Undiscovered DDS Reader {} on topic {}", key, e.topic_name);
-                                // remove it from all the active routes refering it (deleting the route if no longer used)
+                                // remove it from all the active routes referring it (deleting the route if no longer used)
                                 let admin_space = &mut self.admin_space;
                                 self.routes_to_dds.retain(|zkey, route| {
                                         route.remove_local_routed_reader(&key);
@@ -942,7 +942,7 @@ impl<'a> DdsPluginRuntime<'a> {
     ) {
         debug!(r#"Run in "forward discovery" mode"#);
 
-        // The data space where all discovery info are fowarded:
+        // The data space where all discovery info are forwarded:
         //   - writers discovery on <KE_PREFIX_ADMIN_SPACE>/<uuid>/<KE_PREFIX_FWD_DISCO>/[<scope>]/writer/<dds_entity_admin_key>
         //   - readers discovery on <KE_PREFIX_ADMIN_SPACE>/<uuid>/<KE_PREFIX_FWD_DISCO>/[<scope>]/reader/<dds_entity_admin_key>
         //   - ros_discovery_info on <KE_PREFIX_ADMIN_SPACE>/<uuid>/<KE_PREFIX_FWD_DISCO>/[<scope>]/ros_disco/<gid>
@@ -1115,7 +1115,7 @@ impl<'a> DdsPluginRuntime<'a> {
                                     error!("INTERNAL ERROR: failed to publish undiscovery message on {:?}: {}", fwd_ke, e);
                                 }
                             }
-                            // #102: also remove the Reader from all the active routes refering it,
+                            // #102: also remove the Reader from all the active routes referring it,
                             // deleting the route if it has no longer local Reader nor remote Writer.
                             let admin_space = &mut self.admin_space;
                             self.routes_to_dds.retain(|zkey, route| {
@@ -1215,7 +1215,7 @@ impl<'a> DdsPluginRuntime<'a> {
                                         }
                                     }
                                 } else {
-                                    // writer was deleted; remove it from all the active routes refering it (deleting the route if no longer used)
+                                    // writer was deleted; remove it from all the active routes referring it (deleting the route if no longer used)
                                     let admin_space = &mut self.admin_space;
                                     self.routes_to_dds.retain(|zkey, route| {
                                             route.remove_remote_routed_writer(&full_admin_keyexpr);
@@ -1301,7 +1301,7 @@ impl<'a> DdsPluginRuntime<'a> {
                                         }
                                     }
                                 } else {
-                                    // reader was deleted; remove it from all the active routes refering it (deleting the route if no longer used)
+                                    // reader was deleted; remove it from all the active routes referring it (deleting the route if no longer used)
                                     let admin_space = &mut self.admin_space;
                                     self.routes_from_dds.retain(|zkey, route| {
                                             route.remove_remote_routed_reader(&full_admin_keyexpr);
@@ -1345,7 +1345,7 @@ impl<'a> DdsPluginRuntime<'a> {
                             }
 
                             x => {
-                                error!("Unexpected forwarded discovery message received on invalid key {} (unkown kind: {}) ", fwd_ke, x);
+                                error!("Unexpected forwarded discovery message received on invalid key {} (unknown kind: {}) ", fwd_ke, x);
                             }
                         }
                     }
@@ -1387,7 +1387,7 @@ impl<'a> DdsPluginRuntime<'a> {
                         Ok(SampleKind::Delete) => {
                             let zid = zenoh_id!(group_event.as_ref().unwrap());
                             debug!("Remote zenoh_dds_plugin left: {}", zid);
-                            // remove all the references to the plugin's enities, removing no longer used routes
+                            // remove all the references to the plugin's entities, removing no longer used routes
                             // and updating/re-publishing ParticipantEntitiesInfo
                             let admin_space = &mut self.admin_space;
                             let admin_subke = format!("@/{zid}/dds/");
