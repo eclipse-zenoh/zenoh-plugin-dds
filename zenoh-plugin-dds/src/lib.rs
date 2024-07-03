@@ -175,7 +175,7 @@ pub async fn run(runtime: Runtime, config: Config) {
 
     let member = match zsession
         .liveliness()
-        .declare_token(*KE_PREFIX_LIVELINESS_GROUP / &OwnedKeyExpr::from(zsession.zid()))
+        .declare_token(*KE_PREFIX_LIVELINESS_GROUP / &zsession.zid().into_keyexpr())
         .await
     {
         Ok(member) => member,
@@ -691,7 +691,7 @@ impl<'a> DdsPluginRuntime<'a> {
 
         // declare admin space queryable
         let admin_keyexpr_prefix =
-            *KE_PREFIX_ADMIN_SPACE / &OwnedKeyExpr::from(self.zsession.zid()) / *KE_PREFIX_DDS;
+            *KE_PREFIX_ADMIN_SPACE / &self.zsession.zid().into_keyexpr() / *KE_PREFIX_DDS;
         let admin_keyexpr_expr = (&admin_keyexpr_prefix) / *KE_ANY_N_SEGMENT;
         debug!("Declare admin space on {}", admin_keyexpr_expr);
         let admin_queryable = self
