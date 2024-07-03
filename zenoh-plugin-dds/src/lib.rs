@@ -72,7 +72,7 @@ macro_rules! ke_for_sure {
     };
 }
 
-macro_rules! member_id {
+macro_rules! zenoh_id {
     ($val:expr) => {
         $val.key_expr().as_str().split('/').last().unwrap()
     };
@@ -173,14 +173,9 @@ pub async fn run(runtime: Runtime, config: Config) {
         }
     };
 
-    // create group member using the group_member_id if configured, or the Session ID otherwise
-    let member_id = match config.group_member_id {
-        Some(ref id) => id.clone(),
-        None => zsession.zid().into(),
-    };
     let member = match zsession
         .liveliness()
-        .declare_token(*KE_PREFIX_LIVELINESS_GROUP / &member_id)
+        .declare_token(*KE_PREFIX_LIVELINESS_GROUP / &OwnedKeyExpr::from(zsession.zid()))
         .await
     {
         Ok(member) => member,
@@ -230,9 +225,8 @@ pub async fn run(runtime: Runtime, config: Config) {
     );
     let dp = unsafe { dds_create_participant(config.domain, std::ptr::null(), std::ptr::null()) };
     debug!(
-        "DDS plugin {} with member_id={} and using DDS Participant {}",
+        "DDS plugin {} using DDS Participant {}",
         zsession.zid(),
-        member_id,
         get_guid(&dp).unwrap()
     );
 
@@ -240,7 +234,6 @@ pub async fn run(runtime: Runtime, config: Config) {
         config,
         zsession: &zsession,
         _member: member,
-        member_id,
         dp,
         discovered_participants: HashMap::<String, DdsParticipant>::new(),
         discovered_writers: HashMap::<String, DdsEntity>::new(),
@@ -271,7 +264,6 @@ pub(crate) struct DdsPluginRuntime<'a> {
     // and be able to store the publishers/subscribers it creates in this same struct.
     zsession: &'a Arc<Session>,
     _member: LivelinessToken<'a>,
-    member_id: OwnedKeyExpr,
     dp: dds_entity_t,
     // maps of all discovered DDS entities (indexed by DDS key)
     discovered_participants: HashMap<String, DdsParticipant>,
@@ -914,15 +906,15 @@ impl<'a> DdsPluginRuntime<'a> {
                 group_event = group_subscriber.recv_async() => {
                     match group_event.as_ref().map(|s|s.kind()) {
                         Ok(SampleKind::Put) => {
-                            let mid = member_id!(group_event.as_ref().unwrap());
-                            debug!("New zenoh_dds_plugin detected: {}", mid);
-                            if let Ok(member_id) = keyexpr::new(mid) {
+                            let zid = zenoh_id!(group_event.as_ref().unwrap());
+                            debug!("New zenoh_dds_plugin detected: {}", zid);
+                            if let Ok(zenoh_id) = keyexpr::new(zid) {
                                 // make all QueryingSubscriber to query this new member
                                 for (zkey, route) in &mut self.routes_to_dds {
-                                    route.query_historical_publications(|| (*KE_PREFIX_PUB_CACHE / member_id / zkey).into(), self.config.queries_timeout).await;
+                                    route.query_historical_publications(|| (*KE_PREFIX_PUB_CACHE / zenoh_id / zkey).into(), self.config.queries_timeout).await;
                                 }
                             } else {
-                                error!("Can't convert member id '{}' into a KeyExpr", mid);
+                                error!("Can't convert zenoh id '{}' into a KeyExpr", zid);
                             }
                         }
                         Ok(_) => {} // ignore other GroupEvents
@@ -1358,38 +1350,43 @@ impl<'a> DdsPluginRuntime<'a> {
                 group_event = group_subscriber.recv_async() => {
                     match group_event.as_ref().map(|s|s.kind()) {
                         Ok(SampleKind::Put) => {
-                            let mid = member_id!(group_event.as_ref().unwrap());
-                            debug!("New zenoh_dds_plugin detected: {}", mid);
-                            // query for past publications of discocvery messages from this new member
-                            let key = if let Some(scope) = &self.config.scope {
-                                *KE_PREFIX_FWD_DISCO / ke_for_sure!(mid) / scope / *KE_ANY_N_SEGMENT
+                            let zid = zenoh_id!(group_event.as_ref().unwrap());
+                            debug!("New zenoh_dds_plugin detected: {}", zid);
+
+                            if let Ok(zenoh_id) = keyexpr::new(zid) {
+                                // query for past publications of discocvery messages from this new member
+                                let key = if let Some(scope) = &self.config.scope {
+                                    *KE_PREFIX_FWD_DISCO / zenoh_id / scope / *KE_ANY_N_SEGMENT
+                                } else {
+                                    *KE_PREFIX_FWD_DISCO / zenoh_id / *KE_ANY_N_SEGMENT
+                                };
+                                debug!("Query past discovery messages from {} on {}", zid, key);
+                                if let Err(e) = fwd_disco_sub.fetch( |cb| {
+                                    self.zsession.get(Selector::from(&key))
+                                        .callback(cb)
+                                        .target(QueryTarget::All)
+                                        .consolidation(ConsolidationMode::None)
+                                        .timeout(self.config.queries_timeout)
+                                        .wait()
+                                }).await
+                                {
+                                    warn!("Query on {} for discovery messages failed: {}", key, e);
+                                }
+                                // make all QueryingSubscriber to query this new member
+                                for (zkey, route) in &mut self.routes_to_dds {
+                                    route.query_historical_publications(|| (*KE_PREFIX_PUB_CACHE / zenoh_id / zkey).into(), self.config.queries_timeout).await;
+                                }
                             } else {
-                                *KE_PREFIX_FWD_DISCO / ke_for_sure!(mid) / *KE_ANY_N_SEGMENT
-                            };
-                            debug!("Query past discovery messages from {} on {}", mid, key);
-                            if let Err(e) = fwd_disco_sub.fetch( |cb| {
-                                self.zsession.get(Selector::from(&key))
-                                    .callback(cb)
-                                    .target(QueryTarget::All)
-                                    .consolidation(ConsolidationMode::None)
-                                    .timeout(self.config.queries_timeout)
-                                    .wait()
-                            }).await
-                            {
-                                warn!("Query on {} for discovery messages failed: {}", key, e);
-                            }
-                            // make all QueryingSubscriber to query this new member
-                            for (zkey, route) in &mut self.routes_to_dds {
-                                route.query_historical_publications(|| (*KE_PREFIX_PUB_CACHE / ke_for_sure!(mid) / zkey).into(), self.config.queries_timeout).await;
+                                error!("Can't convert zenoh id '{}' into a KeyExpr", zid);
                             }
                         }
                         Ok(SampleKind::Delete) => {
-                            let mid = member_id!(group_event.as_ref().unwrap());
-                            debug!("Remote zenoh_dds_plugin left: {}", mid);
+                            let zid = zenoh_id!(group_event.as_ref().unwrap());
+                            debug!("Remote zenoh_dds_plugin left: {}", zid);
                             // remove all the references to the plugin's enities, removing no longer used routes
                             // and updating/re-publishing ParticipantEntitiesInfo
                             let admin_space = &mut self.admin_space;
-                            let admin_subke = format!("@/{mid}/dds/");
+                            let admin_subke = format!("@/{zid}/dds/");
                             let mut participant_info_changed = false;
                             self.routes_to_dds.retain(|zkey, route| {
                                 route.remove_remote_routed_writers_containing(&admin_subke);
@@ -1432,7 +1429,7 @@ impl<'a> DdsPluginRuntime<'a> {
                                 }
                             });
                             if participant_info_changed {
-                                debug!("Publishing up-to-date ros_discovery_info after leaving of plugin {}", mid);
+                                debug!("Publishing up-to-date ros_discovery_info after leaving of plugin {}", zid);
                                 participant_info.cleanup();
                                 if let Err(e) = ros_disco_mgr.write(&participant_info) {
                                     error!("Error forwarding ros_discovery_info: {}", e);

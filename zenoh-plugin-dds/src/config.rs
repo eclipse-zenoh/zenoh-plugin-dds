@@ -32,8 +32,6 @@ pub struct Config {
     pub scope: Option<OwnedKeyExpr>,
     #[serde(default = "default_domain")]
     pub domain: u32,
-    #[serde(default)]
-    pub group_member_id: Option<OwnedKeyExpr>,
     #[serde(default, deserialize_with = "deserialize_regex")]
     pub allow: Option<Regex>,
     #[serde(default, deserialize_with = "deserialize_regex")]
