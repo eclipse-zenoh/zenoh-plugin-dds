@@ -82,9 +82,9 @@
       // generalise_subs: ["SUB1", "SUB2"],
 
       ////
-      //// generalise_subs: A list of key expression to use for generalising publications.
+      //// generalise_pubs: A list of key expression to use for generalising publications.
       ////
-      // generalise_subs: ["PUB1", "PUB2"],
+      // generalise_pubs: ["PUB1", "PUB2"],
 
       ////
       //// forward_discovery: When true, rather than creating a local route when discovering a local DDS entity,
@@ -136,7 +136,7 @@
   ////
   //// mode: The bridge's mode (peer or client)
   ////
-  //mode: "client",
+  // mode: "client",
 
   ////
   //// Which endpoints to connect to. E.g. tcp/localhost:7447.
