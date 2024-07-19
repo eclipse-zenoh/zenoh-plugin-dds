@@ -4401,10 +4401,11 @@ name = "zenoh-bridge-dds"
 version = "0.11.0-dev"
 dependencies = [
  "async-liveliness-monitor",
- "async-std",
  "clap",
+ "futures",
  "lazy_static",
  "serde_json",
+ "tokio",
  "tracing",
  "zenoh",
  "zenoh-plugin-dds",
@@ -4718,7 +4719,6 @@ dependencies = [
 name = "zenoh-plugin-dds"
 version = "0.11.0-dev"
 dependencies = [
- "async-std",
  "async-trait",
  "bincode",
  "cdr",
@@ -4733,6 +4733,7 @@ dependencies = [
  "rustc_version 0.4.0",
  "serde",
  "serde_json",
+ "tokio",
  "tracing",
  "zenoh",
  "zenoh-ext",

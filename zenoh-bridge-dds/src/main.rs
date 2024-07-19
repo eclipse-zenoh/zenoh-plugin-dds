@@ -242,7 +242,7 @@ r#"--watchdog=[PERIOD]   'Experimental!! Run a watchdog thread that monitors the
     (config, watchdog_period)
 }
 
-#[async_std::main]
+#[tokio::main]
 async fn main() {
     zenoh::init_log_from_env_or("z=info");
     tracing::info!("zenoh-bridge-dds {}", DDSPlugin::PLUGIN_LONG_VERSION);
@@ -283,7 +283,7 @@ async fn main() {
         std::process::exit(-1);
     }
 
-    async_std::future::pending::<()>().await;
+    futures::future::pending::<()>().await;
 }
 
 fn run_watchdog(period: f32) {
@@ -301,8 +301,8 @@ fn run_watchdog(period: f32) {
         report_threshold_2.as_secs_f32()
     );
 
-    // Start a Liveliness Monitor thread for async_std Runtime
-    let (_task, monitor) = LivelinessMonitor::start(async_std::task::spawn);
+    // Start a Liveliness Monitor thread for tokio Runtime
+    let (_task, monitor) = LivelinessMonitor::start(tokio::spawn);
     std::thread::spawn(move || {
         tracing::debug!(
             "Watchdog started with period {} sec",
@@ -324,11 +324,20 @@ fn run_watchdog(period: f32) {
             let report = monitor.latest_report();
             if report.elapsed() > report_threshold_1 {
                 if report.elapsed() > sleep_time {
-                    tracing::error!("Watchdog detecting async_std is stalled! No task scheduling since {} seconds", report.elapsed().as_secs_f32());
+                    tracing::error!(
+                        "Watchdog detecting tokio is stalled! No task scheduling since {} seconds",
+                        report.elapsed().as_secs_f32()
+                    );
                 } else if report.elapsed() > report_threshold_2 {
-                    tracing::warn!("Watchdog detecting async_std was not scheduling tasks during the last {} ms", report.elapsed().as_micros());
+                    tracing::warn!(
+                        "Watchdog detecting tokio was not scheduling tasks during the last {} ms",
+                        report.elapsed().as_micros()
+                    );
                 } else {
-                    tracing::info!("Watchdog detecting async_std was not scheduling tasks during the last {} ms", report.elapsed().as_micros());
+                    tracing::info!(
+                        "Watchdog detecting tokio was not scheduling tasks during the last {} ms",
+                        report.elapsed().as_micros()
+                    );
                 }
             }
         }

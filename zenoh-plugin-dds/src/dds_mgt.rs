@@ -21,7 +21,6 @@ use std::{
     time::Duration,
 };
 
-use async_std::task;
 use cyclors::{
     qos::{History, HistoryKind, Qos},
     *,
@@ -575,7 +574,7 @@ pub(crate) fn create_forwarding_dds_reader(
                 let qos_native = qos.to_qos_native();
                 let reader = dds_create_reader(dp, t, qos_native, std::ptr::null());
                 let z_key = z_key.into_owned();
-                task::spawn(async move {
+                tokio::task::spawn(async move {
                     // loop while reader's instance handle remain the same
                     // (if reader was deleted, its dds_entity_t value might have been
                     // reused by a new entity... don't trust it! Only trust instance handle)
@@ -587,7 +586,7 @@ pub(crate) fn create_forwarding_dds_reader(
                             break;
                         }
 
-                        async_std::task::sleep(period).await;
+                        tokio::time::sleep(period).await;
                         let mut zp: *mut ddsi_serdata = std::ptr::null_mut();
                         #[allow(clippy::uninit_assumed_init)]
                         let mut si = MaybeUninit::<[dds_sample_info_t; 1]>::uninit();
