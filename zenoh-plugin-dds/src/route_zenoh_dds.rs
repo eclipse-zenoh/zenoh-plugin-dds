@@ -31,10 +31,9 @@ use serde::{Serialize, Serializer};
 use zenoh::{
     key_expr::{keyexpr, KeyExpr, OwnedKeyExpr},
     prelude::*,
-    query::{ConsolidationMode, QueryTarget, ReplyKeyExpr},
+    pubsub::Subscriber,
+    query::{ConsolidationMode, QueryTarget, ReplyKeyExpr, Selector},
     sample::{Locality, Sample},
-    selector::Selector,
-    subscriber::Subscriber,
     Session,
 };
 use zenoh_ext::{FetchingSubscriber, SubscriberBuilderExt};

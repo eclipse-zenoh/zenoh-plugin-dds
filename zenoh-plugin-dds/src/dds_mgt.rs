@@ -29,15 +29,15 @@ use cyclors::{
 use flume::Sender;
 use serde::{Deserialize, Serialize, Serializer};
 use tracing::{debug, error, warn};
-#[cfg(feature = "dds_shm")]
-use zenoh::internal::buffers::{ZBuf, ZSlice};
 use zenoh::{
     bytes::ZBytes,
     key_expr::{KeyExpr, OwnedKeyExpr},
     prelude::*,
-    publisher::CongestionControl,
+    qos::CongestionControl,
     Session,
 };
+#[cfg(feature = "dds_shm")]
+use zenoh::{internal::buffers::ZBuf, internal::buffers::ZSlice};
 
 const MAX_SAMPLES: usize = 32;
 

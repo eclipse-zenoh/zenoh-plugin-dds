@@ -35,8 +35,7 @@ use serde::{ser::SerializeStruct, Serialize, Serializer};
 use serde_json::Value;
 use tracing::{debug, error, info, trace, warn};
 use zenoh::{
-    bytes::ZBytes,
-    encoding::Encoding,
+    bytes::{Encoding, ZBytes},
     internal::{
         plugins::{RunningPlugin, RunningPluginTrait, ZenohPlugin},
         runtime::Runtime,
@@ -45,11 +44,9 @@ use zenoh::{
     key_expr::{keyexpr, KeyExpr, OwnedKeyExpr},
     liveliness::LivelinessToken,
     prelude::*,
-    publisher::CongestionControl,
-    query::{ConsolidationMode, Query, QueryTarget},
-    queryable::Queryable,
+    qos::CongestionControl,
+    query::{ConsolidationMode, Query, QueryTarget, Queryable, Selector},
     sample::{Locality, Sample, SampleKind},
-    selector::Selector,
     Result as ZResult, Session,
 };
 use zenoh_ext::{SessionExt, SubscriberBuilderExt};

@@ -23,7 +23,7 @@ use serde::Serialize;
 use zenoh::{
     key_expr::{keyexpr, KeyExpr, OwnedKeyExpr},
     prelude::*,
-    publisher::CongestionControl,
+    qos::CongestionControl,
     sample::Locality,
 };
 use zenoh_ext::{PublicationCache, SessionExt};

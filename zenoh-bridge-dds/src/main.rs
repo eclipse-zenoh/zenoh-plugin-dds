@@ -20,9 +20,9 @@ use async_liveliness_monitor::LivelinessMonitor;
 use clap::{App, Arg};
 use zenoh::{
     config::{Config, ModeDependentValue},
-    info::ZenohId,
     internal::{plugins::PluginsManager, runtime::RuntimeBuilder},
     prelude::*,
+    session::ZenohId,
 };
 use zenoh_plugin_dds::DDSPlugin;
 use zenoh_plugin_trait::Plugin;
@@ -185,13 +185,15 @@ r#"--watchdog=[PERIOD]   'Experimental!! Run a watchdog thread that monitors the
         config
             .connect
             .endpoints
-            .extend(endpoints.map(|p| p.parse().unwrap()))
+            .set(endpoints.map(|p| p.parse().unwrap()).collect())
+            .unwrap();
     }
     if let Some(endpoints) = args.values_of("listen") {
         config
             .listen
             .endpoints
-            .extend(endpoints.map(|p| p.parse().unwrap()))
+            .set(endpoints.map(|p| p.parse().unwrap()).collect())
+            .unwrap();
     }
     if args.is_present("no-multicast-scouting") {
         config.scouting.multicast.set_enabled(Some(false)).unwrap();
