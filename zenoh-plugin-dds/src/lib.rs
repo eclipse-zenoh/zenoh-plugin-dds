@@ -73,12 +73,6 @@ use crate::{
     route_zenoh_dds::RouteZenohDDS,
 };
 
-macro_rules! ke_for_sure {
-    ($val:expr) => {
-        unsafe { keyexpr::from_str_unchecked($val) }
-    };
-}
-
 macro_rules! zenoh_id {
     ($val:expr) => {
         $val.key_expr().as_str().split('/').last().unwrap()
@@ -88,16 +82,16 @@ macro_rules! zenoh_id {
 lazy_static::lazy_static!(
     static ref LOG_PAYLOAD: bool = std::env::var("Z_LOG_PAYLOAD").is_ok();
 
-    static ref KE_PREFIX_ADMIN_SPACE: &'static keyexpr = ke_for_sure!("@");
-    static ref KE_PREFIX_DDS: &'static keyexpr = ke_for_sure!("dds");
-    static ref KE_PREFIX_ROUTE_TO_DDS: &'static keyexpr = ke_for_sure!("route/to_dds");
-    static ref KE_PREFIX_ROUTE_FROM_DDS: &'static keyexpr = ke_for_sure!("route/from_dds");
-    static ref KE_PREFIX_PUB_CACHE: &'static keyexpr = ke_for_sure!("@dds_pub_cache");
-    static ref KE_PREFIX_FWD_DISCO: &'static keyexpr = ke_for_sure!("@dds_fwd_disco");
-    static ref KE_PREFIX_LIVELINESS_GROUP: &'static keyexpr = ke_for_sure!("zenoh-plugin-dds");
+    static ref KE_PREFIX_ADMIN_SPACE: &'static keyexpr = unsafe { keyexpr::from_str_unchecked("@") };
+    static ref KE_PREFIX_DDS: &'static keyexpr = unsafe { keyexpr::from_str_unchecked("dds") };
+    static ref KE_PREFIX_ROUTE_TO_DDS: &'static keyexpr = unsafe { keyexpr::from_str_unchecked("route/to_dds") };
+    static ref KE_PREFIX_ROUTE_FROM_DDS: &'static keyexpr = unsafe { keyexpr::from_str_unchecked("route/from_dds") };
+    static ref KE_PREFIX_PUB_CACHE: &'static keyexpr = unsafe { keyexpr::from_str_unchecked("@dds_pub_cache") };
+    static ref KE_PREFIX_FWD_DISCO: &'static keyexpr = unsafe { keyexpr::from_str_unchecked("@dds_fwd_disco") };
+    static ref KE_PREFIX_LIVELINESS_GROUP: &'static keyexpr = unsafe { keyexpr::from_str_unchecked("zenoh-plugin-dds") };
 
-    static ref KE_ANY_1_SEGMENT: &'static keyexpr = ke_for_sure!("*");
-    static ref KE_ANY_N_SEGMENT: &'static keyexpr = ke_for_sure!("**");
+    static ref KE_ANY_1_SEGMENT: &'static keyexpr = unsafe { keyexpr::from_str_unchecked("*") };
+    static ref KE_ANY_N_SEGMENT: &'static keyexpr = unsafe { keyexpr::from_str_unchecked("**") };
 
     static ref LOG_ROS2_DEPRECATION_WARNING_FLAG: AtomicBool = AtomicBool::new(false);
 );
@@ -965,9 +959,12 @@ impl<'a> DdsPluginRuntime<'a> {
         } else {
             *KE_PREFIX_ADMIN_SPACE / &uuid / *KE_PREFIX_FWD_DISCO
         };
-        let fwd_writers_key_prefix = &fwd_key_prefix / ke_for_sure!("writer");
-        let fwd_readers_key_prefix = &fwd_key_prefix / ke_for_sure!("reader");
-        let fwd_ros_discovery_key = &fwd_key_prefix / ke_for_sure!("ros_disco");
+        let fwd_writers_key_prefix =
+            &fwd_key_prefix / unsafe { keyexpr::from_str_unchecked("writer") };
+        let fwd_readers_key_prefix =
+            &fwd_key_prefix / unsafe { keyexpr::from_str_unchecked("reader") };
+        let fwd_ros_discovery_key =
+            &fwd_key_prefix / unsafe { keyexpr::from_str_unchecked("ros_disco") };
         let fwd_declare_publication_cache_key = &fwd_key_prefix / *KE_ANY_N_SEGMENT;
         let fwd_discovery_subscription_key = if let Some(scope) = &self.config.scope {
             *KE_PREFIX_ADMIN_SPACE
@@ -1468,7 +1465,7 @@ impl<'a> DdsPluginRuntime<'a> {
                     for (gid, buf) in infos {
                         trace!("Received ros_discovery_info from DDS for {}, forward via zenoh: {}", gid, buf.hex_encode());
                         // forward the payload on zenoh
-                        let ke = &fwd_ros_discovery_key_declared / ke_for_sure!(&gid);
+                        let ke = &fwd_ros_discovery_key_declared / unsafe { keyexpr::from_str_unchecked(&gid) };
                         if let Err(e) = self.zsession.put(ke, buf).wait() {
                             error!("Forward ROS discovery info failed: {}", e);
                         }
@@ -1486,7 +1483,7 @@ impl<'a> DdsPluginRuntime<'a> {
         }
         let mut remaining = &fwd_ke[KE_PREFIX_ADMIN_SPACE.len() + 1..];
         let uuid = if let Some(i) = remaining.find('/') {
-            let uuid = ke_for_sure!(&remaining[..i]);
+            let uuid = unsafe { keyexpr::from_str_unchecked(&remaining[..i]) };
             remaining = &remaining[i + 1..];
             uuid
         } else {
@@ -1513,7 +1510,9 @@ impl<'a> DdsPluginRuntime<'a> {
             error!("Unexpected forwarded discovery message received on invalid key: {} (no expected kind '/reader/', '/writer/' or '/ros_disco/')", fwd_ke);
             return None;
         };
-        Some((uuid, kind, ke_for_sure!(remaining)))
+        Some((uuid, kind, unsafe {
+            keyexpr::from_str_unchecked(remaining)
+        }))
     }
 
     fn remap_entities_info(&self, entities_info: &mut HashMap<String, NodeEntitiesInfo>) {
