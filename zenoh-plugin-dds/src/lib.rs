@@ -31,6 +31,7 @@ use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use std::time::Duration;
 use tracing::{debug, error, info, trace, warn};
+use zenoh::encoding::Encoding;
 use zenoh::{
     bytes::ZBytes,
     internal::{
@@ -664,7 +665,11 @@ impl<'a> DdsPluginRuntime<'a> {
             let admin_keyexpr = admin_keyexpr_prefix / &ke;
             match ZBytes::try_from(v) {
                 Ok(payload) => {
-                    if let Err(e) = query.reply(admin_keyexpr, payload).await {
+                    if let Err(e) = query
+                        .reply(admin_keyexpr, payload)
+                        .encoding(Encoding::APPLICATION_JSON)
+                        .await
+                    {
                         warn!("Error replying to admin query {:?}: {}", query, e);
                     }
                 }
