@@ -12,10 +12,14 @@
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 
-use cyclors::qos::{HistoryKind, Qos};
-use cyclors::{dds_entity_t, DDS_LENGTH_UNLIMITED};
-use serde::Serialize;
 use std::{collections::HashSet, fmt};
+
+use cyclors::{
+    dds_entity_t,
+    qos::{HistoryKind, Qos},
+    DDS_LENGTH_UNLIMITED,
+};
+use serde::Serialize;
 use zenoh::{
     key_expr::{keyexpr, KeyExpr, OwnedKeyExpr},
     prelude::*,

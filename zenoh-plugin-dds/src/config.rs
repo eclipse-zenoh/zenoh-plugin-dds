@@ -11,12 +11,10 @@
 // Contributors:
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
+use std::{env, fmt, time::Duration};
+
 use regex::Regex;
-use serde::de::Visitor;
-use serde::{de, Deserialize, Deserializer};
-use std::env;
-use std::fmt;
-use std::time::Duration;
+use serde::{de, de::Visitor, Deserialize, Deserializer};
 use zenoh::key_expr::OwnedKeyExpr;
 
 pub const DEFAULT_DOMAIN: u32 = 0;
