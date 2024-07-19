@@ -149,7 +149,7 @@ impl RouteDDSZenoh<'_> {
                 .zsession
                 .declare_publication_cache(&declared_ke)
                 .history(history)
-                .queryable_prefix(*KE_PREFIX_PUB_CACHE / &plugin.member_id)
+                .queryable_prefix(*KE_PREFIX_PUB_CACHE / &plugin.zsession.zid().into_keyexpr())
                 .queryable_allowed_origin(Locality::Remote) // Note: don't reply to queries from local QueryingSubscribers
                 .await
                 .map_err(|e| {

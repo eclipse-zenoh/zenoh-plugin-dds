@@ -35,12 +35,6 @@
       // shm_enabled: false,
 
       ////
-      //// group_member_id: A custom identifier for the bridge, that will be used in group management
-      ////                  (if not specified, the zenoh UUID is used).
-      ////
-      // group_member_id: "robot-1",
-
-      ////
       //// allow: 1 or more regular expression matching the set of 'partition/topic-name' that must be routed via zenoh.
       ////        By default, all partitions and topics are allowed.
       ////        If both 'allow' and 'deny' are set a partition and/or topic will be allowed if it matches only the 'allow' expression.
