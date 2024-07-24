@@ -33,6 +33,7 @@ use futures::select;
 use route_dds_zenoh::RouteDDSZenoh;
 use serde::{ser::SerializeStruct, Serialize, Serializer};
 use serde_json::Value;
+use tokio::runtime::Handle;
 use tracing::{debug, error, info, trace, warn};
 use zenoh::{
     bytes::{Encoding, ZBytes},
@@ -74,6 +75,18 @@ macro_rules! zenoh_id {
     ($val:expr) => {
         $val.key_expr().as_str().split('/').last().unwrap()
     };
+}
+
+const WORKER_THREAD_NUM: usize = 2;
+const MAX_BLOCK_THREAD_NUM: usize = 50;
+lazy_static::lazy_static! {
+    // The global runtime is used in the zenohd case, which we can't get the current runtime
+    static ref TOKIO_RUNTIME: tokio::runtime::Runtime = tokio::runtime::Builder::new_multi_thread()
+               .worker_threads(WORKER_THREAD_NUM)
+               .max_blocking_threads(MAX_BLOCK_THREAD_NUM)
+               .enable_all()
+               .build()
+               .expect("Unable to create runtime");
 }
 
 lazy_static::lazy_static!(
@@ -144,7 +157,17 @@ impl Plugin for DDSPlugin {
             .ok_or_else(|| zerror!("Plugin `{}`: missing config", name))?;
         let config: Config = serde_json::from_value(plugin_conf.clone())
             .map_err(|e| zerror!("Plugin `{}` configuration error: {}", name, e))?;
-        tokio::task::spawn(run(runtime.clone(), config));
+        // Check whether able to get the current runtime
+        match Handle::try_current() {
+            Ok(rt) => {
+                // Able to get the current runtime (standalone binary), spawn on the current runtime
+                rt.spawn(run(runtime.clone(), config));
+            }
+            Err(_) => {
+                // Unable to get the current runtime (loaded in zenohd), spawn on the global runtime
+                TOKIO_RUNTIME.spawn(run(runtime.clone(), config));
+            }
+        }
         Ok(Box::new(DDSPlugin))
     }
 }
