@@ -15,8 +15,12 @@ use std::{
     borrow::Cow,
     collections::HashMap,
     env,
+    future::Future,
     mem::ManuallyDrop,
-    sync::{atomic::AtomicBool, Arc},
+    sync::{
+        atomic::{AtomicBool, AtomicUsize, Ordering},
+        Arc,
+    },
     time::Duration,
 };
 
@@ -33,7 +37,7 @@ use futures::select;
 use route_dds_zenoh::RouteDDSZenoh;
 use serde::{ser::SerializeStruct, Serialize, Serializer};
 use serde_json::Value;
-use tokio::runtime::Handle;
+use tokio::task::JoinHandle;
 use tracing::{debug, error, info, trace, warn};
 use zenoh::{
     bytes::{Encoding, ZBytes},
@@ -77,16 +81,34 @@ macro_rules! zenoh_id {
     };
 }
 
-const WORKER_THREAD_NUM: usize = 2;
-const MAX_BLOCK_THREAD_NUM: usize = 50;
 lazy_static::lazy_static! {
-    // The global runtime is used in the zenohd case, which we can't get the current runtime
+    static ref WORK_THREAD_NUM: AtomicUsize = AtomicUsize::new(config::DEFAULT_WORK_THREAD_NUM);
+    static ref MAX_BLOCK_THREAD_NUM: AtomicUsize = AtomicUsize::new(config::DEFAULT_MAX_BLOCK_THREAD_NUM);
+    // The global runtime is used in the dynamic plugins, which we can't get the current runtime
     static ref TOKIO_RUNTIME: tokio::runtime::Runtime = tokio::runtime::Builder::new_multi_thread()
-               .worker_threads(WORKER_THREAD_NUM)
-               .max_blocking_threads(MAX_BLOCK_THREAD_NUM)
+               .worker_threads(WORK_THREAD_NUM.load(Ordering::SeqCst))
+               .max_blocking_threads(MAX_BLOCK_THREAD_NUM.load(Ordering::SeqCst))
                .enable_all()
                .build()
                .expect("Unable to create runtime");
+}
+#[inline(always)]
+pub(crate) fn spawn_runtime<F>(task: F) -> JoinHandle<F::Output>
+where
+    F: Future + Send + 'static,
+    F::Output: Send + 'static,
+{
+    // Check whether able to get the current runtime
+    match tokio::runtime::Handle::try_current() {
+        Ok(rt) => {
+            // Able to get the current runtime (standalone binary), spawn on the current runtime
+            rt.spawn(task)
+        }
+        Err(_) => {
+            // Unable to get the current runtime (dynamic plugins), spawn on the global runtime
+            TOKIO_RUNTIME.spawn(task)
+        }
+    }
 }
 
 lazy_static::lazy_static!(
@@ -157,17 +179,11 @@ impl Plugin for DDSPlugin {
             .ok_or_else(|| zerror!("Plugin `{}`: missing config", name))?;
         let config: Config = serde_json::from_value(plugin_conf.clone())
             .map_err(|e| zerror!("Plugin `{}` configuration error: {}", name, e))?;
-        // Check whether able to get the current runtime
-        match Handle::try_current() {
-            Ok(rt) => {
-                // Able to get the current runtime (standalone binary), spawn on the current runtime
-                rt.spawn(run(runtime.clone(), config));
-            }
-            Err(_) => {
-                // Unable to get the current runtime (loaded in zenohd), spawn on the global runtime
-                TOKIO_RUNTIME.spawn(run(runtime.clone(), config));
-            }
-        }
+        WORK_THREAD_NUM.store(config.work_thread_num, Ordering::SeqCst);
+        MAX_BLOCK_THREAD_NUM.store(config.max_block_thread_num, Ordering::SeqCst);
+
+        spawn_runtime(run(runtime.clone(), config));
+
         Ok(Box::new(DDSPlugin))
     }
 }
