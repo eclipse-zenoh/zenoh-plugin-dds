@@ -153,9 +153,9 @@ impl RouteZenohDDS<'_> {
                 let arc_dw2 = arc_dw.clone();
                 let ton2 = ton.clone();
                 let ke = s.key_expr().clone();
-                async_std::task::spawn(async move {
+                tokio::task::spawn(async move {
                     for _ in 1..30 {
-                        async_std::task::sleep(Duration::from_millis(100)).await;
+                        tokio::time::sleep(Duration::from_millis(100)).await;
                         let dw = arc_dw2.load(Ordering::Relaxed);
                         if dw != DDS_ENTITY_NULL {
                             do_route_data(s, &ton2, dw);

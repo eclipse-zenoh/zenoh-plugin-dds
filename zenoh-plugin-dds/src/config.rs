@@ -22,6 +22,8 @@ pub const DEFAULT_FORWARD_DISCOVERY: bool = false;
 pub const DEFAULT_RELIABLE_ROUTES_BLOCKING: bool = true;
 pub const DEFAULT_QUERIES_TIMEOUT: f32 = 5.0;
 pub const DEFAULT_DDS_LOCALHOST_ONLY: bool = false;
+pub const DEFAULT_WORK_THREAD_NUM: usize = 2;
+pub const DEFAULT_MAX_BLOCK_THREAD_NUM: usize = 50;
 
 #[derive(Deserialize, Debug)]
 #[serde(deny_unknown_fields)]
@@ -54,6 +56,10 @@ pub struct Config {
         deserialize_with = "deserialize_duration"
     )]
     pub queries_timeout: Duration,
+    #[serde(default = "default_work_thread_num")]
+    pub work_thread_num: usize,
+    #[serde(default = "default_max_block_thread_num")]
+    pub max_block_thread_num: usize,
     __required__: Option<bool>,
     #[serde(default, deserialize_with = "deserialize_path")]
     __path__: Option<Vec<String>>,
@@ -170,6 +176,14 @@ where
 {
     let seconds: f32 = Deserialize::deserialize(deserializer)?;
     Ok(Duration::from_secs_f32(seconds))
+}
+
+fn default_work_thread_num() -> usize {
+    DEFAULT_WORK_THREAD_NUM
+}
+
+fn default_max_block_thread_num() -> usize {
+    DEFAULT_MAX_BLOCK_THREAD_NUM
 }
 
 fn default_forward_discovery() -> bool {
