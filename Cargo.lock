@@ -4064,7 +4064,7 @@ dependencies = [
 
 [[package]]
 name = "zenoh-bridge-dds"
-version = "0.11.0-dev"
+version = "0.11.0-dev-145-gea31140"
 dependencies = [
  "async-liveliness-monitor",
  "async-std",
@@ -4376,7 +4376,7 @@ dependencies = [
 
 [[package]]
 name = "zenoh-plugin-dds"
-version = "0.11.0-dev"
+version = "0.11.0-dev-145-gea31140"
 dependencies = [
  "async-std",
  "async-trait",
