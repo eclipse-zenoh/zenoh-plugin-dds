@@ -12,23 +12,35 @@
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 
+use std::{
+    collections::HashSet,
+    ffi::CStr,
+    fmt,
+    sync::{
+        atomic::{AtomicI32, Ordering},
+        Arc,
+    },
+    time::Duration,
+};
+
 use cyclors::{
     dds_entity_t, dds_get_entity_sertype, dds_strretcode, dds_writecdr, ddsi_serdata_from_ser_iov,
     ddsi_serdata_kind_SDK_DATA, ddsi_sertype, ddsrt_iovec_t,
 };
 use serde::{Serialize, Serializer};
-use std::collections::HashSet;
-use std::sync::atomic::Ordering;
-use std::sync::Arc;
-use std::{ffi::CStr, fmt, sync::atomic::AtomicI32, time::Duration};
-use zenoh::prelude::*;
-use zenoh::query::ReplyKeyExpr;
-use zenoh::{prelude::r#async::AsyncResolve, subscriber::Subscriber};
+use zenoh::{
+    key_expr::{keyexpr, KeyExpr, OwnedKeyExpr},
+    prelude::*,
+    pubsub::Subscriber,
+    query::{ConsolidationMode, QueryTarget, ReplyKeyExpr, Selector},
+    sample::{Locality, Sample},
+    Session,
+};
 use zenoh_ext::{FetchingSubscriber, SubscriberBuilderExt};
 
-use crate::DdsPluginRuntime;
 use crate::{
-    dds_mgt::*, qos::Qos, vec_into_raw_parts, KE_ANY_1_SEGMENT, KE_PREFIX_PUB_CACHE, LOG_PAYLOAD,
+    dds_mgt::*, qos::Qos, vec_into_raw_parts, DdsPluginRuntime, KE_ANY_1_SEGMENT,
+    KE_PREFIX_PUB_CACHE, LOG_PAYLOAD,
 };
 
 type AtomicDDSEntity = AtomicI32;
@@ -135,15 +147,15 @@ impl RouteZenohDDS<'_> {
                 // before the discovery message provoking the creation of the Data Writer
                 tracing::debug!(
                     "Route Zenoh->DDS ({} -> {}): data arrived but no DDS Writer yet to route it... wait 3s for discovery forwarding msg",
-                    s.key_expr,
+                    s.key_expr(),
                     &ton
                 );
                 let arc_dw2 = arc_dw.clone();
                 let ton2 = ton.clone();
-                let ke = s.key_expr.clone();
-                async_std::task::spawn(async move {
+                let ke = s.key_expr().clone();
+                tokio::task::spawn(async move {
                     for _ in 1..30 {
-                        async_std::task::sleep(Duration::from_millis(100)).await;
+                        tokio::time::sleep(Duration::from_millis(100)).await;
                         let dw = arc_dw2.load(Ordering::Relaxed);
                         if dw != DDS_ENTITY_NULL {
                             do_route_data(s, &ton2, dw);
@@ -181,7 +193,6 @@ impl RouteZenohDDS<'_> {
                 .query_timeout(plugin.config.queries_timeout)
                 .query_selector(query_selector)
                 .query_accept_replies(ReplyKeyExpr::Any)
-                .res()
                 .await
                 .map_err(|e| {
                     format!(
@@ -196,7 +207,6 @@ impl RouteZenohDDS<'_> {
                 .callback(subscriber_callback)
                 .allowed_origin(Locality::Remote) // Allow only remote publications to avoid loops
                 .reliable()
-                .res()
                 .await
                 .map_err(|e| {
                     format!(
@@ -290,7 +300,6 @@ impl RouteZenohDDS<'_> {
                     let session = &self.zenoh_session;
                     let s = s.clone();
                     move |cb| {
-                        use zenoh_core::SyncResolve;
                         session
                             .get(&s)
                             .target(QueryTarget::All)
@@ -298,10 +307,9 @@ impl RouteZenohDDS<'_> {
                             .accept_replies(ReplyKeyExpr::Any)
                             .timeout(query_timeout)
                             .callback(cb)
-                            .res_sync()
+                            .wait()
                     }
                 })
-                .res()
                 .await
             {
                 tracing::warn!(
@@ -358,20 +366,20 @@ fn do_route_data(s: Sample, topic_name: &str, data_writer: dds_entity_t) {
     if *LOG_PAYLOAD {
         tracing::trace!(
             "Route Zenoh->DDS ({} -> {}): routing data - payload: {:?}",
-            s.key_expr,
+            s.key_expr(),
             &topic_name,
-            s.value.payload
+            s.payload()
         );
     } else {
         tracing::trace!(
             "Route Zenoh->DDS ({} -> {}): routing data",
-            s.key_expr,
+            s.key_expr(),
             &topic_name
         );
     }
 
     unsafe {
-        let bs = s.value.payload.contiguous().into_owned();
+        let bs = s.payload().into();
         // As per the Vec documentation (see https://doc.rust-lang.org/std/vec/struct.Vec.html#method.into_raw_parts)
         // the only way to correctly releasing it is to create a vec using from_raw_parts
         // and then have its destructor do the cleanup.
@@ -401,7 +409,7 @@ fn do_route_data(s: Sample, topic_name: &str, data_writer: dds_entity_t) {
         if ret < 0 {
             tracing::warn!(
                 "Route Zenoh->DDS ({} -> {}): can't route data; sertype lookup failed ({})",
-                s.key_expr,
+                s.key_expr(),
                 topic_name,
                 CStr::from_ptr(dds_strretcode(ret))
                     .to_str()

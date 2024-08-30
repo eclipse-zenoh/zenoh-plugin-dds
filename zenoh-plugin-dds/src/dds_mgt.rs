@@ -11,25 +11,32 @@
 // Contributors:
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
-use async_std::task;
-use cyclors::qos::{History, HistoryKind, Qos};
-use cyclors::*;
+use std::{
+    collections::HashMap,
+    ffi::{CStr, CString},
+    fmt,
+    mem::MaybeUninit,
+    slice,
+    sync::Arc,
+    time::Duration,
+};
+
+use cyclors::{
+    qos::{History, HistoryKind, Qos},
+    *,
+};
 use flume::Sender;
 use serde::{Deserialize, Serialize, Serializer};
-use std::collections::HashMap;
-use std::ffi::{CStr, CString};
-use std::fmt;
-use std::mem::MaybeUninit;
-use std::slice;
-use std::sync::Arc;
-use std::time::Duration;
 use tracing::{debug, error, warn};
+use zenoh::{
+    bytes::ZBytes,
+    key_expr::{KeyExpr, OwnedKeyExpr},
+    prelude::*,
+    qos::CongestionControl,
+    Session,
+};
 #[cfg(feature = "dds_shm")]
-use zenoh::buffers::{ZBuf, ZSlice};
-use zenoh::prelude::*;
-use zenoh::publication::CongestionControl;
-use zenoh::Session;
-use zenoh_core::SyncResolve;
+use zenoh::{internal::buffers::ZBuf, internal::buffers::ZSlice};
 
 const MAX_SAMPLES: usize = 32;
 
@@ -264,7 +271,7 @@ impl fmt::Debug for DDSRawSample {
     }
 }
 
-impl From<DDSRawSample> for Value {
+impl From<DDSRawSample> for ZBytes {
     fn from(buf: DDSRawSample) -> Self {
         #[cfg(feature = "dds_shm")]
         {
@@ -506,7 +513,7 @@ unsafe extern "C" fn data_forwarder_listener(dr: dds_entity_t, arg: *mut std::os
                 .2
                 .put(&(*pa).1, raw_sample)
                 .congestion_control((*pa).3)
-                .res_sync();
+                .wait();
         }
         ddsi_serdata_unref(zp);
     }
@@ -567,7 +574,7 @@ pub(crate) fn create_forwarding_dds_reader(
                 let qos_native = qos.to_qos_native();
                 let reader = dds_create_reader(dp, t, qos_native, std::ptr::null());
                 let z_key = z_key.into_owned();
-                task::spawn(async move {
+                tokio::task::spawn(async move {
                     // loop while reader's instance handle remain the same
                     // (if reader was deleted, its dds_entity_t value might have been
                     // reused by a new entity... don't trust it! Only trust instance handle)
@@ -579,7 +586,7 @@ pub(crate) fn create_forwarding_dds_reader(
                             break;
                         }
 
-                        async_std::task::sleep(period).await;
+                        tokio::time::sleep(period).await;
                         let mut zp: *mut ddsi_serdata = std::ptr::null_mut();
                         #[allow(clippy::uninit_assumed_init)]
                         let mut si = MaybeUninit::<[dds_sample_info_t; 1]>::uninit();
@@ -603,7 +610,7 @@ pub(crate) fn create_forwarding_dds_reader(
                                 let _ = z
                                     .put(&z_key, raw_sample)
                                     .congestion_control(congestion_ctrl)
-                                    .res_sync();
+                                    .wait();
                             }
                             ddsi_serdata_unref(zp);
                         }

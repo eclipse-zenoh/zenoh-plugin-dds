@@ -11,14 +11,19 @@
 // Contributors:
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
+use std::{
+    str::FromStr,
+    time::{Duration, SystemTime},
+};
+
 use async_liveliness_monitor::LivelinessMonitor;
 use clap::{App, Arg};
-use std::str::FromStr;
-use std::time::{Duration, SystemTime};
-use zenoh::config::{Config, ModeDependentValue};
-use zenoh::plugins::PluginsManager;
-use zenoh::prelude::r#async::*;
-use zenoh::runtime::RuntimeBuilder;
+use zenoh::{
+    config::{Config, ModeDependentValue},
+    internal::{plugins::PluginsManager, runtime::RuntimeBuilder},
+    prelude::*,
+    session::ZenohId,
+};
 use zenoh_plugin_dds::DDSPlugin;
 use zenoh_plugin_trait::Plugin;
 
@@ -116,9 +121,6 @@ This option is not active by default, unless the "ROS_LOCALHOST_ONLY" environmen
 
     app = app
         .arg(Arg::from_usage(
-r#"--group-member-id=[ID]   'A custom identifier for the bridge, that will be used in group management (if not specified, the zenoh UUID is used).'"#
-        ))
-        .arg(Arg::from_usage(
 r#"-a, --allow=[String]...   'A regular expression matching the set of 'partition/topic-name' that must be routed via zenoh. By default, all partitions and topics are allowed.
 If both '--allow' and '--deny' are set a partition and/or topic will be allowed if it matches only the 'allow' expression.
 Repeat this option to configure several topic expressions. These expressions are concatenated with '|'.
@@ -183,13 +185,15 @@ r#"--watchdog=[PERIOD]   'Experimental!! Run a watchdog thread that monitors the
         config
             .connect
             .endpoints
-            .extend(endpoints.map(|p| p.parse().unwrap()))
+            .set(endpoints.map(|p| p.parse().unwrap()).collect())
+            .unwrap();
     }
     if let Some(endpoints) = args.values_of("listen") {
         config
             .listen
             .endpoints
-            .extend(endpoints.map(|p| p.parse().unwrap()))
+            .set(endpoints.map(|p| p.parse().unwrap()).collect())
+            .unwrap();
     }
     if args.is_present("no-multicast-scouting") {
         config.scouting.multicast.set_enabled(Some(false)).unwrap();
@@ -217,7 +221,6 @@ r#"--watchdog=[PERIOD]   'Experimental!! Run a watchdog thread that monitors the
     {
         insert_json5!(config, args, "plugins/dds/shm_enabled", if "dds-enable-shm");
     }
-    insert_json5!(config, args, "plugins/dds/group_member_id", if "group-member-id", );
     insert_json5!(config, args, "plugins/dds/allow", for "allow", .collect::<Vec<_>>());
     insert_json5!(config, args, "plugins/dds/deny", for "deny", .collect::<Vec::<_>>());
     insert_json5!(config, args, "plugins/dds/max_frequencies", for "max-frequency", .collect::<Vec<_>>());
@@ -239,9 +242,9 @@ r#"--watchdog=[PERIOD]   'Experimental!! Run a watchdog thread that monitors the
     (config, watchdog_period)
 }
 
-#[async_std::main]
+#[tokio::main]
 async fn main() {
-    zenoh_util::init_log_from_env_or("z=info");
+    zenoh::init_log_from_env_or("z=info");
     tracing::info!("zenoh-bridge-dds {}", DDSPlugin::PLUGIN_LONG_VERSION);
 
     let (config, watchdog_period) = parse_args();
@@ -280,7 +283,7 @@ async fn main() {
         std::process::exit(-1);
     }
 
-    async_std::future::pending::<()>().await;
+    futures::future::pending::<()>().await;
 }
 
 fn run_watchdog(period: f32) {
@@ -298,8 +301,8 @@ fn run_watchdog(period: f32) {
         report_threshold_2.as_secs_f32()
     );
 
-    // Start a Liveliness Monitor thread for async_std Runtime
-    let (_task, monitor) = LivelinessMonitor::start(async_std::task::spawn);
+    // Start a Liveliness Monitor thread for tokio Runtime
+    let (_task, monitor) = LivelinessMonitor::start(tokio::spawn);
     std::thread::spawn(move || {
         tracing::debug!(
             "Watchdog started with period {} sec",
@@ -321,11 +324,20 @@ fn run_watchdog(period: f32) {
             let report = monitor.latest_report();
             if report.elapsed() > report_threshold_1 {
                 if report.elapsed() > sleep_time {
-                    tracing::error!("Watchdog detecting async_std is stalled! No task scheduling since {} seconds", report.elapsed().as_secs_f32());
+                    tracing::error!(
+                        "Watchdog detecting tokio is stalled! No task scheduling since {} seconds",
+                        report.elapsed().as_secs_f32()
+                    );
                 } else if report.elapsed() > report_threshold_2 {
-                    tracing::warn!("Watchdog detecting async_std was not scheduling tasks during the last {} ms", report.elapsed().as_micros());
+                    tracing::warn!(
+                        "Watchdog detecting tokio was not scheduling tasks during the last {} ms",
+                        report.elapsed().as_micros()
+                    );
                 } else {
-                    tracing::info!("Watchdog detecting async_std was not scheduling tasks during the last {} ms", report.elapsed().as_micros());
+                    tracing::info!(
+                        "Watchdog detecting tokio was not scheduling tasks during the last {} ms",
+                        report.elapsed().as_micros()
+                    );
                 }
             }
         }
