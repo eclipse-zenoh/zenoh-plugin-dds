@@ -438,7 +438,11 @@ unsafe extern "C" fn data_forwarder_listener(dr: dds_entity_t, arg: *mut std::os
                             raw_sample
                         );
                     } else {
-                        tracing::trace!("Route data from DDS {} to zenoh key={}", &(*pa).0, &(*pa).1);
+                        tracing::trace!(
+                            "Route data from DDS {} to zenoh key={}",
+                            &(*pa).0,
+                            &(*pa).1
+                        );
                     }
                     let _ = (*pa)
                         .2
