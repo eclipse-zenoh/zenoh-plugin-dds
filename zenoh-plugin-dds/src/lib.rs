@@ -133,9 +133,9 @@ lazy_static::lazy_static!(
 // Empty configuration fragments are ignored, so it is safe to unconditionally append a comma.
 const CYCLONEDDS_CONFIG_LOCALHOST_ONLY: &str = r#"<CycloneDDS><Domain><General><Interfaces><NetworkInterface address="127.0.0.1"/></Interfaces></General></Domain></CycloneDDS>,"#;
 
-// CycloneDDS' enable-shm: enable usage of Iceoryx shared memory
+// CycloneDDS' enable-shm: enable usage of Iceoryx PSMX plugin
 #[cfg(feature = "dds_shm")]
-const CYCLONEDDS_CONFIG_ENABLE_SHM: &str = r#"<CycloneDDS><Domain><SharedMemory><Enable>true</Enable></SharedMemory></Domain></CycloneDDS>,"#;
+const CYCLONEDDS_CONFIG_ENABLE_SHM: &str = r#"<CycloneDDS><Domain><General><Interfaces><PubSubMessageExchange name="iox" library="psmx_iox" priority="1000000"/></Interfaces></General></Domain></CycloneDDS>,"#;
 
 const ROS_DISCOVERY_INFO_POLL_INTERVAL_MS: u64 = 500;
 
@@ -237,7 +237,7 @@ pub async fn run(runtime: Runtime, config: Config) {
         );
     }
 
-    // if "enable_shm" is set, configure CycloneDDS to use Iceoryx shared memory
+    // if "enable_shm" is set, configure CycloneDDS to use Iceoryx PSMX plugin
     #[cfg(feature = "dds_shm")]
     {
         if config.shm_enabled {

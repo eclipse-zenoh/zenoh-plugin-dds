@@ -151,10 +151,17 @@ impl RosDiscoveryInfoMgr {
                 if si[0].valid_data {
                     let raw_sample = DDSRawSample::create(zp);
 
-                    // No need to deserialize the full payload. Just read the Participant gid (first 16 bytes of the payload)
-                    let gid = hex::encode(&raw_sample.payload_as_slice()[0..16]);
+                    match raw_sample {
+                        Ok(raw_sample) => {
+                            // No need to deserialize the full payload. Just read the Participant gid (first 16 bytes of the payload)
+                            let gid = hex::encode(&raw_sample.payload_as_slice()[0..16]);
 
-                    result.insert(gid, raw_sample);
+                            result.insert(gid, raw_sample);
+                        }
+                        Err(error) => {
+                            tracing::warn!("Failed to process samplefrom DDS (msg: {})", error);
+                        }
+                    };
                 }
                 ddsi_serdata_unref(zp);
             }

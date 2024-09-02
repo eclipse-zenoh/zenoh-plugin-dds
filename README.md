@@ -115,7 +115,9 @@ loaded by the zenoh router `zenohd` will be generated in the `target/release` su
 
 ### Enabling Cyclone DDS Shared Memory Support
 
-Cyclone DDS Shared memory support is provided by the [Iceoryx library](https://iceoryx.io/). Iceoryx introduces additional system requirements which are documented [here](https://iceoryx.io/v2.0.1/getting-started/installation/#dependencies).
+Cyclone DDS Shared memory support is provided by the Iceoryx PSMX plugin based on the [Iceoryx library](https://iceoryx.io/). Iceoryx introduces additional system requirements which are documented [here](https://iceoryx.io/v2.0.5/getting-started/installation/#dependencies).
+
+**Note:** To ensure successful communication the entire system should be built to use the same version of the Iceoryx Library. **The Zenoh DDS Plugin currently uses Iceoryx v2.0.5.**
 
 To build the zenoh bridge for DDS with support for shared memory the `dds_shm` optional feature must be enabled during the build process as follows:
 - plugin library:
@@ -136,6 +138,13 @@ When building the zenoh bridge with the `dds_shm` feature enabled the `iox-roudi
 
 See [here](https://cyclonedds.io/docs/cyclonedds/latest/shared_memory/shared_memory.html) for more details of shared memory support in Cyclone DDS.
 
+#### Shared Memory Limitations
+
+The following limitations apply to Cyclone DDS shared memory support in the plugin:
+
+* Shared memory is not supported on Windows systems.
+* When DDS shared memory is enabled the Iceoryx PSMX plugin will be instantiated with the default configuration. If additional configuration is required the Iceoryx plugin should be configured via the `CYCLONEDDS_URI` instead.
+* In forward discovery mode DDS samples will not be forwarded via Zenoh unless the DDS data type is memcpy safe. A data type is memcpy safe if it does not contain indirections.
 
 ## ROS 2 package
 :warning: **Please consider using [`zenoh-bridge-ros2dds`](https://github.com/eclipse-zenoh/zenoh-plugin-ros2dds) which is dedicated to ROS 2.**
@@ -198,7 +207,7 @@ The `"dds"` part of this same configuration file can also be used in the configu
    - **`-d, --domain <ID>`** : The DDS Domain ID. By default set to `0`, or to `"$ROS_DOMAIN_ID"` is this environment variable is defined.
    - **`--dds-localhost-only`** : If set, the DDS discovery and traffic will occur only on the localhost interface (127.0.0.1).
      By default set to false, unless the "ROS_LOCALHOST_ONLY=1" environment variable is defined.
-   - **`--dds-enable-shm`** : If set, DDS will be configured to use shared memory. Requires the bridge to be built with the 'dds_shm' feature for this option to valid.
+   - **`--dds-enable-shm`** : If set, DDS will be configured to use the Iceoryx shared memory PSMX plugin with default config. Requires the bridge to be built with the 'dds_shm' feature for this option to valid.
      By default set to false.
    - **`-f, --fwd-discovery`** : When set, rather than creating a local route when discovering a local DDS entity, this discovery info is forwarded to the remote plugins/bridges. Those will create the routes, including a replica of the discovered entity. More details [here](#full-support-of-ros-graph-and-topic-lists-via-the-forward-discovery-mode)
    - **`-s, --scope <String>`** : A string used as prefix to scope DDS traffic when mapped to zenoh keys.

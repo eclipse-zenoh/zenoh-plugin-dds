@@ -35,8 +35,6 @@ use zenoh::{
     qos::CongestionControl,
     Session,
 };
-#[cfg(feature = "dds_shm")]
-use zenoh::{internal::buffers::ZBuf, internal::buffers::ZSlice};
 
 const MAX_SAMPLES: usize = 32;
 
@@ -117,83 +115,56 @@ impl fmt::Display for DiscoveryType {
     }
 }
 
-#[cfg(feature = "dds_shm")]
-#[derive(Clone, Copy)]
-struct IoxChunk {
-    ptr: *mut std::ffi::c_void,
-    header: *mut iceoryx_header_t,
-}
-
-#[cfg(feature = "dds_shm")]
-impl IoxChunk {
-    fn as_slice(&self) -> &[u8] {
-        unsafe { slice::from_raw_parts(self.ptr as *const u8, (*self.header).data_size as usize) }
-    }
-}
-
 pub(crate) struct DDSRawSample {
     sdref: *mut ddsi_serdata,
     data: ddsrt_iovec_t,
-    #[cfg(feature = "dds_shm")]
-    iox_chunk: Option<IoxChunk>,
 }
 
 impl DDSRawSample {
-    pub(crate) unsafe fn create(serdata: *const ddsi_serdata) -> DDSRawSample {
-        let mut sdref: *mut ddsi_serdata = std::ptr::null_mut();
+    pub(crate) unsafe fn create(serdata: *const ddsi_serdata) -> Result<DDSRawSample, String> {
+        let sdref: *mut ddsi_serdata;
         let mut data = ddsrt_iovec_t {
             iov_base: std::ptr::null_mut(),
             iov_len: 0,
         };
 
-        #[cfg(feature = "dds_shm")]
-        let iox_chunk: Option<IoxChunk> = match ((*serdata).iox_chunk).is_null() {
-            false => {
-                let iox_chunk_ptr = (*serdata).iox_chunk;
-                let header = iceoryx_header_from_chunk(iox_chunk_ptr);
+        if (*serdata).loan.is_null() {
+            let size = ddsi_serdata_size(serdata);
+            sdref = ddsi_serdata_to_ser_ref(serdata, 0, size as usize, &mut data);
+        } else {
+            let loan = (*serdata).loan;
+            let metadata = (*loan).metadata;
 
-                // If the Iceoryx chunk contains raw sample data this needs to be serialized before forwading to Zenoh
-                if (*header).shm_data_state == iox_shm_data_state_t_IOX_CHUNK_CONTAINS_RAW_DATA {
+            // Based on the current Cyclone DDS implementation loan should only contain RAW sample data at this point
+            if (*metadata).sample_state == dds_loaned_sample_state_DDS_LOANED_SAMPLE_STATE_RAW_DATA
+            {
+                // Before forwarding to Zenoh the data first needs to be serialized
+                if (*(*serdata).ops).from_sample.is_some() {
+                    // We have the type information necessary to serialize so use from_sample()
                     let serialized_serdata = ddsi_serdata_from_sample(
                         (*serdata).type_,
                         (*serdata).kind,
-                        (*serdata).iox_chunk,
+                        (*loan).sample_ptr,
                     );
 
                     let size = ddsi_serdata_size(serialized_serdata);
                     sdref =
                         ddsi_serdata_to_ser_ref(serialized_serdata, 0, size as usize, &mut data);
                     ddsi_serdata_unref(serialized_serdata);
-
-                    // IoxChunk not needed where raw data has been serialized
-                    None
                 } else {
-                    Some(IoxChunk {
-                        ptr: iox_chunk_ptr,
-                        header,
-                    })
+                    // Type information not available so unable to serialize sample using from_sample()
+                    return Err(String::from(
+                        "Received sample from DDS contains a loan for which incomplete type information is held",
+                    ));
                 }
+            } else {
+                return Err(String::from(
+                    "Received sample from DDS contains a loan with an unexpected sample state",
+                ));
             }
-            true => None,
-        };
-
-        // At this point sdref will be null if:
-        //
-        // * Iceoryx was not enabled/used - in this case data will contain the CDR header and payload
-        // * Iceoryx chunk contained serialized data - in this case data will contain the CDR header
-        if sdref.is_null() {
-            let size = ddsi_serdata_size(serdata);
-            sdref = ddsi_serdata_to_ser_ref(serdata, 0, size as usize, &mut data);
         }
 
-        #[cfg(feature = "dds_shm")]
-        return DDSRawSample {
-            sdref,
-            data,
-            iox_chunk,
-        };
-        #[cfg(not(feature = "dds_shm"))]
-        return DDSRawSample { sdref, data };
+        Ok(DDSRawSample { sdref, data })
     }
 
     fn data_as_slice(&self) -> &[u8] {
@@ -208,22 +179,13 @@ impl DDSRawSample {
     }
 
     pub(crate) fn payload_as_slice(&self) -> &[u8] {
+        #[cfg(not(target_os = "windows"))]
         unsafe {
-            #[cfg(feature = "dds_shm")]
-            {
-                if let Some(iox_chunk) = self.iox_chunk.as_ref() {
-                    return iox_chunk.as_slice();
-                }
-            }
-            #[cfg(not(target_os = "windows"))]
-            {
-                &slice::from_raw_parts(self.data.iov_base as *const u8, self.data.iov_len)[4..]
-            }
-            #[cfg(target_os = "windows")]
-            {
-                &slice::from_raw_parts(self.data.iov_base as *const u8, self.data.iov_len as usize)
-                    [4..]
-            }
+            &slice::from_raw_parts(self.data.iov_base as *const u8, self.data.iov_len)[4..]
+        }
+        #[cfg(target_os = "windows")]
+        unsafe {
+            &slice::from_raw_parts(self.data.iov_base as *const u8, self.data.iov_len as usize)[4..]
         }
     }
 
@@ -231,15 +193,6 @@ impl DDSRawSample {
         let mut encoded = String::new();
         let data_encoded = hex::encode(self.data_as_slice());
         encoded.push_str(data_encoded.as_str());
-
-        #[cfg(feature = "dds_shm")]
-        {
-            if let Some(iox_chunk) = self.iox_chunk.as_ref() {
-                let iox_encoded = hex::encode(iox_chunk.as_slice());
-                encoded.push_str(iox_encoded.as_str());
-            }
-        }
-
         encoded
     }
 }
@@ -254,36 +207,12 @@ impl Drop for DDSRawSample {
 
 impl fmt::Debug for DDSRawSample {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        #[cfg(feature = "dds_shm")]
-        {
-            // Where data was received via Iceoryx write both the header (contained in buf.data) and
-            // payload (contained in buf.iox_chunk) to the formatter.
-            if let Some(iox_chunk) = self.iox_chunk {
-                return write!(
-                    f,
-                    "[{:02x?}, {:02x?}]",
-                    self.data_as_slice(),
-                    iox_chunk.as_slice()
-                );
-            }
-        }
         write!(f, "{:02x?}", self.data_as_slice())
     }
 }
 
 impl From<DDSRawSample> for ZBytes {
     fn from(buf: DDSRawSample) -> Self {
-        #[cfg(feature = "dds_shm")]
-        {
-            // Where data was received via Iceoryx return both the header (contained in buf.data) and
-            // payload (contained in buf.iox_chunk) in a buffer.
-            if let Some(iox_chunk) = buf.iox_chunk {
-                let mut zbuf = ZBuf::default();
-                zbuf.push_zslice(ZSlice::from(buf.data_as_slice().to_vec()));
-                zbuf.push_zslice(ZSlice::from(iox_chunk.as_slice().to_vec()));
-                return zbuf.into();
-            }
-        }
         buf.data_as_slice().into()
     }
 }
@@ -499,21 +428,37 @@ unsafe extern "C" fn data_forwarder_listener(dr: dds_entity_t, arg: *mut std::os
         if si[0].valid_data {
             let raw_sample = DDSRawSample::create(zp);
 
-            if *crate::LOG_PAYLOAD {
-                tracing::trace!(
-                    "Route data from DDS {} to zenoh key={} - payload: {:02x?}",
-                    &(*pa).0,
-                    &(*pa).1,
-                    raw_sample
-                );
-            } else {
-                tracing::trace!("Route data from DDS {} to zenoh key={}", &(*pa).0, &(*pa).1);
+            match raw_sample {
+                Ok(raw_sample) => {
+                    if *crate::LOG_PAYLOAD {
+                        tracing::trace!(
+                            "Route data from DDS {} to zenoh key={} - payload: {:02x?}",
+                            &(*pa).0,
+                            &(*pa).1,
+                            raw_sample
+                        );
+                    } else {
+                        tracing::trace!(
+                            "Route data from DDS {} to zenoh key={}",
+                            &(*pa).0,
+                            &(*pa).1
+                        );
+                    }
+                    let _ = (*pa)
+                        .2
+                        .put(&(*pa).1, raw_sample)
+                        .congestion_control((*pa).3)
+                        .wait();
+                }
+                Err(error) => {
+                    tracing::warn!(
+                        "Failed to route data from DDS {} to zenoh key={} (msg: {})",
+                        &(*pa).0,
+                        &(*pa).1,
+                        error
+                    );
+                }
             }
-            let _ = (*pa)
-                .2
-                .put(&(*pa).1, raw_sample)
-                .congestion_control((*pa).3)
-                .wait();
         }
         ddsi_serdata_unref(zp);
     }
@@ -607,10 +552,21 @@ pub(crate) fn create_forwarding_dds_reader(
 
                                 let raw_sample = DDSRawSample::create(zp);
 
-                                let _ = z
-                                    .put(&z_key, raw_sample)
-                                    .congestion_control(congestion_ctrl)
-                                    .wait();
+                                match raw_sample {
+                                    Ok(raw_sample) => {
+                                        let _ = z
+                                            .put(&z_key, raw_sample)
+                                            .congestion_control(congestion_ctrl)
+                                            .wait();
+                                    }
+                                    Err(error) => {
+                                        tracing::warn!(
+                                            "Failed to route (periodic) data to zenoh resource with rid={} (msg: {})",
+                                            z_key,
+                                            error
+                                        );
+                                    }
+                                };
                             }
                             ddsi_serdata_unref(zp);
                         }
