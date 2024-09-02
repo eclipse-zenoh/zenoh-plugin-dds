@@ -117,6 +117,8 @@ loaded by the zenoh router `zenohd` will be generated in the `target/release` su
 
 Cyclone DDS Shared memory support is provided by the Iceoryx PSMX plugin based on the [Iceoryx library](https://iceoryx.io/). Iceoryx introduces additional system requirements which are documented [here](https://iceoryx.io/v2.0.5/getting-started/installation/#dependencies).
 
+**Note:** To ensure successful communication the entire system should be built to use the same version of the Iceoryx Library. **The Zenoh DDS Plugin currently uses Iceoryx v2.0.5.**
+
 To build the zenoh bridge for DDS with support for shared memory the `dds_shm` optional feature must be enabled during the build process as follows:
 - plugin library:
 ```bash
