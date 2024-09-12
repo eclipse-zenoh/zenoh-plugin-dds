@@ -31,9 +31,8 @@ use tracing::{debug, error, warn};
 use zenoh::{
     bytes::ZBytes,
     key_expr::{KeyExpr, OwnedKeyExpr},
-    prelude::*,
     qos::CongestionControl,
-    Session,
+    Session, Wait,
 };
 
 const MAX_SAMPLES: usize = 32;

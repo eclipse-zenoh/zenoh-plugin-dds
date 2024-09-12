@@ -22,7 +22,6 @@ use cyclors::{
 use serde::Serialize;
 use zenoh::{
     key_expr::{keyexpr, KeyExpr, OwnedKeyExpr},
-    prelude::*,
     qos::CongestionControl,
     sample::Locality,
 };
@@ -32,7 +31,7 @@ use crate::{dds_mgt::*, qos_helpers::*, DdsPluginRuntime, KE_PREFIX_PUB_CACHE};
 
 enum ZPublisher<'a> {
     Publisher(KeyExpr<'a>),
-    PublicationCache(PublicationCache<'a>),
+    PublicationCache(PublicationCache),
 }
 
 impl ZPublisher<'_> {
@@ -157,7 +156,12 @@ impl RouteDDSZenoh<'_> {
                 })?;
             ZPublisher::PublicationCache(pub_cache)
         } else {
-            if let Err(e) = plugin.zsession.declare_publisher(declared_ke.clone()).await {
+            if let Err(e) = plugin
+                .zsession
+                .declare_publisher(declared_ke.clone())
+                .reliability(zenoh::pubsub::Reliability::Reliable)
+                .await
+            {
                 tracing::warn!(
                     "Failed to declare publisher for key {} (rid={}): {}",
                     ke,

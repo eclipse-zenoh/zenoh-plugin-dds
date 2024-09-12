@@ -48,11 +48,10 @@ use zenoh::{
     },
     key_expr::{keyexpr, KeyExpr, OwnedKeyExpr},
     liveliness::LivelinessToken,
-    prelude::*,
     qos::CongestionControl,
     query::{ConsolidationMode, Query, QueryTarget, Queryable, Selector},
     sample::{Locality, Sample, SampleKind},
-    Result as ZResult, Session,
+    Result as ZResult, Session, Wait,
 };
 use zenoh_ext::{SessionExt, SubscriberBuilderExt};
 use zenoh_plugin_trait::{plugin_long_version, plugin_version, Plugin, PluginControl};
@@ -300,7 +299,7 @@ pub(crate) struct DdsPluginRuntime<'a> {
     // Note: &'a Arc<Session> here to keep the ownership of Session outside this struct
     // and be able to store the publishers/subscribers it creates in this same struct.
     zsession: &'a Arc<Session>,
-    _member: LivelinessToken<'a>,
+    _member: LivelinessToken,
     dp: dds_entity_t,
     // maps of all discovered DDS entities (indexed by DDS key)
     discovered_participants: HashMap<String, DdsParticipant>,
@@ -786,7 +785,7 @@ impl<'a> DdsPluginRuntime<'a> {
         group_subscriber: &Receiver<Sample>,
         dds_disco_rcv: &Receiver<DiscoveryEvent>,
         admin_keyexpr_prefix: OwnedKeyExpr,
-        admin_queryable: &Queryable<'_, flume::Receiver<Query>>,
+        admin_queryable: &Queryable<flume::Receiver<Query>>,
     ) {
         debug!(r#"Run in "local discovery" mode"#);
 
@@ -979,7 +978,7 @@ impl<'a> DdsPluginRuntime<'a> {
         group_subscriber: &Receiver<Sample>,
         dds_disco_rcv: &Receiver<DiscoveryEvent>,
         admin_keyexpr_prefix: OwnedKeyExpr,
-        admin_queryable: &Queryable<'_, flume::Receiver<Query>>,
+        admin_queryable: &Queryable<flume::Receiver<Query>>,
     ) {
         debug!(r#"Run in "forward discovery" mode"#);
 
