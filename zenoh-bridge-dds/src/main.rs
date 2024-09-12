@@ -21,7 +21,6 @@ use clap::{App, Arg};
 use zenoh::{
     config::{Config, ModeDependentValue},
     internal::{plugins::PluginsManager, runtime::RuntimeBuilder},
-    prelude::*,
     session::ZenohId,
 };
 use zenoh_plugin_dds::DDSPlugin;

@@ -30,11 +30,10 @@ use cyclors::{
 use serde::{Serialize, Serializer};
 use zenoh::{
     key_expr::{keyexpr, KeyExpr, OwnedKeyExpr},
-    prelude::*,
     pubsub::Subscriber,
     query::{ConsolidationMode, QueryTarget, ReplyKeyExpr, Selector},
     sample::{Locality, Sample},
-    Session,
+    Session, Wait,
 };
 use zenoh_ext::{FetchingSubscriber, SubscriberBuilderExt};
 
@@ -46,12 +45,12 @@ use crate::{
 type AtomicDDSEntity = AtomicI32;
 const DDS_ENTITY_NULL: dds_entity_t = 0;
 
-enum ZSubscriber<'a> {
-    Subscriber(Subscriber<'a, ()>),
-    FetchingSubscriber(FetchingSubscriber<'a, ()>),
+enum ZSubscriber {
+    Subscriber(Subscriber<()>),
+    FetchingSubscriber(FetchingSubscriber<()>),
 }
 
-impl ZSubscriber<'_> {
+impl ZSubscriber {
     fn key_expr(&self) -> &KeyExpr<'static> {
         match self {
             ZSubscriber::Subscriber(s) => s.key_expr(),
@@ -69,7 +68,7 @@ pub(crate) struct RouteZenohDDS<'a> {
     zenoh_session: &'a Arc<Session>,
     // the zenoh subscriber receiving data to be re-published by the DDS Writer
     #[serde(skip)]
-    zenoh_subscriber: ZSubscriber<'a>,
+    zenoh_subscriber: ZSubscriber,
     // the DDS topic name for re-publication
     topic_name: String,
     // the DDS topic type
@@ -188,7 +187,6 @@ impl RouteZenohDDS<'_> {
                 .declare_subscriber(ke.clone())
                 .callback(subscriber_callback)
                 .allowed_origin(Locality::Remote) // Allow only remote publications to avoid loops
-                .reliable()
                 .querying()
                 .query_timeout(plugin.config.queries_timeout)
                 .query_selector(query_selector)
@@ -206,7 +204,6 @@ impl RouteZenohDDS<'_> {
                 .declare_subscriber(ke.clone())
                 .callback(subscriber_callback)
                 .allowed_origin(Locality::Remote) // Allow only remote publications to avoid loops
-                .reliable()
                 .await
                 .map_err(|e| {
                     format!(
