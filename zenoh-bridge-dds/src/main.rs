@@ -19,10 +19,11 @@ use std::{
 use async_liveliness_monitor::LivelinessMonitor;
 use clap::{App, Arg};
 use zenoh::{
-    config::{Config, ModeDependentValue},
+    config::Config,
     internal::{plugins::PluginsManager, runtime::RuntimeBuilder},
     session::ZenohId,
 };
+use zenoh_config::ModeDependentValue;
 use zenoh_plugin_dds::DDSPlugin;
 use zenoh_plugin_trait::Plugin;
 
