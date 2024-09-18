@@ -51,6 +51,7 @@ zenoh = { version = "1.0.0-dev", git = "https://github.com/eclipse-zenoh/zenoh.g
   "plugins",
   "unstable",
 ] }
+zenoh-config = { version = "1.0.0-dev", git = "https://github.com/eclipse-zenoh/zenoh.git", branch = "main" }
 zenoh-ext = { version = "1.0.0-dev", git = "https://github.com/eclipse-zenoh/zenoh.git", branch = "main", features = [
   "unstable",
 ] }
