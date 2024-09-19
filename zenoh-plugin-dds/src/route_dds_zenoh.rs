@@ -159,7 +159,7 @@ impl RouteDDSZenoh<'_> {
             if let Err(e) = plugin
                 .zsession
                 .declare_publisher(declared_ke.clone())
-                .reliability(zenoh::pubsub::Reliability::Reliable)
+                .reliability(zenoh::qos::Reliability::Reliable)
                 .await
             {
                 tracing::warn!(
