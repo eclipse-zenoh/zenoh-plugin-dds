@@ -12,7 +12,6 @@
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 use std::{
-    borrow::Cow,
     collections::HashMap,
     env,
     future::Future,
@@ -698,8 +697,9 @@ impl<'a> DdsPluginRuntime<'a> {
         // send replies
         for (ke, v) in kvs.drain(..) {
             let admin_keyexpr = admin_keyexpr_prefix / &ke;
-            match ZBytes::try_from(v) {
-                Ok(payload) => {
+            match serde_json::to_vec(&v) {
+                Ok(vec_u8) => {
+                    let payload = ZBytes::from(vec_u8);
                     if let Err(e) = query
                         .reply(admin_keyexpr, payload)
                         .encoding(Encoding::APPLICATION_JSON)
@@ -708,9 +708,7 @@ impl<'a> DdsPluginRuntime<'a> {
                         warn!("Error replying to admin query {:?}: {}", query, e);
                     }
                 }
-                Err(e) => {
-                    warn!("Error transforming JSON to admin query {:?}: {}", query, e);
-                }
+                Err(e) => warn!("Error transforming JSON to admin query {:?}: {}", query, e),
             }
         }
     }
@@ -1212,7 +1210,7 @@ impl<'a> DdsPluginRuntime<'a> {
                                 let full_admin_keyexpr = *KE_PREFIX_ADMIN_SPACE / remote_uuid / *KE_PREFIX_DDS / remaining_ke;
                                 if sample.kind() != SampleKind::Delete {
                                     // deserialize payload
-                                    let (entity, scope) = match bincode::deserialize::<(DdsEntity, Option<OwnedKeyExpr>)>(&sample.payload().into::<Cow<[u8]>>()) {
+                                    let (entity, scope) = match bincode::deserialize::<(DdsEntity, Option<OwnedKeyExpr>)>(&sample.payload().to_bytes()) {
                                         Ok(x) => x,
                                         Err(e) => {
                                             warn!("Failed to deserialize discovery msg for {}: {}", full_admin_keyexpr, e);
@@ -1292,7 +1290,7 @@ impl<'a> DdsPluginRuntime<'a> {
                                 let full_admin_keyexpr = *KE_PREFIX_ADMIN_SPACE / remote_uuid / *KE_PREFIX_DDS / remaining_ke;
                                 if sample.kind() != SampleKind::Delete {
                                     // deserialize payload
-                                    let (entity, scope) = match bincode::deserialize::<(DdsEntity, Option<OwnedKeyExpr>)>(&sample.payload().into::<Cow<[u8]>>()) {
+                                    let (entity, scope) = match bincode::deserialize::<(DdsEntity, Option<OwnedKeyExpr>)>(&sample.payload().to_bytes()) {
                                         Ok(x) => x,
                                         Err(e) => {
                                             warn!("Failed to deserialize discovery msg for {}: {}", full_admin_keyexpr, e);
