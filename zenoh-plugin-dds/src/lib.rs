@@ -40,6 +40,7 @@ use tokio::task::JoinHandle;
 use tracing::{debug, error, info, trace, warn};
 use zenoh::{
     bytes::{Encoding, ZBytes},
+    handlers::FifoChannelHandler,
     internal::{
         plugins::{RunningPlugin, RunningPluginTrait, ZenohPlugin},
         runtime::Runtime,
@@ -783,7 +784,7 @@ impl<'a> DdsPluginRuntime<'a> {
         group_subscriber: &Receiver<Sample>,
         dds_disco_rcv: &Receiver<DiscoveryEvent>,
         admin_keyexpr_prefix: OwnedKeyExpr,
-        admin_queryable: &Queryable<flume::Receiver<Query>>,
+        admin_queryable: &Queryable<FifoChannelHandler<Query>>,
     ) {
         debug!(r#"Run in "local discovery" mode"#);
 
@@ -976,7 +977,7 @@ impl<'a> DdsPluginRuntime<'a> {
         group_subscriber: &Receiver<Sample>,
         dds_disco_rcv: &Receiver<DiscoveryEvent>,
         admin_keyexpr_prefix: OwnedKeyExpr,
-        admin_queryable: &Queryable<flume::Receiver<Query>>,
+        admin_queryable: &Queryable<FifoChannelHandler<Query>>,
     ) {
         debug!(r#"Run in "forward discovery" mode"#);
 
