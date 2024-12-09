@@ -78,6 +78,13 @@ jobs:
       - name: Run tests
         run: cargo test --verbose
 
+      - name: Run tests (with dds_shm)
+        if: ${{ ! startsWith(matrix.os,'windows') }}
+        run: cargo test --features dds_shm --verbose
+
+      - name: Run tests (with prefix_symbols)
+        run: cargo test --features prefix_symbols --verbose
+
   # NOTE: In GitHub repository settings, the "Require status checks to pass
   # before merging" branch protection rule ensures that commits are only merged
   # from branches where specific status checks have passed. These checks are
