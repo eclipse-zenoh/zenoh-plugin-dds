@@ -944,7 +944,7 @@ dependencies = [
 [[package]]
 name = "cyclors"
 version = "0.3.4"
-source = "git+https://github.com/ZettaScaleLabs/cyclors.git?branch=issue-24-combined#ef74dc2044aa4481b24d326db4d1a72c1b24f5b8"
+source = "git+https://github.com/ZettaScaleLabs/cyclors.git?branch=issue-24-combined#7b712cea284206bd5c757887f6e30a78d5ee1eb4"
 dependencies = [
  "bincode",
  "bindgen",
@@ -1828,7 +1828,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4979f22fdb869068da03c9f7528f8297c6fd2606bc3a4affe42e6a823fdb8da4"
 dependencies = [
  "cfg-if 1.0.0",
- "windows-targets 0.52.6",
+ "windows-targets 0.48.5",
 ]
 
 [[package]]
