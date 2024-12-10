@@ -30,6 +30,7 @@ crate-type = ["cdylib", "rlib"]
 default = ["dynamic_plugin"]
 dynamic_plugin = []
 dds_shm = ["cyclors/iceoryx"]
+prefix_symbols = ["cyclors/prefix_symbols"]
 stats = ["zenoh/stats"]
 
 [dependencies]
