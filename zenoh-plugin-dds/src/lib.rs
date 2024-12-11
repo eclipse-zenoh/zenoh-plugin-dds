@@ -11,6 +11,7 @@
 // Contributors:
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
+#![allow(deprecated)]
 use std::{
     collections::HashMap,
     env,
