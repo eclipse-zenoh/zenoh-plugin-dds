@@ -38,6 +38,13 @@ jobs:
         if: startsWith(matrix.os,'ubuntu')
         run: sudo apt-get -y install libacl1-dev
 
+      - name: Install LLVM toolchain
+        if: startsWith(matrix.os,'macos')
+        run: |
+          brew install llvm@19
+          ls /opt/homebrew/opt/llvm@19/bin
+          echo "/opt/homebrew/opt/llvm@19/bin" >> $GITHUB_PATH
+
       - name: Install Rust toolchain
         run: |
           rustup show
@@ -55,6 +62,9 @@ jobs:
         if: ${{ ! startsWith(matrix.os,'windows') }}
         run: cargo build -p zenoh-plugin-dds --features dds_shm --verbose --all-targets
 
+      - name: Build zenoh-plugin-dds (with prefix_symbols)
+        run: cargo build -p zenoh-plugin-dds --features prefix_symbols --verbose --all-targets
+
       - name: Build zenoh-bridge-dds
         run: cargo build -p zenoh-bridge-dds  --verbose --all-targets
 
@@ -62,8 +72,18 @@ jobs:
         if: ${{ ! startsWith(matrix.os,'windows') }}
         run: cargo build -p zenoh-bridge-dds --features dds_shm  --verbose --all-targets
 
+      - name: Build zenoh-bridge-dds (with prefix_symbols)
+        run: cargo build -p zenoh-bridge-dds --features prefix_symbols  --verbose --all-targets
+
       - name: Run tests
         run: cargo test --verbose
+
+      - name: Run tests (with dds_shm)
+        if: ${{ ! startsWith(matrix.os,'windows') }}
+        run: cargo test --features dds_shm --verbose
+
+      - name: Run tests (with prefix_symbols)
+        run: cargo test --features prefix_symbols --verbose
 
   # NOTE: In GitHub repository settings, the "Require status checks to pass
   # before merging" branch protection rule ensures that commits are only merged

@@ -146,6 +146,24 @@ The following limitations apply to Cyclone DDS shared memory support in the plug
 * When DDS shared memory is enabled the Iceoryx PSMX plugin will be instantiated with the default configuration. If additional configuration is required the Iceoryx plugin should be configured via the `CYCLONEDDS_URI` instead.
 * In forward discovery mode DDS samples will not be forwarded via Zenoh unless the DDS data type is memcpy safe. A data type is memcpy safe if it does not contain indirections.
 
+### DDS Library Symbol Prefixing
+
+DDS support is provided by the [cyclors crate](https://crates.io/crates/cyclors). As this crate contains C code, symbol clashes may occur when loading the plugin statically with other plugins which use a different version of the ```cyclors``` crate (e.g. the ```zenoh-plugin-ros2dds``` plugin).
+
+To allow multiple versions of the ```cyclors``` crate to be loaded at the same time the symbols within the crate can be prefixed with the crate version. The optional ```prefix_symbols``` feature can be used to build the DDS plugin with prefixed DDS library symbols. e.g.
+
+- plugin library:
+```bash
+$ cargo build --release -p zenoh-plugin-dds --features prefix_symbols
+```
+
+- standalone executable binary:
+```bash
+$ cargo build --release -p zenoh-bridge-dds --features prefix_symbols
+```
+
+**Note:** The ```prefix_symbols``` feature cannot be used at the same time as the ```dds_shm``` feature.
+
 ## ROS 2 package
 :warning: **Please consider using [`zenoh-bridge-ros2dds`](https://github.com/eclipse-zenoh/zenoh-plugin-ros2dds) which is dedicated to ROS 2.**
 
