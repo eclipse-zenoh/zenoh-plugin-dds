@@ -30,29 +30,29 @@ pub(crate) fn get_durability_service_or_default(qos: &Qos) -> DurabilityService 
 pub(crate) fn partition_is_empty(partition: &Option<Vec<String>>) -> bool {
     partition
         .as_ref()
-        .map_or(true, |partition| partition.is_empty())
+        .is_none_or(|partition| partition.is_empty())
 }
 
 pub(crate) fn partition_contains(partition: &Option<Vec<String>>, name: &String) -> bool {
     partition
         .as_ref()
-        .map_or(false, |partition| partition.contains(name))
+        .is_some_and(|partition| partition.contains(name))
 }
 
 pub(crate) fn is_writer_reliable(reliability: &Option<Reliability>) -> bool {
-    reliability.as_ref().map_or(true, |reliability| {
-        reliability.kind == ReliabilityKind::RELIABLE
-    })
+    reliability
+        .as_ref()
+        .is_none_or(|reliability| reliability.kind == ReliabilityKind::RELIABLE)
 }
 
 pub(crate) fn is_reader_reliable(reliability: &Option<Reliability>) -> bool {
-    reliability.as_ref().map_or(false, |reliability| {
-        reliability.kind == ReliabilityKind::RELIABLE
-    })
+    reliability
+        .as_ref()
+        .is_some_and(|reliability| reliability.kind == ReliabilityKind::RELIABLE)
 }
 
 pub(crate) fn is_transient_local(qos: &Qos) -> bool {
-    qos.durability.as_ref().map_or(false, |durability| {
-        durability.kind == DurabilityKind::TRANSIENT_LOCAL
-    })
+    qos.durability
+        .as_ref()
+        .is_some_and(|durability| durability.kind == DurabilityKind::TRANSIENT_LOCAL)
 }
