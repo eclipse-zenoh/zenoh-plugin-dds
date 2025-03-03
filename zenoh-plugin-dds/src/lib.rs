@@ -951,7 +951,7 @@ impl<'a> DdsPluginRuntime<'a> {
                             if let Ok(zenoh_id) = keyexpr::new(zid) {
                                 // make all QueryingSubscriber to query this new member
                                 for (zkey, route) in &mut self.routes_to_dds {
-                                    route.query_historical_publications(|| (*KE_PREFIX_ADMIN_SPACE / zenoh_id / *KE_PREFIX_PUB_CACHE / zkey).into(), self.config.queries_timeout).await;
+                                    route.query_historical_publications(|| (zkey / *KE_PREFIX_PUB_CACHE  / zenoh_id).into(), self.config.queries_timeout).await;
                                 }
                             } else {
                                 error!("Can't convert zenoh id '{}' into a KeyExpr", zid);
@@ -1421,7 +1421,7 @@ impl<'a> DdsPluginRuntime<'a> {
                                 }
                                 // make all QueryingSubscriber to query this new member
                                 for (zkey, route) in &mut self.routes_to_dds {
-                                    route.query_historical_publications(|| (*KE_PREFIX_ADMIN_SPACE / zenoh_id / *KE_PREFIX_PUB_CACHE / zkey).into(), self.config.queries_timeout).await;
+                                    route.query_historical_publications(|| (zkey / *KE_PREFIX_PUB_CACHE / zenoh_id).into(), self.config.queries_timeout).await;
                                 }
                             } else {
                                 error!("Can't convert zenoh id '{}' into a KeyExpr", zid);

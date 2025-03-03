@@ -173,8 +173,8 @@ impl RouteZenohDDS<'_> {
 
         // create zenoh subscriber
         let zenoh_subscriber = if querying_subscriber {
-            // query all PublicationCaches on "<KE_PREFIX_PUB_CACHE>/*/<routing_keyexpr>"
-            let query_selector: Selector = (*KE_PREFIX_PUB_CACHE / *KE_ANY_1_SEGMENT / &ke).into();
+            // query all PublicationCaches on "<routing_keyexpr>/<KE_PREFIX_PUB_CACHE>/*"
+            let query_selector: Selector = (&ke / *KE_PREFIX_PUB_CACHE / *KE_ANY_1_SEGMENT).into();
             tracing::debug!(
                     "Route Zenoh->DDS ({} -> {}): query historical data from everybody for TRANSIENT_LOCAL Reader on {}",
                     ke,
