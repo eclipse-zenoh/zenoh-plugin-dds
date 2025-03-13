@@ -34,7 +34,7 @@ async-trait = "0.1.66"
 bincode = "1.3.3"
 cdr = "0.2.4"
 clap = "3.2.23"
-cyclors = { git = "https://github.com/ZettaScaleLabs/iceoryx.git" , branch = "main" }
+cyclors = { git = "https://github.com/ZettaScaleLabs/cyclors.git" , branch = "master" }
 derivative = "2.2.0"
 flume = "0.11.0"
 futures = "0.3.26"
