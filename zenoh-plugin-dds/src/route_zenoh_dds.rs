@@ -114,7 +114,7 @@ where
 }
 
 impl RouteZenohDDS<'_> {
-    pub(crate) async fn new<'a, 'b>(
+    pub(crate) async fn new<'a>(
         plugin: &DdsPluginRuntime<'a>,
         ke: OwnedKeyExpr,
         querying_subscriber: bool,
