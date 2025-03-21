@@ -28,7 +28,7 @@ pub(crate) fn get_durability_service_or_default(qos: &Qos) -> DurabilityService 
 }
 
 pub(crate) fn partition_is_empty(partition: &Option<Vec<String>>) -> bool {
-    #[allow(clippy::unnecessary_map_or)] // Option::is_none_or() doesn't exist in Rust 1.75
+    #[allow(clippy::all)] // Option::is_none_or() doesn't exist in Rust 1.75
     partition
         .as_ref()
         .map_or(true, |partition| partition.is_empty())
@@ -41,7 +41,7 @@ pub(crate) fn partition_contains(partition: &Option<Vec<String>>, name: &String)
 }
 
 pub(crate) fn is_writer_reliable(reliability: &Option<Reliability>) -> bool {
-    #[allow(clippy::unnecessary_map_or)] // Option::is_none_or() doesn't exist in Rust 1.75
+    #[allow(clippy::all)] // Option::is_none_or() doesn't exist in Rust 1.75
     reliability.as_ref().map_or(true, |reliability| {
         reliability.kind == ReliabilityKind::RELIABLE
     })
