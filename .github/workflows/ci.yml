@@ -38,6 +38,12 @@ jobs:
         if: startsWith(matrix.os,'ubuntu')
         run: sudo apt-get -y install libacl1-dev
 
+      # cyclors 0.3.x does not compile with cmake 4
+      - name: Install cmake
+        uses: jwlawson/actions-setup-cmake@v2
+        with: 
+          cmake-version: '3.31.x'
+
       - name: Install LLVM toolchain
         if: startsWith(matrix.os,'macos')
         run: |
@@ -102,6 +108,12 @@ jobs:
       steps:
         - name: Clone this repository
           uses: actions/checkout@v4
+
+        # cyclors 0.3.x does not compile with cmake 4
+        - name: Install cmake
+          uses: jwlawson/actions-setup-cmake@v2
+          with: 
+            cmake-version: '3.31.x'
 
         - name: Update Rust 1.75.0 toolchain
           run: rustup update 1.75.0
