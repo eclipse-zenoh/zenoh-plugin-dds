@@ -135,7 +135,7 @@ const CYCLONEDDS_CONFIG_LOCALHOST_ONLY: &str = r#"<CycloneDDS><Domain><General><
 
 // CycloneDDS' enable-shm: enable usage of Iceoryx PSMX plugin
 #[cfg(feature = "dds_shm")]
-const CYCLONEDDS_CONFIG_ENABLE_SHM: &str = r#"<CycloneDDS><Domain><General><Interfaces><PubSubMessageExchange name="iox" library="psmx_iox" priority="1000000"/></Interfaces></General></Domain></CycloneDDS>,"#;
+const CYCLONEDDS_CONFIG_ENABLE_SHM: &str = r#"<CycloneDDS><Domain><General><Interfaces><PubSubMessageExchange type="iox" library="psmx_iox"/></Interfaces></General></Domain></CycloneDDS>,"#;
 
 const ROS_DISCOVERY_INFO_POLL_INTERVAL_MS: u64 = 500;
 
