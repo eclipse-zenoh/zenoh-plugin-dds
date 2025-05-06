@@ -821,7 +821,9 @@ impl<'a> DdsPluginRuntime<'a> {
                             } else {
                                 for p in entity.qos.partition.as_deref().unwrap() {
                                     let ke = self.topic_to_keyexpr(&entity.topic_name, &self.config.scope, Some(p)).unwrap();
-                                    let route_status = self.try_add_route_from_dds(ke, &entity.topic_name, &entity.type_name, &entity.type_info, entity.keyless, qos.clone(), congestion_ctrl).await;
+                                    let mut qos = qos.clone();
+                                    qos.partition = Some(vec![p.to_string()]);
+                                    let route_status = self.try_add_route_from_dds(ke, &entity.topic_name, &entity.type_name, &entity.type_info, entity.keyless, qos, congestion_ctrl).await;
                                     if let RouteStatus::Routed(ref route_key) = route_status {
                                         if let Some(r) = self.routes_from_dds.get_mut(route_key) {
                                             // if route has been created, add this Writer in its routed_writers list
@@ -883,7 +885,9 @@ impl<'a> DdsPluginRuntime<'a> {
                             } else {
                                 for p in entity.qos.partition.as_deref().unwrap() {
                                     let ke = self.topic_to_keyexpr(&entity.topic_name, &self.config.scope, Some(p)).unwrap();
-                                    let route_status = self.try_add_route_to_dds(ke, &entity.topic_name, &entity.type_name, entity.keyless, is_transient_local(&qos), Some(qos.clone())).await;
+                                    let mut qos = qos.clone();
+                                    qos.partition = Some(vec![p.to_string()]);
+                                    let route_status = self.try_add_route_to_dds(ke, &entity.topic_name, &entity.type_name, entity.keyless, is_transient_local(&qos), Some(qos)).await;
                                     if let RouteStatus::Routed(ref route_key) = route_status {
                                         if let Some(r) = self.routes_to_dds.get_mut(route_key) {
                                             // if route has been created, add this Reader in its routed_readers list
@@ -1241,7 +1245,9 @@ impl<'a> DdsPluginRuntime<'a> {
                                     } else {
                                         for p in entity.qos.partition.as_deref().unwrap() {
                                             let ke = self.topic_to_keyexpr(&entity.topic_name, &scope, Some(p)).unwrap();
-                                            let route_status = self.try_add_route_to_dds(ke, &entity.topic_name, &entity.type_name, entity.keyless, is_transient_local(&qos), Some(qos.clone())).await;
+                                            let mut qos = qos.clone();
+                                            qos.partition = Some(vec![p.to_string()]);
+                                            let route_status = self.try_add_route_to_dds(ke, &entity.topic_name, &entity.type_name, entity.keyless, is_transient_local(&qos), Some(qos)).await;
                                             if let RouteStatus::Routed(ref route_key) = route_status {
                                                 if let Some(r) = self.routes_to_dds.get_mut(route_key) {
                                                     // add the writer's admin keyexpr to the list of remote_routed_writers
@@ -1327,7 +1333,9 @@ impl<'a> DdsPluginRuntime<'a> {
                                     } else {
                                         for p in &entity.qos.partition.unwrap() {
                                             let ke = self.topic_to_keyexpr(&entity.topic_name, &scope, Some(p)).unwrap();
-                                            let route_status = self.try_add_route_from_dds(ke, &entity.topic_name, &entity.type_name, &entity.type_info, entity.keyless, qos.clone(), congestion_ctrl).await;
+                                            let mut qos = qos.clone();
+                                            qos.partition = Some(vec![p.to_string()]);
+                                            let route_status = self.try_add_route_from_dds(ke, &entity.topic_name, &entity.type_name, &entity.type_info, entity.keyless, qos, congestion_ctrl).await;
                                             if let RouteStatus::Routed(ref route_key) = route_status {
                                                 if let Some(r) = self.routes_from_dds.get_mut(route_key) {
                                                     // add the reader's admin keyexpr to the list of remote_routed_writers
