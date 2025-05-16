@@ -549,6 +549,7 @@ impl<'a> DdsPluginRuntime<'a> {
         ke: OwnedKeyExpr,
         topic_name: &str,
         topic_type: &str,
+        type_info: &Option<TypeInfo>,
         keyless: bool,
         is_transient: bool,
         writer_qos: Option<Qos>,
@@ -571,7 +572,7 @@ impl<'a> DdsPluginRuntime<'a> {
             //       (just to declare the Zenoh Subscriber). Thus, try to set a DDS Writer to the route here.
             //       If already set, nothing will happen.
             if let Some(qos) = writer_qos {
-                if let Err(e) = route.set_dds_writer(self.dp, qos) {
+                if let Err(e) = route.set_dds_writer(self.dp, type_info, qos) {
                     error!(
                         "{}: failed to set a DDS Writer after creation: {}",
                         route, e
@@ -596,7 +597,7 @@ impl<'a> DdsPluginRuntime<'a> {
             Ok(route) => {
                 // if writer_qos is set, add a DDS Writer to the route
                 if let Some(qos) = writer_qos {
-                    if let Err(e) = route.set_dds_writer(self.dp, qos) {
+                    if let Err(e) = route.set_dds_writer(self.dp, type_info, qos) {
                         error!(
                             "Route Zenoh->DDS ({} -> {}): creation failed: {}",
                             ke, topic_name, e
@@ -874,7 +875,7 @@ impl<'a> DdsPluginRuntime<'a> {
                             // create 1 route per partition, or just 1 if no partition
                             if partition_is_empty(&entity.qos.partition) {
                                 let ke = self.topic_to_keyexpr(&entity.topic_name, &self.config.scope, None).unwrap();
-                                let route_status = self.try_add_route_to_dds(ke, &entity.topic_name, &entity.type_name, entity.keyless, is_transient_local(&qos), Some(qos)).await;
+                                let route_status = self.try_add_route_to_dds(ke, &entity.topic_name, &entity.type_name, &entity.type_info, entity.keyless, is_transient_local(&qos), Some(qos)).await;
                                 if let RouteStatus::Routed(ref route_key) = route_status {
                                     if let Some(r) = self.routes_to_dds.get_mut(route_key) {
                                         // if route has been created, add this Reader in its routed_readers list
@@ -887,7 +888,7 @@ impl<'a> DdsPluginRuntime<'a> {
                                     let ke = self.topic_to_keyexpr(&entity.topic_name, &self.config.scope, Some(p)).unwrap();
                                     let mut qos = qos.clone();
                                     qos.partition = Some(vec![p.to_string()]);
-                                    let route_status = self.try_add_route_to_dds(ke, &entity.topic_name, &entity.type_name, entity.keyless, is_transient_local(&qos), Some(qos)).await;
+                                    let route_status = self.try_add_route_to_dds(ke, &entity.topic_name, &entity.type_name, &entity.type_info, entity.keyless, is_transient_local(&qos), Some(qos)).await;
                                     if let RouteStatus::Routed(ref route_key) = route_status {
                                         if let Some(r) = self.routes_to_dds.get_mut(route_key) {
                                             // if route has been created, add this Reader in its routed_readers list
@@ -1113,7 +1114,7 @@ impl<'a> DdsPluginRuntime<'a> {
                             // create 1 route per partition, or just 1 if no partition
                             if partition_is_empty(&entity.qos.partition) {
                                 let ke = self.topic_to_keyexpr(&entity.topic_name, &self.config.scope, None).unwrap();
-                                let route_status = self.try_add_route_to_dds(ke, &entity.topic_name, &entity.type_name, entity.keyless, is_transient_local(&entity.qos), None).await;
+                                let route_status = self.try_add_route_to_dds(ke, &entity.topic_name, &entity.type_name, &entity.type_info, entity.keyless, is_transient_local(&entity.qos), None).await;
                                 if let RouteStatus::Routed(ref route_key) = route_status {
                                     if let Some(r) = self.routes_to_dds.get_mut(route_key) {
                                         // if route has been created, add this Reader in its routed_readers list
@@ -1124,7 +1125,7 @@ impl<'a> DdsPluginRuntime<'a> {
                             } else {
                                 for p in entity.qos.partition.as_deref().unwrap() {
                                     let ke = self.topic_to_keyexpr(&entity.topic_name, &self.config.scope, Some(p)).unwrap();
-                                    let route_status = self.try_add_route_to_dds(ke, &entity.topic_name, &entity.type_name, entity.keyless, is_transient_local(&entity.qos), None).await;
+                                    let route_status = self.try_add_route_to_dds(ke, &entity.topic_name, &entity.type_name, &entity.type_info, entity.keyless, is_transient_local(&entity.qos), None).await;
                                     if let RouteStatus::Routed(ref route_key) = route_status {
                                         if let Some(r) = self.routes_to_dds.get_mut(route_key) {
                                             // if route has been created, add this Reader in its routed_readers list
@@ -1228,7 +1229,7 @@ impl<'a> DdsPluginRuntime<'a> {
                                     // create 1 "to_dds" route per partition, or just 1 if no partition
                                     if partition_is_empty(&entity.qos.partition) {
                                         let ke = self.topic_to_keyexpr(&entity.topic_name, &scope, None).unwrap();
-                                        let route_status = self.try_add_route_to_dds(ke, &entity.topic_name, &entity.type_name, entity.keyless, is_transient_local(&qos), Some(qos)).await;
+                                        let route_status = self.try_add_route_to_dds(ke, &entity.topic_name, &entity.type_name, &entity.type_info, entity.keyless, is_transient_local(&qos), Some(qos)).await;
                                         if let RouteStatus::Routed(ref route_key) = route_status {
                                             if let Some(r) = self.routes_to_dds.get_mut(route_key) {
                                                 // add the writer's admin keyexpr to the list of remote_routed_writers
@@ -1247,7 +1248,7 @@ impl<'a> DdsPluginRuntime<'a> {
                                             let ke = self.topic_to_keyexpr(&entity.topic_name, &scope, Some(p)).unwrap();
                                             let mut qos = qos.clone();
                                             qos.partition = Some(vec![p.to_string()]);
-                                            let route_status = self.try_add_route_to_dds(ke, &entity.topic_name, &entity.type_name, entity.keyless, is_transient_local(&qos), Some(qos)).await;
+                                            let route_status = self.try_add_route_to_dds(ke, &entity.topic_name, &entity.type_name, &entity.type_info, entity.keyless, is_transient_local(&qos), Some(qos)).await;
                                             if let RouteStatus::Routed(ref route_key) = route_status {
                                                 if let Some(r) = self.routes_to_dds.get_mut(route_key) {
                                                     // add the writer's admin keyexpr to the list of remote_routed_writers

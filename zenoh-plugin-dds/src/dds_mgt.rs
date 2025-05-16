@@ -477,7 +477,7 @@ pub(crate) fn create_forwarding_dds_reader(
     congestion_ctrl: CongestionControl,
 ) -> Result<dds_entity_t, String> {
     unsafe {
-        let t = create_topic(dp, &topic_name, &type_name, type_info, keyless);
+        let t = create_topic(dp, &topic_name, &type_name, type_info, keyless)?;
 
         match read_period {
             None => {
@@ -583,11 +583,11 @@ unsafe fn create_topic(
     type_name: &str,
     type_info: &Option<TypeInfo>,
     keyless: bool,
-) -> dds_entity_t {
+) -> Result<dds_entity_t, String> {
     let cton = CString::new(topic_name.to_owned()).unwrap().into_raw();
     let ctyn = CString::new(type_name.to_owned()).unwrap().into_raw();
 
-    match type_info {
+    let topic: dds_entity_t = match type_info {
         None => cdds_create_blob_topic(dp, cton, ctyn, keyless),
         Some(type_info) => {
             let mut descriptor: *mut dds_topic_descriptor_t = std::ptr::null_mut();
@@ -599,14 +599,25 @@ unsafe fn create_topic(
                 500000000,
                 &mut descriptor,
             );
-            let mut topic: dds_entity_t = 0;
             if ret == (DDS_RETCODE_OK as i32) {
-                topic = dds_create_topic(dp, descriptor, cton, std::ptr::null(), std::ptr::null());
-                assert!(topic >= 0);
+                let topic =
+                    dds_create_topic(dp, descriptor, cton, std::ptr::null(), std::ptr::null());
                 dds_delete_topic_descriptor(descriptor);
+                topic
+            } else {
+                ret
             }
-            topic
         }
+    };
+    if topic < 0 {
+        Err(format!(
+            "Error creating DDS Topic: {}",
+            CStr::from_ptr(dds_strretcode(-topic))
+                .to_str()
+                .unwrap_or("unrecoverable DDS retcode")
+        ))
+    } else {
+        Ok(topic)
     }
 }
 
@@ -614,14 +625,12 @@ pub fn create_forwarding_dds_writer(
     dp: dds_entity_t,
     topic_name: String,
     type_name: String,
+    type_info: &Option<TypeInfo>,
     keyless: bool,
     mut qos: Qos,
 ) -> Result<dds_entity_t, String> {
-    let cton = CString::new(topic_name).unwrap().into_raw();
-    let ctyn = CString::new(type_name).unwrap().into_raw();
-
     unsafe {
-        let t = cdds_create_blob_topic(dp, cton, ctyn, keyless);
+        let t = create_topic(dp, &topic_name, &type_name, type_info, keyless)?;
 
         // force RELIABLE QoS for Writers (#165)
         if let Some(qos::Reliability {
