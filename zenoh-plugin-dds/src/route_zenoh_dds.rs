@@ -228,6 +228,7 @@ impl RouteZenohDDS<'_> {
     pub(crate) fn set_dds_writer(
         &self,
         data_participant: dds_entity_t,
+        type_info: &Option<TypeInfo>,
         writer_qos: Qos,
     ) -> Result<(), String> {
         // check if dds_writer was already set
@@ -239,6 +240,7 @@ impl RouteZenohDDS<'_> {
                 data_participant,
                 self.topic_name.clone(),
                 self.topic_type.clone(),
+                type_info,
                 self.keyless,
                 writer_qos,
             )?;
