@@ -950,8 +950,7 @@ dependencies = [
 [[package]]
 name = "cyclors"
 version = "0.3.8"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f892085bc742f998f278954e6747c17ae0315b4b03130ff672655ca0ad01f936"
+source = "git+https://github.com/ZettaScaleLabs/cyclors.git?branch=zenoh-plugin-dds-516#7c51ea12a84735c590d28961117e70fba3a38090"
 dependencies = [
  "bincode",
  "bindgen",
