@@ -544,6 +544,7 @@ impl<'a> DdsPluginRuntime<'a> {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     async fn try_add_route_to_dds(
         &mut self,
         ke: OwnedKeyExpr,
