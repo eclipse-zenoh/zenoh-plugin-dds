@@ -950,7 +950,7 @@ dependencies = [
 [[package]]
 name = "cyclors"
 version = "0.3.8"
-source = "git+https://github.com/ZettaScaleLabs/cyclors.git?branch=zenoh-plugin-dds-516#7c51ea12a84735c590d28961117e70fba3a38090"
+source = "git+https://github.com/ZettaScaleLabs/cyclors.git?branch=zenoh-plugin-dds-516#2a1e65cd81b019289601a6f48a910ff837ecf288"
 dependencies = [
  "bincode",
  "bindgen",
