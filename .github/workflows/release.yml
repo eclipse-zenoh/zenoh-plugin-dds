@@ -57,8 +57,8 @@ jobs:
             # Extract the version from the latest tag
             version=$(git describe --tags)
             zenoh_version=$(git describe --tags --abbrev=0)
-            echo 'version="${version}"' >> $GITHUB_OUTPUT
-            echo 'zenoh-version="${zenoh_version}"' >> $GITHUB_OUTPUT
+            echo "version=$version" >> $GITHUB_OUTPUT
+            echo "zenoh-version=$zenoh_version" >> $GITHUB_OUTPUT
           fi
 
   tag:
