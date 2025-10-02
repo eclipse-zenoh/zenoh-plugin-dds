@@ -36,21 +36,47 @@ on:
         required: false
 
 jobs:
+  version:
+    name: Compute version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      zenoh-version: ${{ steps.version.outputs.zenoh-version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch all history for all tags and branches
+
+      - id: version
+        name: Compute version
+        run: |
+          if [ -n "${{ inputs.version && inputs.zenoh-version }}" ]; then
+            echo 'version="${{ inputs.version }}"' >> $GITHUB_OUTPUT
+            echo 'zenoh-version="${{ inputs.zenoh-version }}"' >> $GITHUB_OUTPUT
+          else
+            # Extract the version from the latest tag
+            version=$(git describe --tags)
+            zenoh-version=$(git describe --tags --abbrev=0)
+            echo 'version="${version}"' >> $GITHUB_OUTPUT
+            echo 'zenoh-version="${zenoh-version}"' >> $GITHUB_OUTPUT
+          fi
+
   tag:
     name: Branch, Bump & tag crates
+    needs: version
     uses: eclipse-zenoh/ci/.github/workflows/branch-bump-tag-crates.yml@main
     with:
       repo: ${{ github.repository }}
       live-run: ${{ inputs.live-run || false }}
-      version: ${{ inputs.version }}
+      version: ${{ needs.version.outputs.version }}
       branch: ${{ inputs.branch }}
       bump-deps-version: |
-        ${{ inputs.version }}
-        ${{ inputs.zenoh-version }}
+        ${{ needs.version.outputs.version }}
+        ${{ needs.version.outputs.zenoh-version }}
       bump-deps-pattern: |
         ^zenoh-plugin-dds$
-        ${{ inputs.zenoh-version && 'zenoh.*' || '' }}
-      bump-deps-branch: ${{ inputs.zenoh-version && format('release/{0}', inputs.zenoh-version) || '' }}
+        ${{ needs.version.outputs.zenoh-version && 'zenoh.*' || '' }}
+      bump-deps-branch: ${{ needs.version.outputs.version  && format('release/{0}', needs.version.outputs.version) || '' }}
     secrets: inherit
 
   build-debian:
