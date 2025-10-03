@@ -75,7 +75,7 @@ jobs:
         ${{ needs.version.outputs.zenoh-version }}
       bump-deps-pattern: |
         ^zenoh-plugin-dds$
-        ${{ needs.version.outputs.zenoh-version && 'zenoh.*' || '' }}
+        ^zenoh(?!-plugin-dds)[a-zA-Z0-9-_]*$
       bump-deps-branch: ${{ needs.version.outputs.version  && format('release/{0}', needs.version.outputs.version) || '' }}
     secrets: inherit
 
