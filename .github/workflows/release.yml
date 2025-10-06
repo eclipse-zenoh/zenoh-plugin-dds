@@ -41,7 +41,8 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
-      zenoh-version: ${{ steps.version.outputs.zenoh-version }}
+      bump-deps-version: ${{ steps.version.outputs.bump-deps-version }}
+      bump-deps-pattern: ${{ steps.version.outputs.bump-deps-pattern }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -51,14 +52,15 @@ jobs:
         name: Compute version
         run: |
           if [ -n "${{ inputs.version && inputs.zenoh-version }}" ]; then
-            echo 'version="${{ inputs.version }}"' >> $GITHUB_OUTPUT
-            echo 'zenoh-version="${{ inputs.zenoh-version }}"' >> $GITHUB_OUTPUT
+            printf 'version=${{ inputs.version }}' >> $GITHUB_OUTPUT
+            printf 'bump-deps-version="${{ inputs.version }}\n${{ inputs.zenoh-version }}\n"' >> $GITHUB_OUTPUT
+            printf 'bump-deps-pattern=^zenoh-plugin-dds$\n^zenoh(?!-plugin-dds)[a-zA-Z0-9-_]*$\n' >> $GITHUB_OUTPUT'
           else
             # Extract the version from the latest tag
             version=$(git describe --tags)
-            zenoh_version=$(git describe --tags --abbrev=0)
-            echo "version=$version" >> $GITHUB_OUTPUT
-            echo "zenoh-version=$zenoh_version" >> $GITHUB_OUTPUT
+            printf 'version=$version' >> $GITHUB_OUTPUT
+            printf "bump-deps-version=$version\n" >> $GITHUB_OUTPUT
+            printf 'bump-deps-pattern=^zenoh-plugin-dds$\n' >> $GITHUB_OUTPUT
           fi
 
   tag:
@@ -71,11 +73,9 @@ jobs:
       version: ${{ needs.version.outputs.version }}
       branch: ${{ inputs.branch }}
       bump-deps-version: |
-        ${{ needs.version.outputs.version }}
-        ${{ needs.version.outputs.zenoh-version }}
+        ${{ needs.version.outputs.bump-deps-version }}
       bump-deps-pattern: |
-        ^zenoh-plugin-dds$
-        ^zenoh(?!-plugin-dds)[a-zA-Z0-9-_]*$
+        ${{ needs.version.outputs.bump-deps-pattern }}
       bump-deps-branch: ${{ needs.version.outputs.version  && format('release/{0}', needs.version.outputs.version) || '' }}
     secrets: inherit
 
