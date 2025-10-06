@@ -51,16 +51,16 @@ jobs:
       - id: version
         name: Compute version
         run: |
-          if [ -n "${{ inputs.version && inputs.zenoh-version }}" ]; then
-            printf 'version=${{ inputs.version }}' >> $GITHUB_OUTPUT
-            printf 'bump-deps-version="${{ inputs.version }}\n${{ inputs.zenoh-version }}\n"' >> $GITHUB_OUTPUT
-            printf 'bump-deps-pattern=^zenoh-plugin-dds$\n^zenoh(?!-plugin-dds)[a-zA-Z0-9-_]*$\n' >> $GITHUB_OUTPUT'
+          if [ -n "${{ inputs.version }}" ] && [ -n "${{ inputs.zenoh-version }}" ]; then
+            printf "version=%s\n" "${{ inputs.version }}" >> $GITHUB_OUTPUT
+            printf "bump-deps-version=%s\n%s\n" "${{inputs.version }}" "${{ inputs.zenoh-version }}" >> $GITHUB_OUTPUT
+            printf "bump-deps-pattern=^zenoh-plugin-dds$\n^zenoh(?!-plugin-dds)[a-zA-Z0-9-_]*$\n" >> $GITHUB_OUTPUT
           else
             # Extract the version from the latest tag
             version=$(git describe --tags)
-            printf 'version=$version' >> $GITHUB_OUTPUT
-            printf 'bump-deps-version=$version\n' >> $GITHUB_OUTPUT
-            printf 'bump-deps-pattern=^zenoh-plugin-dds$\n' >> $GITHUB_OUTPUT
+            printf "version=%s\n" "$version" >> $GITHUB_OUTPUT
+            printf "bump-deps-version=%s\n" "$version" >> $GITHUB_OUTPUT
+            printf "bump-deps-pattern=^zenoh-plugin-dds$\n" >> $GITHUB_OUTPUT
           fi
 
   tag:
