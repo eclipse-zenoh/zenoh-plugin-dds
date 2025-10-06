@@ -59,7 +59,7 @@ jobs:
             # Extract the version from the latest tag
             version=$(git describe --tags)
             printf 'version=$version' >> $GITHUB_OUTPUT
-            printf "bump-deps-version=$version\n" >> $GITHUB_OUTPUT
+            printf 'bump-deps-version=$version\n' >> $GITHUB_OUTPUT
             printf 'bump-deps-pattern=^zenoh-plugin-dds$\n' >> $GITHUB_OUTPUT
           fi
 
