@@ -53,8 +53,16 @@ jobs:
         run: |
           if [ -n "${{ inputs.version }}" ] && [ -n "${{ inputs.zenoh-version }}" ]; then
             printf "version=%s\n" "${{ inputs.version }}" >> $GITHUB_OUTPUT
-            printf "bump-deps-version=%s\n%s\n" "${{inputs.version }}" "${{ inputs.zenoh-version }}" >> $GITHUB_OUTPUT
-            printf "bump-deps-pattern=^zenoh-plugin-dds$\n^zenoh(?!-plugin-dds)[a-zA-Z0-9-_]*$\n" >> $GITHUB_OUTPUT
+            {
+              echo 'bump-deps-version<<EOF'
+              printf "%s\n%s\n" "${{inputs.version }}" "${{ inputs.zenoh-version }}"
+              echo EOF
+            } >> $GITHUB_OUTPUT
+            {
+              echo 'bump-deps-pattern<<EOF'
+              printf "^zenoh-plugin-dds$\n^zenoh(?!-plugin-dds)[a-zA-Z0-9-_]*$\n"
+              echo EOF
+            } >> $GITHUB_OUTPUT
           else
             # Extract the version from the latest tag
             version=$(git describe --tags)
