@@ -71,6 +71,10 @@ jobs:
       - name: Build zenoh-plugin-dds (with prefix_symbols)
         run: cargo build -p zenoh-plugin-dds --features prefix_symbols --verbose --all-targets
 
+      - name: Build zenoh-plugin-dds (with dds_security)
+        if: ${{ ! startsWith(matrix.os,'windows') }}
+        run: cargo build -p zenoh-plugin-dds --features dds_security --verbose --all-targets
+
       - name: Build zenoh-bridge-dds
         run: cargo build -p zenoh-bridge-dds  --verbose --all-targets
 
@@ -81,6 +85,10 @@ jobs:
       - name: Build zenoh-bridge-dds (with prefix_symbols)
         run: cargo build -p zenoh-bridge-dds --features prefix_symbols  --verbose --all-targets
 
+      - name: Build zenoh-bridge-dds (with dds_security)
+        if: ${{ ! startsWith(matrix.os,'windows') }}
+        run: cargo build -p zenoh-bridge-dds --features dds_security  --verbose --all-targets
+
       - name: Run tests
         run: cargo test --verbose
 
@@ -90,6 +98,10 @@ jobs:
 
       - name: Run tests (with prefix_symbols)
         run: cargo test --features prefix_symbols --verbose
+
+      - name: Run tests (with dds_security)
+        if: ${{ ! startsWith(matrix.os,'windows') }}
+        run: cargo test --features dds_security --verbose
 
   markdown_lint:
     runs-on: ubuntu-latest
