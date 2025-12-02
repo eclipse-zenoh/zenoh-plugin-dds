@@ -175,6 +175,26 @@ cargo build --release -p zenoh-bridge-dds --features prefix_symbols
 
 **Note:** The ```prefix_symbols``` feature cannot be used at the same time as the ```dds_shm``` feature.
 
+### Enabling DDS Security Support
+
+To build the zenoh bridge for DDS with support for DDS Security the `dds_security` optional feature must be enabled during the build process as follows:
+
+- plugin library:
+
+```bash
+cargo build --release -p zenoh-plugin-dds --features dds_security
+```
+
+- standalone executable binary:
+
+```bash
+cargo build --release -p zenoh-bridge-dds --features dds_security
+```
+
+**Note:** DDS Security is only supported on Linux and macOS.
+
+See [here](https://cyclonedds.io/docs/cyclonedds/latest/security/dds_security.html) for more information on DDS Security support in Cyclone DDS.
+
 ## ROS 2 package
 
 :warning: **Please consider using [`zenoh-bridge-ros2dds`](https://github.com/eclipse-zenoh/zenoh-plugin-ros2dds) which is dedicated to ROS 2.**

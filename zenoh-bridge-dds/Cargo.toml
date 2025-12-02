@@ -24,6 +24,7 @@ description = "Zenoh bridge for ROS2 and DDS in general"
 publish = false
 
 [features]
+dds_security = ["zenoh-plugin-dds/dds_security"]
 dds_shm = ["zenoh-plugin-dds/dds_shm"]
 prefix_symbols = ["zenoh-plugin-dds/prefix_symbols"]
 
