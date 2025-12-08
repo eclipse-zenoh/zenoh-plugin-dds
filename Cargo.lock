@@ -5296,7 +5296,7 @@ dependencies = [
 
 [[package]]
 name = "zenoh-bridge-dds"
-version = "1.6.2"
+version = "1.6.2-32-g6ec16ad"
 dependencies = [
  "async-liveliness-monitor",
  "clap",
@@ -5635,7 +5635,7 @@ dependencies = [
 
 [[package]]
 name = "zenoh-plugin-dds"
-version = "1.6.2"
+version = "1.6.2-32-g6ec16ad"
 dependencies = [
  "async-trait",
  "bincode",
