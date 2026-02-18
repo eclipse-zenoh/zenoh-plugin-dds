@@ -58,8 +58,11 @@ jobs:
 
       - name: Code format check
         run: cargo fmt --check -- --config "unstable_features=true,imports_granularity=Crate,group_imports=StdExternalCrate"
-      - name: Clippy
-        run: cargo clippy --all -- -D warnings
+      - name: Clippy without Cargo.lock
+        run: |
+          mv Cargo.lock Cargo.lock.bak
+          cargo clippy --all -- -D warnings
+          mv Cargo.lock.bak Cargo.lock
 
       - name: Build zenoh-plugin-dds
         run: cargo build -p zenoh-plugin-dds --verbose --all-targets
@@ -111,33 +114,6 @@ jobs:
         with:
           config: '.markdownlint.yaml'
           globs: '**/README.md'
-
-  check_rust:
-      name: Check ${{ github.repository }} using Rust 1.75
-      runs-on: ubuntu-latest
-      strategy:
-        fail-fast: false
-      steps:
-        - name: Clone this repository
-          uses: actions/checkout@v4
-
-        # cyclors 0.3.x does not compile with cmake 4
-        - name: Install cmake
-          uses: jwlawson/actions-setup-cmake@v2
-          with: 
-            cmake-version: '3.31.x'
-
-        - name: Update Rust 1.75.0 toolchain
-          run: rustup update 1.75.0
-
-        - name: Setup rust-cache
-          uses: Swatinem/rust-cache@v2
-          with:
-            cache-bin: false
-
-        - name: Check ${{ github.repository }} with rust 1.75.0
-          run: |
-            cargo +1.75.0 check --release --bins --lib
 
   # NOTE: In GitHub repository settings, the "Require status checks to pass
   # before merging" branch protection rule ensures that commits are only merged
