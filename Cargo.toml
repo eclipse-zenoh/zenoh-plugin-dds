@@ -61,7 +61,6 @@ zenoh-plugin-rest = { version = "1.7.2", default-features = false, features = [
   "static_plugin",
 ], git = "https://github.com/eclipse-zenoh/zenoh.git" , branch = "ci/zenoh_1_75" }
 zenoh-plugin-trait = { version = "1.7.2", default-features = false, git = "https://github.com/eclipse-zenoh/zenoh.git" , branch = "ci/zenoh_1_75" }
-zenoh-pinned-deps-1-75 = { version = "1.7.2", default-features = false, git = "https://github.com/eclipse-zenoh/zenoh.git" , branch = "ci/zenoh_1_75" }
 
 [profile.release]
 codegen-units = 1
