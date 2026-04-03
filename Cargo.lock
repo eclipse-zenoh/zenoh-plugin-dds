@@ -5479,7 +5479,7 @@ dependencies = [
 
 [[package]]
 name = "zenoh-bridge-dds"
-version = "1.8.0"
+version = "1.8.0-18-g6b3b9a6"
 dependencies = [
  "async-liveliness-monitor",
  "clap",
@@ -5819,7 +5819,7 @@ dependencies = [
 
 [[package]]
 name = "zenoh-plugin-dds"
-version = "1.8.0"
+version = "1.8.0-18-g6b3b9a6"
 dependencies = [
  "async-trait",
  "bincode",
