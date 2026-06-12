@@ -41,8 +41,8 @@ jobs:
       # cyclors 0.3.x does not compile with cmake 4
       - name: Install cmake
         uses: jwlawson/actions-setup-cmake@v2
-        with: 
-          cmake-version: '3.31.x'
+        with:
+          cmake-version: "3.31.x"
 
       - name: Install LLVM toolchain
         if: startsWith(matrix.os,'macos')
@@ -112,8 +112,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: DavidAnson/markdownlint-cli2-action@v18
         with:
-          config: '.markdownlint.yaml'
-          globs: '**/README.md'
+          config: ".markdownlint.yaml"
+          globs: "**/README.md"
 
   # NOTE: In GitHub repository settings, the "Require status checks to pass
   # before merging" branch protection rule ensures that commits are only merged
