@@ -26,7 +26,6 @@ pub const DEFAULT_WORK_THREAD_NUM: usize = 2;
 pub const DEFAULT_MAX_BLOCK_THREAD_NUM: usize = 50;
 
 #[derive(Deserialize, Debug)]
-#[serde(deny_unknown_fields)]
 pub struct Config {
     #[serde(default)]
     pub scope: Option<OwnedKeyExpr>,
