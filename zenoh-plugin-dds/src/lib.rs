@@ -1542,18 +1542,26 @@ impl<'a> DdsPluginRuntime<'a> {
             // publication on a key expression matching the fwd_ke: ignore it
             return None;
         }
-        let kind = if let Some(i) = remaining.find("/reader/") {
-            remaining = &remaining[i + 8..];
-            "reader"
-        } else if let Some(i) = remaining.find("/writer/") {
-            remaining = &remaining[i + 8..];
-            "writer"
-        } else if let Some(i) = remaining.find("/ros_disco/") {
-            remaining = &remaining[i + 11..];
-            "ros_disco"
-        } else {
-            error!("Unexpected forwarded discovery message received on invalid key: {} (no expected kind '/reader/', '/writer/' or '/ros_disco/')", fwd_ke);
-            return None;
+        // the kind is the first "reader", "writer" or "ros_disco" segment after KE_PREFIX_FWD_DISCO and the scope.
+        // Look at whole segments in order, as the topic name in the remaining keyexpr might contain such segments.
+        let mut offset = 0;
+        let mut found_kind = None;
+        for segment in remaining.split('/') {
+            offset += segment.len() + 1;
+            if matches!(segment, "reader" | "writer" | "ros_disco") {
+                found_kind = Some(segment);
+                break;
+            }
+        }
+        let kind = match (found_kind, remaining.get(offset..)) {
+            (Some(kind), Some(rest)) => {
+                remaining = rest;
+                kind
+            }
+            _ => {
+                error!("Unexpected forwarded discovery message received on invalid key: {} (no expected kind '/reader/', '/writer/' or '/ros_disco/')", fwd_ke);
+                return None;
+            }
         };
         Some((uuid, kind, unsafe {
             keyexpr::from_str_unchecked(remaining)
@@ -1780,5 +1788,57 @@ impl Timed for ChannelEvent {
         if self.tx.send(()).is_err() {
             warn!("Error sending periodic timer notification on channel");
         };
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use zenoh::key_expr::keyexpr;
+
+    use super::DdsPluginRuntime;
+
+    fn parse(ke: &str) -> Option<(&str, &str, &str)> {
+        DdsPluginRuntime::parse_fwd_discovery_keyexpr(keyexpr::new(ke).unwrap())
+            .map(|(uuid, kind, remaining)| (uuid.as_str(), kind, remaining.as_str()))
+    }
+
+    #[test]
+    fn test_parse_fwd_discovery_keyexpr() {
+        assert_eq!(
+            parse("@/UUID/@dds_fwd_disco/writer/participant/P/writer/W/rt/chatter"),
+            Some(("UUID", "writer", "participant/P/writer/W/rt/chatter"))
+        );
+        assert_eq!(
+            parse("@/UUID/@dds_fwd_disco/my/scope/reader/participant/P/reader/R/rt/chatter"),
+            Some(("UUID", "reader", "participant/P/reader/R/rt/chatter"))
+        );
+        assert_eq!(
+            parse("@/UUID/@dds_fwd_disco/ros_disco/GID"),
+            Some(("UUID", "ros_disco", "GID"))
+        );
+        assert_eq!(parse("@/UUID/@dds_fwd_disco/unknown/GID"), None);
+        assert_eq!(parse("@/UUID/@dds_fwd_disco/ros_disco"), None);
+    }
+
+    #[test]
+    fn test_parse_fwd_discovery_keyexpr_kind_in_topic_name() {
+        // A topic name containing a "reader", "writer" or "ros_disco" segment
+        // must not change the discovery kind.
+        assert_eq!(
+            parse("@/UUID/@dds_fwd_disco/writer/participant/P/writer/W/rt/rfid/reader/tags"),
+            Some((
+                "UUID",
+                "writer",
+                "participant/P/writer/W/rt/rfid/reader/tags"
+            ))
+        );
+        assert_eq!(
+            parse("@/UUID/@dds_fwd_disco/reader/participant/P/reader/R/rt/ros_disco/state"),
+            Some((
+                "UUID",
+                "reader",
+                "participant/P/reader/R/rt/ros_disco/state"
+            ))
+        );
     }
 }
